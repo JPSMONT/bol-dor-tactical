@@ -205,6 +205,22 @@ canvas{display:block}
 .rival-target.found .rival-target-name{color:var(--acc2)}
 .rival-target.missing .rival-target-name{color:var(--tx3)}
 .rival-target.missing .rival-target-dot{opacity:.3}
+.rival-target[onclick]{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.rival-target[onclick]:hover{background:rgba(255,255,255,.03)}
+.rival-target.off .rival-target-name,.rival-target.off .rival-target-meta,.rival-target.off .rival-target-tcf{opacity:.4}
+.rival-target.off .rival-target-dot{opacity:.25}
+.rival-target-eye{font-size:14px;color:var(--acc2);width:18px;text-align:center}
+.rival-target.off .rival-target-eye{color:var(--tx3)}
+/* Sector-rank table */
+.sec-table{width:100%;font-size:11px;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.sec-table th{text-align:left;color:var(--tx3);font-weight:700;padding:6px 4px;border-bottom:1px solid var(--bg3);font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+.sec-table th .sec-sub{font-size:9px;color:var(--tx3);text-transform:none;letter-spacing:0;font-weight:500;display:block;margin-top:1px}
+.sec-table td{padding:6px 4px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--tx)}
+.sec-table tr.dim td{color:var(--tx3);opacity:.55}
+.sec-table td.sec-dash{color:var(--tx3);text-align:center}
+.sec-table td.sec-leader{color:var(--acc2);font-weight:700}
+.sec-delta{color:var(--tx3);font-size:10px;font-weight:500}
+.sec-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -417,6 +433,11 @@ canvas{display:block}
         <div id="rivalStatus" class="rival-status">Tap a year above to load competitor tracks (~400 boats per year).</div>
         <div id="rivalMap"></div>
         <div id="rivalLegend"></div>
+      </div>
+      <div class="card" id="rivalRanksCard" style="display:none">
+        <div class="card-title">Head-to-head — sector times &amp; distance to Bouveret</div>
+        <div id="rivalRanks"></div>
+        <div id="rivalChart" style="margin-top:14px"></div>
       </div>
       <div class="card">
         <div class="card-title">Primary targets — PRD §4.1</div>
@@ -1707,9 +1728,16 @@ var rivalMap = null;
 var rivalAllTracksLayer = null;
 var rivalTargetsLayer = null;
 var rivalTargetMarkersLayer = null;
+var rivalManoeuvreLayer = null;
 var rivalDataByYear = {};       // {raceCode: [{name, points:[{ts,lat,lon}]}]}
 var currentRivalYear = null;
 var rivalsInitialFitDone = false;
+// Per-target visibility — defaults to all on
+var rivalVisible = (function(){
+  var o = {};
+  RIVAL_TARGETS.forEach(function(t){ o[t.key] = true; });
+  return o;
+})();
 
 function showRivals() {
   if(!rivalMap) initRivalMap();
@@ -1739,8 +1767,35 @@ function initRivalMap() {
   }).addTo(rivalMap);
   rivalAllTracksLayer = L.layerGroup().addTo(rivalMap);
   rivalTargetsLayer = L.layerGroup().addTo(rivalMap);
+  rivalManoeuvreLayer = L.layerGroup().addTo(rivalMap);
   rivalTargetMarkersLayer = L.layerGroup().addTo(rivalMap);
   rivalMap.fitBounds([[46.195, 6.13], [46.52, 6.95]], {padding:[6,6]});
+}
+
+// PRD §10.1 — Tack/gybe = heading change >60° within ~2 min
+function detectManoeuvres(boat) {
+  var pts = boat.points;
+  if(!pts || pts.length < 3) return [];
+  var marks = [];
+  var i = 1;
+  while(i < pts.length - 1) {
+    var inD = haversineNM(pts[i-1].lat, pts[i-1].lon, pts[i].lat, pts[i].lon);
+    var outD = haversineNM(pts[i].lat, pts[i].lon, pts[i+1].lat, pts[i+1].lon);
+    if(inD < 0.027 || outD < 0.027) { i++; continue; }   // skip GPS jitter (<50 m segment)
+    var inH = bearingDeg(pts[i-1].lat, pts[i-1].lon, pts[i].lat, pts[i].lon);
+    var outH = bearingDeg(pts[i].lat, pts[i].lon, pts[i+1].lat, pts[i+1].lon);
+    var dh = (((outH - inH) + 540) % 360) - 180;
+    if(Math.abs(dh) > 60) {
+      var dt = (pts[i+1].ts && pts[i-1].ts) ? (pts[i+1].ts - pts[i-1].ts) : null;
+      if(dt == null || dt < 240000) {                     // ≤4 min covers spec generously
+        marks.push({lat:pts[i].lat, lon:pts[i].lon, delta:Math.round(dh), ts:pts[i].ts});
+        i += 3;                                           // anti-bunch consecutive points
+        continue;
+      }
+    }
+    i++;
+  }
+  return marks;
 }
 
 // ===== KMZ / KML parsing (PRD §15 KMZ parser) =====
@@ -1877,6 +1932,8 @@ function loadRaceYear(raceCode) {
     setYearButton(raceCode, 'on');
     if(reload) reload.style.display = '';
     renderRivalTargetsList();
+    renderSectorRanks(raceCode);
+    renderDistanceChart(raceCode);
   };
 
   // Use cache if we already loaded this year
@@ -1905,6 +1962,7 @@ function renderRivalTracks(raceCode) {
   rivalAllTracksLayer.clearLayers();
   rivalTargetsLayer.clearLayers();
   rivalTargetMarkersLayer.clearLayers();
+  if(rivalManoeuvreLayer) rivalManoeuvreLayer.clearLayers();
 
   var boats = rivalDataByYear[raceCode] || [];
   var bounds = null;
@@ -1923,15 +1981,14 @@ function renderRivalTracks(raceCode) {
   boats.forEach(function(b){
     var rival = findRivalForName(b.name);
     if(!rival) return;
+    if(!rivalVisible[rival.key]) return;        // honour user toggle
     var coords = b.points.map(function(p){ return [p.lat, p.lon]; });
     if(coords.length < 2) return;
     var pl = L.polyline(coords, {
       color: rival.color, weight: 2.5, opacity: 0.95, smoothFactor: 1.5
     });
     pl.bindTooltip(rival.skipper + ' · ' + b.name, {sticky:true, className:'lake-tip'});
-    pl.on('click', function(){
-      pl.openTooltip();
-    });
+    pl.on('click', function(){ pl.openTooltip(); });
     pl.addTo(rivalTargetsLayer);
     // Start-point marker
     var start = coords[0];
@@ -1942,6 +1999,22 @@ function renderRivalTracks(raceCode) {
     });
     L.marker(start, {icon: startIcon, interactive:false}).addTo(rivalTargetMarkersLayer);
     if(!bounds) bounds = L.latLngBounds(coords); else bounds.extend(L.latLngBounds(coords));
+    // Manoeuvre markers (PRD §10.1)
+    if(rivalManoeuvreLayer) {
+      var marks = detectManoeuvres(b);
+      marks.forEach(function(m){
+        var tip = rival.skipper + ' · Δ' + (m.delta > 0 ? '+' : '') + m.delta + '°';
+        if(m.ts) {
+          var d = new Date(m.ts);
+          tip += ' · ' + String(d.getUTCHours()).padStart(2,'0') + ':' + String(d.getUTCMinutes()).padStart(2,'0') + 'Z';
+        }
+        L.circleMarker([m.lat, m.lon], {
+          radius: 3,
+          color: '#fff', weight: 1, opacity: 0.8,
+          fillColor: rival.color, fillOpacity: 0.95
+        }).bindTooltip(tip, {className:'lake-tip'}).addTo(rivalManoeuvreLayer);
+      });
+    }
   });
   // Fit to the target tracks so the user sees the strategic picture immediately
   if(bounds && !rivalsInitialFitDone) {
@@ -1962,6 +2035,191 @@ function renderRivalLegend() {
   el.innerHTML = html;
 }
 
+// ===== Sector gates (Bol d'Or course geometry, PRD §4.4 leg-by-leg ranking) =====
+var SECTORS = [
+  {key:'S1', name:'Nyon',           lat:46.383, lon:6.234, gateRadiusNM:5},
+  {key:'S2', name:'Lausanne (out)', lat:46.508, lon:6.628, gateRadiusNM:6},
+  {key:'S3', name:'Le Bouveret',    lat:46.391, lon:6.857, gateRadiusNM:3},
+  {key:'S4', name:'Lausanne (ret)', lat:46.508, lon:6.628, gateRadiusNM:6},
+  {key:'S5', name:'Genève finish',  lat:46.207, lon:6.155, gateRadiusNM:3}
+];
+
+function findClosestApproach(points, gateLat, gateLon, fromIdx) {
+  var bestI = -1, bestD = Infinity;
+  for(var i = fromIdx; i < points.length; i++){
+    var p = points[i];
+    var d = haversineNM(p.lat, p.lon, gateLat, gateLon);
+    if(d < bestD) { bestD = d; bestI = i; }
+  }
+  return {idx: bestI, dist: bestD};
+}
+
+function computeSectorTimes(boat) {
+  if(!boat || !boat.points || boat.points.length < 2) return [];
+  var times = new Array(SECTORS.length).fill(null);
+  var fromIdx = 0;
+  for(var s = 0; s < SECTORS.length; s++){
+    var gate = SECTORS[s];
+    var r = findClosestApproach(boat.points, gate.lat, gate.lon, fromIdx);
+    if(r.idx === -1 || r.dist > gate.gateRadiusNM) continue;
+    times[s] = boat.points[r.idx].ts;
+    fromIdx = r.idx + 1;       // next sector must be later in the track
+  }
+  return times;
+}
+
+function fmtElapsed(ms) {
+  if(ms == null || isNaN(ms) || ms < 0) return '—';
+  var totalMin = Math.round(ms / 60000);
+  var h = Math.floor(totalMin / 60);
+  var m = totalMin % 60;
+  return h + 'h' + String(m).padStart(2,'0');
+}
+
+function renderSectorRanks(year) {
+  var el = document.getElementById('rivalRanks');
+  var card = document.getElementById('rivalRanksCard');
+  if(!el || !card) return;
+  var boats = rivalDataByYear[year] || [];
+  if(!boats.length) { card.style.display = 'none'; return; }
+
+  // Collect target boats with their sector times
+  var rows = [];
+  RIVAL_TARGETS.forEach(function(t){
+    var hit = null;
+    for(var i=0; i<boats.length; i++){
+      if(findRivalForName(boats[i].name) === t) { hit = boats[i]; break; }
+    }
+    if(!hit) { rows.push({target:t, times:[], start:null}); return; }
+    var times = computeSectorTimes(hit);
+    // Use the boat's first valid timestamp as their reference start
+    var start = null;
+    for(var k=0; k<hit.points.length; k++){
+      if(hit.points[k].ts) { start = hit.points[k].ts; break; }
+    }
+    rows.push({target:t, times:times, start:start});
+  });
+
+  if(rows.every(function(r){ return r.times.length === 0; })) {
+    card.style.display = 'none';
+    return;
+  }
+
+  // For each sector, find the earliest arrival across visible targets — that's the "leader"
+  var leaders = SECTORS.map(function(_, sIdx){
+    var best = Infinity;
+    rows.forEach(function(r){
+      if(!rivalVisible[r.target.key]) return;
+      if(r.times[sIdx]) best = Math.min(best, r.times[sIdx]);
+    });
+    return isFinite(best) ? best : null;
+  });
+
+  var html = '<table class="sec-table"><thead><tr><th>Boat</th>';
+  SECTORS.forEach(function(s){ html += '<th>'+s.key+'<br><span class="sec-sub">'+s.name+'</span></th>'; });
+  html += '</tr></thead><tbody>';
+  rows.forEach(function(r){
+    var on = rivalVisible[r.target.key];
+    html += '<tr'+(on?'':' class="dim"')+'>';
+    html += '<td><span class="sec-dot" style="background:'+r.target.color+'"></span>'+r.target.skipper+'</td>';
+    SECTORS.forEach(function(_, sIdx){
+      var t = r.times[sIdx];
+      if(!t || !r.start) { html += '<td class="sec-dash">—</td>'; return; }
+      var elapsed = t - r.start;
+      var lead = leaders[sIdx];
+      var delta = (on && lead && t > lead) ? (t - lead) : 0;
+      var deltaStr = delta > 60000 ? ' <span class="sec-delta">+'+Math.round(delta/60000)+'m</span>' : '';
+      var leadCls = (on && lead && t === lead) ? ' class="sec-leader"' : '';
+      html += '<td'+leadCls+'>'+fmtElapsed(elapsed)+deltaStr+'</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  html += '<div style="font-size:10px;color:var(--tx3);margin-top:6px;line-height:1.4">Elapsed time from each target’s first GPS fix. Green cell = first to reach that gate among visible rivals. +Nm = minutes behind the leader.</div>';
+  el.innerHTML = html;
+  card.style.display = '';
+}
+
+function toggleRivalVisible(key) {
+  rivalVisible[key] = !rivalVisible[key];
+  if(currentRivalYear) {
+    renderRivalTracks(currentRivalYear);
+    renderSectorRanks(currentRivalYear);
+    renderDistanceChart(currentRivalYear);
+  }
+  renderRivalTargetsList();
+}
+
+// ===== Head-to-head distance-to-Bouveret chart (PRD §10.2) =====
+function renderDistanceChart(year) {
+  var el = document.getElementById('rivalChart');
+  if(!el) return;
+  var boats = rivalDataByYear[year] || [];
+  var lines = [];
+  var bvt = SECTORS[2]; // Le Bouveret
+  boats.forEach(function(b){
+    var t = findRivalForName(b.name);
+    if(!t || !rivalVisible[t.key]) return;
+    var pts = [];
+    for(var i=0; i<b.points.length; i++){
+      var p = b.points[i];
+      if(!p.ts) continue;
+      pts.push({ts: p.ts, dist: haversineNM(p.lat, p.lon, bvt.lat, bvt.lon)});
+    }
+    if(pts.length > 1) lines.push({target:t, points:pts});
+  });
+  if(!lines.length) { el.innerHTML = ''; return; }
+
+  var minTs = Infinity, maxTs = -Infinity, maxD = 0;
+  lines.forEach(function(L){
+    L.points.forEach(function(p){
+      if(p.ts < minTs) minTs = p.ts;
+      if(p.ts > maxTs) maxTs = p.ts;
+      if(p.dist > maxD) maxD = p.dist;
+    });
+  });
+  // Round maxD up to a nice 5-NM step for cleaner axis labels
+  maxD = Math.ceil(maxD / 5) * 5;
+
+  var W = 480, H = 180, padL = 30, padR = 10, padT = 14, padB = 24;
+  var plotW = W - padL - padR, plotH = H - padT - padB;
+  function x(ts){ return padL + (ts - minTs) / (maxTs - minTs) * plotW; }
+  function y(d){ return padT + (1 - d / maxD) * plotH; }
+
+  var s = '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:180px">';
+  s += '<rect x="'+padL+'" y="'+padT+'" width="'+plotW+'" height="'+plotH+'" fill="rgba(10,22,40,.5)" stroke="rgba(255,255,255,.1)"/>';
+  // Y-axis 0..maxD in 5-NM steps
+  for(var d=0; d<=maxD; d+=5) {
+    var yp = y(d);
+    s += '<line x1="'+padL+'" y1="'+yp+'" x2="'+(W-padR)+'" y2="'+yp+'" stroke="rgba(255,255,255,.06)" stroke-width="1"/>';
+    s += '<text x="'+(padL-4)+'" y="'+yp+'" fill="rgba(255,255,255,.45)" font-size="9" text-anchor="end" dominant-baseline="central">'+d+'</text>';
+  }
+  // X-axis ticks every 3 h of race
+  var totalH = (maxTs - minTs) / 3600000;
+  var tickStepH = totalH > 24 ? 6 : (totalH > 12 ? 3 : 1);
+  for(var h=0; h<=totalH; h+=tickStepH) {
+    var xp = x(minTs + h * 3600000);
+    s += '<line x1="'+xp+'" y1="'+padT+'" x2="'+xp+'" y2="'+(padT+plotH)+'" stroke="rgba(255,255,255,.06)" stroke-width="1"/>';
+    s += '<text x="'+xp+'" y="'+(padT+plotH+12)+'" fill="rgba(255,255,255,.45)" font-size="9" text-anchor="middle">'+h+'h</text>';
+  }
+  // Highlight the "Bouveret rounding" baseline (d ~ 0)
+  s += '<line x1="'+padL+'" y1="'+y(0)+'" x2="'+(W-padR)+'" y2="'+y(0)+'" stroke="#fbbf24" stroke-opacity="0.45" stroke-dasharray="3,3" stroke-width="1"/>';
+  s += '<text x="'+(W-padR-4)+'" y="'+(y(0)-2)+'" fill="#fbbf24" font-size="9" text-anchor="end" opacity=".7">BVT round</text>';
+  // Lines
+  lines.forEach(function(L){
+    var d = '';
+    L.points.forEach(function(p, i){
+      d += (i === 0 ? 'M' : 'L') + x(p.ts).toFixed(1) + ' ' + y(p.dist).toFixed(1) + ' ';
+    });
+    s += '<path d="'+d+'" stroke="'+L.target.color+'" stroke-width="1.8" fill="none" opacity="0.92"/>';
+  });
+  // Axis labels
+  s += '<text x="'+padL+'" y="'+(padT-3)+'" fill="rgba(255,255,255,.5)" font-size="9">NM to Bouveret</text>';
+  s += '<text x="'+(W-padR)+'" y="'+(padT-3)+'" fill="rgba(255,255,255,.5)" font-size="9" text-anchor="end">race-elapsed time</text>';
+  s += '</svg>';
+  el.innerHTML = s;
+}
+
 function renderRivalTargetsList() {
   var el = document.getElementById('rivalTargets');
   if(!el) return;
@@ -1974,8 +2232,12 @@ function renderRivalTargetsList() {
   var html = '';
   RIVAL_TARGETS.forEach(function(t){
     var hit = foundKeys[t.key];
-    var cls = currentRivalYear ? (hit ? 'rival-target found' : 'rival-target missing') : 'rival-target';
-    html += '<div class="'+cls+'">';
+    var on = !!rivalVisible[t.key];
+    var cls = 'rival-target';
+    if(!on) cls += ' off';
+    else if(currentRivalYear) cls += hit ? ' found' : ' missing';
+    var disabledClick = (currentRivalYear && !hit) ? '' : ' onclick="toggleRivalVisible(\''+t.key+'\')"';
+    html += '<div class="'+cls+'"'+disabledClick+'>';
     html += '<span class="rival-target-dot" style="background:'+t.color+'"></span>';
     html += '<div class="rival-target-info">';
     html += '<div class="rival-target-name">'+t.skipper+' <span style="color:var(--tx3);font-weight:500">· '+t.kmName+'</span></div>';
@@ -1985,8 +2247,10 @@ function renderRivalTargetsList() {
     html += '</div>';
     html += '</div>';
     html += '<div class="rival-target-tcf">TCF '+t.tcf.toFixed(3)+'</div>';
+    html += '<div class="rival-target-eye" aria-hidden="true">'+(on?'●':'○')+'</div>';
     html += '</div>';
   });
+  html += '<div style="font-size:10px;color:var(--tx3);margin-top:6px;text-align:center">Tap a row to show/hide that rival on the map.</div>';
   el.innerHTML = html;
 }
 
