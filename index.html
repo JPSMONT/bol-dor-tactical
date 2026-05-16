@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a1628">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Bol d'Or Tactical</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a1628;--bg2:#0f2035;--bg3:#162a45;--card:#1a3355;
+  --tx:#e8edf4;--tx2:#8fa4bd;--tx3:#5a7290;
+  --acc:#4a9eff;--acc2:#2dd4a8;--warn:#f59e0b;--err:#ef4444;
+  --r:10px;
+}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--tx);overflow:hidden}
+.app{display:flex;flex-direction:column;height:100%;max-width:480px;margin:0 auto}
+header{padding:12px 16px 8px;display:flex;align-items:center;justify-content:space-between}
+header h1{font-size:15px;font-weight:600;letter-spacing:0.5px}
+header .race-badge{font-size:11px;background:var(--acc);color:#000;padding:3px 10px;border-radius:20px;font-weight:700}
+.tabs{display:flex;gap:2px;padding:0 12px 8px}
+.tabs button{flex:1;padding:8px 4px;font-size:11px;font-weight:600;border:none;background:transparent;color:var(--tx3);border-radius:var(--r);cursor:pointer;transition:all .2s}
+.tabs button.on{background:var(--bg3);color:var(--tx)}
+.views{flex:1;overflow-y:auto;overflow-x:hidden;padding:0 12px 80px;-webkit-overflow-scrolling:touch}
+.view{display:none}
+.view.on{display:block}
+.card{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:10px}
+.card-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--tx3);margin-bottom:10px}
+.metric-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.metric{background:var(--bg2);border-radius:8px;padding:10px}
+.metric .label{font-size:10px;color:var(--tx3);margin-bottom:2px}
+.metric .val{font-size:20px;font-weight:700}
+.metric .unit{font-size:11px;color:var(--tx2)}
+.metric.wide{grid-column:1/-1}
+.wind-arrow{display:inline-block;transition:transform .3s}
+.pill{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px}
+.pill-g{background:#064e3b;color:#6ee7b7}
+.pill-y{background:#78350f;color:#fbbf24}
+.pill-r{background:#7f1d1d;color:#fca5a5}
+canvas{display:block}
+.polar-controls{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.polar-controls button{padding:6px 12px;font-size:12px;font-weight:600;border:1px solid var(--bg3);background:transparent;color:var(--tx2);border-radius:20px;cursor:pointer}
+.polar-controls button.on{background:var(--acc);color:#000;border-color:var(--acc)}
+.vmg-table{width:100%;font-size:11px;border-collapse:collapse}
+.vmg-table th{text-align:left;color:var(--tx3);font-weight:600;padding:6px 4px;border-bottom:1px solid var(--bg3)}
+.vmg-table td{padding:5px 4px;border-bottom:1px solid rgba(255,255,255,.04)}
+.vmg-table .num{text-align:right;font-variant-numeric:tabular-nums}
+.forecast-row{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.forecast-row:last-child{border:none}
+.forecast-time{font-size:11px;color:var(--tx3);min-width:44px}
+.forecast-bar{flex:1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden}
+.forecast-bar-fill{height:100%;border-radius:3px;transition:width .3s}
+.forecast-vals{font-size:12px;font-weight:600;min-width:56px;text-align:right}
+.zone-tab{display:flex;gap:4px;margin-bottom:12px}
+.zone-tab button{flex:1;padding:6px;font-size:11px;font-weight:600;border:1px solid var(--bg3);background:transparent;color:var(--tx3);border-radius:8px;cursor:pointer}
+.zone-tab button.on{border-color:var(--acc);color:var(--acc)}
+.bank-card{display:flex;align-items:center;gap:12px;padding:12px;margin-bottom:8px;border-radius:var(--r);border:1px solid var(--bg3);cursor:pointer;transition:all .2s}
+.bank-card.best{border-color:var(--acc2);background:rgba(45,212,168,.08)}
+.bank-rank{font-size:22px;font-weight:800;min-width:32px}
+.bank-info{flex:1}
+.bank-name{font-size:14px;font-weight:600}
+.bank-detail{font-size:11px;color:var(--tx2);margin-top:2px}
+.bank-vmg{text-align:right}
+.bank-vmg .val{font-size:18px;font-weight:700}
+.bank-vmg .label{font-size:10px;color:var(--tx3)}
+.slider-wrap{margin:12px 0}
+.slider-wrap label{font-size:11px;color:var(--tx3)}
+.slider-wrap input[type=range]{width:100%;margin:6px 0;accent-color:var(--acc)}
+.slider-val{font-size:13px;font-weight:600;color:var(--acc)}
+.strat-note{font-size:12px;color:var(--tx2);line-height:1.5;padding:10px;background:var(--bg2);border-radius:8px;margin-top:8px;border-left:3px solid var(--acc)}
+.lake-svg{width:100%;height:auto}
+.countdown{text-align:center;padding:12px 0}
+.countdown .big{font-size:32px;font-weight:800;color:var(--acc)}
+.countdown .sub{font-size:12px;color:var(--tx3);margin-top:2px}
+.refresh-btn{background:var(--bg3);border:none;color:var(--tx2);font-size:11px;padding:6px 14px;border-radius:20px;cursor:pointer;font-weight:600}
+.loading{text-align:center;padding:30px;color:var(--tx3);font-size:13px}
+/* Race Sim Mode */
+.race-sim-banner{background:linear-gradient(135deg,#1a5c2e,#0f3d1d);border:1px solid #2dd4a8;border-radius:var(--r);padding:14px;margin-bottom:10px;text-align:center}
+.race-sim-banner .sim-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#2dd4a8;margin-bottom:4px}
+.race-sim-banner .sim-countdown{font-size:28px;font-weight:800;color:#fff}
+.race-sim-banner .sim-sub{font-size:11px;color:#6ee7b7;margin-top:4px}
+.sim-toggle{background:var(--acc2);color:#000;border:none;font-size:11px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;letter-spacing:0.5px}
+.sim-toggle.active{background:#ef4444;color:#fff}
+.leg-card{background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:8px;border-left:3px solid var(--acc)}
+.leg-card.leg2{border-left-color:var(--warn)}
+.leg-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.leg-title{font-size:13px;font-weight:700}
+.leg-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px}
+.leg-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.leg-stat{text-align:center}
+.leg-stat .ls-val{font-size:16px;font-weight:700}
+.leg-stat .ls-lbl{font-size:9px;color:var(--tx3);text-transform:uppercase}
+.race-timeline{position:relative;padding-left:20px;margin-top:12px}
+.race-timeline::before{content:'';position:absolute;left:6px;top:0;bottom:0;width:2px;background:var(--bg3)}
+.tl-item{position:relative;padding:8px 0 8px 16px;border-bottom:1px solid rgba(255,255,255,.04)}
+.tl-item:last-child{border:none}
+.tl-item::before{content:'';position:absolute;left:-17px;top:12px;width:10px;height:10px;border-radius:50%;background:var(--acc);border:2px solid var(--bg)}
+.tl-item.active::before{background:var(--acc2);box-shadow:0 0 8px rgba(45,212,168,.5)}
+.tl-time{font-size:10px;color:var(--tx3);font-weight:600}
+.tl-desc{font-size:12px;color:var(--tx);margin-top:2px}
+.tl-wind{font-size:11px;color:var(--tx2);margin-top:2px}
+.start-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.start-cell{background:var(--bg2);border-radius:8px;padding:10px;text-align:center}
+.start-cell .sc-val{font-size:18px;font-weight:700}
+.start-cell .sc-lbl{font-size:9px;color:var(--tx3);text-transform:uppercase;margin-bottom:2px}
+/* Multi-point wind grid */
+.wind-grid-header{display:grid;grid-template-columns:44px 28px 1fr 1fr 1fr;gap:4px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.12);font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.5px}
+.wind-grid-row{display:grid;grid-template-columns:44px 28px 1fr 1fr 1fr;gap:4px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);align-items:center}
+.wind-grid-row:last-child{border:none}
+.wind-cell{text-align:center;font-size:11px;font-weight:600;line-height:1.3}
+.wind-cell .ws-gust{font-size:9px;color:var(--tx3);font-weight:400}
+.wind-cell .ws-dir{font-size:9px;color:var(--tx3);font-weight:400}
+.conf-pill{display:inline-block;font-size:8px;font-weight:700;padding:1px 5px;border-radius:6px;margin-top:2px}
+.conf-high{background:#064e3b;color:#6ee7b7}
+.conf-mod{background:#78350f;color:#fbbf24}
+.conf-low{background:#7f1d1d;color:#fca5a5}
+.dash-conf{display:inline-block;font-size:8px;font-weight:700;padding:1px 5px;border-radius:6px;margin-left:4px;vertical-align:middle}
+.zone-subhead{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;padding:4px 0;margin-left:76px;margin-bottom:4px}
+.zone-subhead span{text-align:center;font-size:9px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:0.3px}
+@media(min-width:420px){.metric .val{font-size:24px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>LITTLE JOHNKA</h1>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="sim-toggle" id="simBtn" onclick="toggleRaceSim()">Race Sim</button>
+      <span class="race-badge">BOL D'OR 2026</span>
+    </div>
+  </header>
+  <div class="tabs">
+    <button class="on" onclick="showTab(0)">Dashboard</button>
+    <button onclick="showTab(1)">Polars</button>
+    <button onclick="showTab(2)">Wind</button>
+    <button onclick="showTab(3)">Strategy</button>
+  </div>
+  <div class="views">
+
+    <!-- ===== DASHBOARD ===== -->
+    <div class="view on" id="v0">
+      <div class="card">
+        <div class="card-title">Race countdown</div>
+        <div class="countdown">
+          <div class="big" id="countdownVal">--</div>
+          <div class="sub">until Bol d'Or Mirabaud start — June 6, 2026</div>
+        </div>
+      </div>
+      <div id="raceSimPanel" style="display:none">
+        <div class="race-sim-banner">
+          <div class="sim-label">Race simulation active</div>
+          <div class="sim-countdown" id="simCountdown">--:--</div>
+          <div class="sim-sub" id="simStartTime">Start in 30 min</div>
+          <div id="simWindStatus" style="font-size:10px;margin-top:6px;color:#fbbf24"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Start line conditions — Geneva</div>
+          <div id="startConditions" class="loading">Loading wind...</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Race leg forecast</div>
+          <div id="legForecast">Loading...</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Race timeline</div>
+          <div id="raceTimeline">Loading...</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Boat — CYD 27 ORC Ceccarelli</div>
+        <div class="metric-row">
+          <div class="metric"><div class="label">LOA</div><div class="val">8.25<span class="unit"> m</span></div></div>
+          <div class="metric"><div class="label">Displacement</div><div class="val">1,780<span class="unit"> kg</span></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric"><div class="label">Draft</div><div class="val">1.72<span class="unit"> m</span></div></div>
+          <div class="metric"><div class="label">Beam</div><div class="val">2.16<span class="unit"> m</span></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric"><div class="label">Main</div><div class="val">27.13<span class="unit"> m²</span></div></div>
+          <div class="metric"><div class="label">Jib</div><div class="val">17.66<span class="unit"> m²</span></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric"><div class="label">Spinnaker</div><div class="val">47.18<span class="unit"> m²</span></div></div>
+          <div class="metric"><div class="label">YS / GPH</div><div class="val">94<span class="unit"> / 660</span></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Quick VMG calculator</div>
+        <div class="slider-wrap">
+          <label>True wind speed: <span class="slider-val" id="qTwsVal">10</span> kn</label>
+          <input type="range" min="4" max="25" value="10" step="1" id="qTws" oninput="calcQuickVMG()">
+        </div>
+        <div class="slider-wrap">
+          <label>True wind angle: <span class="slider-val" id="qTwaVal">42</span>°</label>
+          <input type="range" min="30" max="180" value="42" step="1" id="qTwa" oninput="calcQuickVMG()">
+        </div>
+        <div class="metric-row" style="margin-top:8px">
+          <div class="metric"><div class="label">Target boat speed</div><div class="val" id="qBtv">5.54<span class="unit"> kn</span></div></div>
+          <div class="metric"><div class="label">VMG</div><div class="val" id="qVmg">4.26<span class="unit"> kn</span></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric"><div class="label">Optimal beat angle</div><div class="val" id="qBeatA">39.8<span class="unit">°</span></div></div>
+          <div class="metric"><div class="label">Optimal run angle</div><div class="val" id="qRunA">154<span class="unit">°</span></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Current wind — Lac Léman</div>
+        <div id="dashWind" class="loading">Fetching forecast...</div>
+      </div>
+    </div>
+
+    <!-- ===== POLARS ===== -->
+    <div class="view" id="v1">
+      <div class="card">
+        <div class="card-title">Polar diagram</div>
+        <div class="polar-controls" id="polarBtns"></div>
+        <canvas id="polarCanvas" width="360" height="360" style="width:100%;max-width:360px;margin:0 auto"></canvas>
+        <div id="polarTouch" style="font-size:12px;color:var(--tx3);text-align:center;margin-top:6px">Tap on diagram for values</div>
+      </div>
+      <div class="card">
+        <div class="card-title">VMG targets — all wind speeds</div>
+        <table class="vmg-table">
+          <thead><tr><th>TWS</th><th class="num">Beat°</th><th class="num">Beat VMG</th><th class="num">Run°</th><th class="num">Run VMG</th><th class="num">Max kn</th></tr></thead>
+          <tbody id="vmgBody"></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">Full speed table</div>
+        <div class="slider-wrap">
+          <label>TWS: <span class="slider-val" id="fullTwsVal">10</span> kn</label>
+          <input type="range" min="6" max="20" value="10" step="2" id="fullTws" oninput="showFullTable()">
+        </div>
+        <table class="vmg-table">
+          <thead><tr><th>TWA</th><th class="num">BTV</th><th class="num">VMG</th><th class="num">AWA</th><th class="num">Heel</th></tr></thead>
+          <tbody id="fullBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== WIND ===== -->
+    <div class="view" id="v2">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div class="card-title" style="margin:0">48h wind forecast</div>
+          <button class="refresh-btn" onclick="fetchWind()">Refresh</button>
+        </div>
+        <div id="windUpdated" style="font-size:10px;color:var(--tx3);margin-bottom:8px">Auto-refreshes every 15 min</div>
+        <div class="zone-tab" id="zoneTabs">
+          <button class="on" onclick="setZone(0)">Geneva</button>
+          <button onclick="setZone(1)">Lausanne</button>
+          <button onclick="setZone(2)">Bouveret</button>
+        </div>
+        <div id="windForecast" class="loading">Fetching forecast...</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Wind pattern guide — Lac Léman</div>
+        <div style="font-size:12px;line-height:1.6;color:var(--tx2)">
+          <div style="margin-bottom:8px"><strong style="color:var(--tx)">Bise (NE)</strong> — Cold, steady, 15-80 km/h. 3/6/9-day cycles. Strongest mid-lake. Favours south bank upwind.</div>
+          <div style="margin-bottom:8px"><strong style="color:var(--tx)">Vent / SW</strong> — Warm, variable 10-70 km/h. Often follows Bise. Gusty near mountains.</div>
+          <div style="margin-bottom:8px"><strong style="color:var(--tx)">Séchard (NE thermal)</strong> — Light "cinematic airs", afternoon. Common in June. Tricky and patchy.</div>
+          <div style="margin-bottom:8px"><strong style="color:var(--tx)">Vaudaire (SE)</strong> — Foehn effect, >50 km/h gusts. Dangerous. Rare in June.</div>
+          <div style="margin-bottom:8px"><strong style="color:var(--tx)">Morget (S thermal)</strong> — Afternoon, near Morges. Reliable 8-15 kn. Favours north bank.</div>
+          <div><strong style="color:var(--tx)">Joran (NW)</strong> — Evening breeze from Jura. Can build quickly. Good for reaching east.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== STRATEGY ===== -->
+    <div class="view" id="v3">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div class="card-title" style="margin:0">Bank selection advisor</div>
+          <button class="refresh-btn" onclick="fetchWind()">Refresh wind</button>
+        </div>
+        <div id="stratTimeLabel" style="font-size:12px;color:var(--acc);font-weight:600;margin-bottom:6px">Now</div>
+        <div class="slider-wrap" style="margin-top:0">
+          <label>Forecast offset: <span class="slider-val" id="stratHourVal">+0h</span></label>
+          <input type="range" min="0" max="24" value="0" step="1" id="stratHour" oninput="updateStrategy()">
+        </div>
+        <div id="bankCards" class="loading">Calculating after wind data loads...</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Tactical notes</div>
+        <div id="stratNotes">
+          <div class="strat-note" style="margin-top:0">
+            <strong>Bol d'Or course:</strong> Start in Geneva, head ENE to Le Bouveret mark (Haut-Lac), return WSW to Geneva. ~62 NM total. First leg is the bank-selection leg — this is where races are won or lost.
+          </div>
+          <div class="strat-note">
+            <strong>Key decision at Morges:</strong> After clearing the Geneva basin, choose north bank (Swiss shore, closer to thermals and Morget) or south bank (French shore, often more Bise). The wind differential between banks can be 5+ knots.
+          </div>
+          <div class="strat-note">
+            <strong>Little Johnka's edge:</strong> CYD 27 excels in 8-14 kn TWS with VMG >4 kn upwind. In light air (<6 kn), keep the boat moving with minimal manoeuvres. Sail inventory: Main (27.1 m²), Jib (17.7 m²), Spinnaker (47.2 m²).
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Lake overview</div>
+        <canvas id="lakeCanvas" width="360" height="180" style="width:100%"></canvas>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ===== POLAR DATA — Little Johnka CYD 27 ORC =====
+var P = {
+  6:  {twa:[42,52,60,70,75,80,90,110,120,135,150,165,180],btv:[4.74,5.32,5.60,5.78,5.81,5.82,5.77,5.65,5.48,4.92,4.09,3.43,3.22],vmg:[3.52,3.27,2.80,1.98,1.50,1.01,0,1.93,2.74,3.48,3.54,3.31,3.22],awa:[22.2,25.9,29.2,33.7,36.2,38.7,44.0,55.2,62.1,77.8,106.9,144.8,180],heel:[13.6,14.7,14.0,12.2,11.0,9.7,7.0,7.8,4.3,0,0,3.9,3.8],beatA:42,beatVMG:3.52,runA:144,runVMG:3.57},
+  8:  {twa:[40.5,52,60,70,75,80,90,110,120,135,150,165,180],btv:[5.36,6.03,6.26,6.40,6.43,6.45,6.44,6.50,6.41,6.01,5.19,4.46,4.22],vmg:[4.08,3.71,3.13,2.19,1.67,1.12,0,2.22,3.20,4.25,4.49,4.31,4.22],awa:[21.6,26.1,30.1,35.6,38.7,42.0,48.4,60.4,68.2,83.5,110.6,145.9,180],heel:[24.7,26.7,25.7,23.4,20.7,18.1,13.2,16.1,9.7,2.0,4.7,5.1,4.8],beatA:40.5,beatVMG:4.08,runA:149,runVMG:4.49},
+  10: {twa:[39.8,52,60,70,75,80,90,110,120,135,150,165,180],btv:[5.54,6.21,6.42,6.60,6.67,6.73,6.79,6.89,6.89,6.60,6.09,5.38,5.13],vmg:[4.26,3.82,3.21,2.26,1.73,1.17,0,2.36,3.45,4.66,5.28,5.20,5.13],awa:[22.6,28.1,32.1,37.7,40.7,44.3,52.0,66.0,74.9,91.3,114.5,147.3,180],heel:[26.7,28.8,29.4,29.1,28.8,26.5,20.5,21.9,15.4,4.4,5.2,5.8,4.9],beatA:39.8,beatVMG:4.26,runA:154,runVMG:5.30},
+  12: {twa:[40.1,52,60,70,75,80,90,110,120,135,150,165,180],btv:[5.63,6.28,6.49,6.69,6.78,6.87,7.05,7.14,7.36,7.06,6.62,6.17,5.95],vmg:[4.31,3.86,3.24,2.29,1.75,1.19,0,2.44,3.68,4.99,5.74,5.96,5.95],awa:[24.1,30.1,34.6,40.3,43.5,46.8,54.4,71.4,79.5,97.3,120.0,148.9,180],heel:[27.2,28.8,29.5,30.8,30.5,30.3,27.0,22.1,21.8,7.3,5.6,6.5,5.2],beatA:40.1,beatVMG:4.31,runA:168,runVMG:5.96},
+  14: {twa:[40.1,52,60,70,75,80,90,110,120,135,150,165,180],btv:[5.74,6.34,6.53,6.74,6.84,6.95,7.21,7.51,7.68,7.60,7.06,6.65,6.51],vmg:[4.39,3.91,3.27,2.30,1.77,1.21,0,2.57,3.84,5.38,6.11,6.42,6.51],awa:[25.6,32.2,37.4,42.8,46.1,49.6,56.8,76.0,84.0,101.1,124.0,151.2,180],heel:[24.7,26.6,26.3,30.9,31.0,31.0,30.9,18.8,22.0,11.2,4.7,6.4,5.0],beatA:40.1,beatVMG:4.39,runA:180,runVMG:6.51},
+  16: {twa:[40.5,52,60,70,75,80,90,110,120,135,150,165,180],btv:[5.78,6.40,6.61,6.80,6.88,6.99,7.31,7.84,7.97,8.25,7.57,7.07,6.92],vmg:[4.40,3.94,3.31,2.33,1.78,1.21,0,2.68,3.98,5.83,6.55,6.83,6.92],awa:[26.5,33.0,38.4,45.9,49.7,52.1,59.5,78.6,87.6,103.6,126.7,152.8,180],heel:[26.6,28.7,28.3,26.7,26.4,31.3,32.0,22.0,22.0,16.4,7.5,5.2,4.1],beatA:40.5,beatVMG:4.40,runA:180,runVMG:6.92},
+  20: {twa:[42.4,52,60,70,75,80,90,110,120,135,150,165,180],btv:[5.75,6.35,6.60,6.88,7.01,7.16,7.40,8.23,8.65,9.40,8.86,8.10,7.88],vmg:[4.25,3.91,3.30,2.35,1.82,1.24,0,2.81,4.33,6.65,7.67,7.83,7.88],awa:[29.5,35.4,40.8,48.1,51.9,55.9,65.6,83.5,93.0,107.6,129.8,154.8,180],heel:[26.4,28.1,29.1,30.0,30.2,30.5,25.9,22.2,22.1,22.1,16.7,11.4,6.3],beatA:42.4,beatVMG:4.25,runA:180,runVMG:7.88}
+};
+var TWS_KEYS = [6,8,10,12,14,16,20];
+var PCOL = {6:'#97C459',8:'#5DCAA5',10:'#378ADD',12:'#7F77DD',14:'#D4537E',16:'#D85A30',20:'#E24B4A'};
+
+// Lake polygon (simplified)
+var LAKE=[[46.207,6.148],[46.215,6.175],[46.240,6.194],[46.265,6.197],[46.281,6.225],[46.304,6.242],[46.352,6.281],[46.366,6.308],[46.370,6.338],[46.340,6.388],[46.360,6.413],[46.366,6.446],[46.375,6.475],[46.405,6.513],[46.396,6.553],[46.401,6.594],[46.405,6.649],[46.408,6.688],[46.408,6.727],[46.399,6.768],[46.394,6.806],[46.388,6.830],[46.386,6.836],[46.395,6.860],[46.396,6.884],[46.396,6.908],[46.394,6.919],[46.397,6.924],[46.415,6.928],[46.436,6.908],[46.451,6.855],[46.459,6.839],[46.468,6.823],[46.474,6.788],[46.486,6.729],[46.491,6.714],[46.497,6.703],[46.504,6.656],[46.511,6.613],[46.507,6.553],[46.515,6.520],[46.503,6.492],[46.491,6.478],[46.476,6.450],[46.465,6.384],[46.453,6.337],[46.433,6.310],[46.406,6.283],[46.388,6.248],[46.369,6.230],[46.345,6.214],[46.336,6.204],[46.308,6.184],[46.282,6.167],[46.263,6.166],[46.252,6.153],[46.235,6.153],[46.228,6.150],[46.210,6.151],[46.207,6.148]];
+
+// ===== 9 GRID POINTS (3 per zone) =====
+var GRID_POINTS = [
+  // Petit Lac (Geneva area)
+  {name:'Geneva N', lat:46.28, lon:6.20, zone:'Geneva', shore:'N'},
+  {name:'Geneva Mid', lat:46.24, lon:6.17, zone:'Geneva', shore:'Mid'},
+  {name:'Geneva S', lat:46.21, lon:6.16, zone:'Geneva', shore:'S'},
+  // Grand Lac (Lausanne area)
+  {name:'Lausanne N', lat:46.50, lon:6.58, zone:'Lausanne', shore:'N'},
+  {name:'Lausanne Mid', lat:46.44, lon:6.55, zone:'Lausanne', shore:'Mid'},
+  {name:'Lausanne S', lat:46.38, lon:6.52, zone:'Lausanne', shore:'S'},
+  // Haut-Lac (Bouveret area)
+  {name:'Bouveret N', lat:46.46, lon:6.82, zone:'Bouveret', shore:'N'},
+  {name:'Bouveret Mid', lat:46.41, lon:6.85, zone:'Bouveret', shore:'Mid'},
+  {name:'Bouveret S', lat:46.39, lon:6.86, zone:'Bouveret', shore:'S'}
+];
+
+var ZONE_NAMES = ['Geneva','Lausanne','Bouveret'];
+var MODELS = ['meteofrance_arome_france_hd','icon_d2'];
+
+// windData: {modelName: [{name,zone,shore,hours,speed,dir,gust}, ...per point], ...}
+// ensembleData: [{name,zone,shore,hours,speed,dir,gust,spread}, ...per point]
+var rawModelData = {};
+var ensembleData = null;
+var curZone = 0;
+
+// ===== TAB NAV =====
+function showTab(i) {
+  document.querySelectorAll('.tabs button').forEach(function(b,j){b.classList.toggle('on',j===i)});
+  document.querySelectorAll('.view').forEach(function(v,j){v.classList.toggle('on',j===i)});
+  if(i===1) drawPolar();
+  if(i===3) drawLake();
+}
+
+// ===== COUNTDOWN =====
+function updateCountdown() {
+  var race = new Date('2026-06-06T09:00:00+02:00');
+  var now = new Date();
+  var diff = race - now;
+  if(diff <= 0){document.getElementById('countdownVal').textContent='RACE DAY!';return}
+  var d = Math.floor(diff/86400000);
+  var h = Math.floor((diff%86400000)/3600000);
+  document.getElementById('countdownVal').textContent = d + 'd ' + h + 'h';
+}
+updateCountdown();
+setInterval(updateCountdown, 60000);
+
+// ===== POLAR INTERPOLATION =====
+function interpPolar(tws, twa) {
+  var keys = TWS_KEYS;
+  if(tws <= keys[0]) return interpAngle(P[keys[0]], twa);
+  if(tws >= keys[keys.length-1]) return interpAngle(P[keys[keys.length-1]], twa);
+  var lo, hi;
+  for(var i=0;i<keys.length-1;i++){
+    if(tws >= keys[i] && tws <= keys[i+1]){lo=keys[i];hi=keys[i+1];break}
+  }
+  var f = (tws - lo) / (hi - lo);
+  var a = interpAngle(P[lo], twa);
+  var b = interpAngle(P[hi], twa);
+  return {btv: a.btv + f*(b.btv - a.btv), vmg: a.vmg + f*(b.vmg - a.vmg)};
+}
+
+function interpAngle(pd, twa) {
+  if(twa <= pd.twa[0]) return {btv:pd.btv[0], vmg:pd.vmg[0]};
+  if(twa >= pd.twa[pd.twa.length-1]) return {btv:pd.btv[pd.twa.length-1], vmg:pd.vmg[pd.twa.length-1]};
+  for(var i=0;i<pd.twa.length-1;i++){
+    if(twa >= pd.twa[i] && twa <= pd.twa[i+1]){
+      var f = (twa - pd.twa[i]) / (pd.twa[i+1] - pd.twa[i]);
+      return {btv: pd.btv[i]+f*(pd.btv[i+1]-pd.btv[i]), vmg: pd.vmg[i]+f*(pd.vmg[i+1]-pd.vmg[i])};
+    }
+  }
+  return {btv:0,vmg:0};
+}
+
+function bestBeatRun(tws) {
+  var keys = TWS_KEYS;
+  if(tws <= keys[0]) return {beatA:P[keys[0]].beatA, beatVMG:P[keys[0]].beatVMG, runA:P[keys[0]].runA, runVMG:P[keys[0]].runVMG};
+  if(tws >= keys[keys.length-1]){var k=keys[keys.length-1]; return {beatA:P[k].beatA, beatVMG:P[k].beatVMG, runA:P[k].runA, runVMG:P[k].runVMG}}
+  var lo, hi;
+  for(var i=0;i<keys.length-1;i++){if(tws >= keys[i] && tws <= keys[i+1]){lo=keys[i];hi=keys[i+1];break}}
+  var f=(tws-lo)/(hi-lo);
+  return {
+    beatA: P[lo].beatA + f*(P[hi].beatA - P[lo].beatA),
+    beatVMG: P[lo].beatVMG + f*(P[hi].beatVMG - P[lo].beatVMG),
+    runA: P[lo].runA + f*(P[hi].runA - P[lo].runA),
+    runVMG: P[lo].runVMG + f*(P[hi].runVMG - P[lo].runVMG)
+  };
+}
+
+// ===== QUICK VMG CALC =====
+function calcQuickVMG() {
+  var tws = +document.getElementById('qTws').value;
+  var twa = +document.getElementById('qTwa').value;
+  document.getElementById('qTwsVal').textContent = tws;
+  document.getElementById('qTwaVal').textContent = twa;
+  var r = interpPolar(tws, twa);
+  var br = bestBeatRun(tws);
+  document.getElementById('qBtv').innerHTML = r.btv.toFixed(2) + '<span class="unit"> kn</span>';
+  document.getElementById('qVmg').innerHTML = r.vmg.toFixed(2) + '<span class="unit"> kn</span>';
+  document.getElementById('qBeatA').innerHTML = br.beatA.toFixed(1) + '<span class="unit">°</span>';
+  document.getElementById('qRunA').innerHTML = Math.round(br.runA) + '<span class="unit">°</span>';
+}
+
+// ===== POLAR DIAGRAM =====
+var polarActive = {6:false,8:false,10:true,12:true,14:false,16:false,20:false};
+
+function initPolarBtns() {
+  var c = document.getElementById('polarBtns');
+  TWS_KEYS.forEach(function(ws){
+    var b = document.createElement('button');
+    b.textContent = ws + ' kn';
+    b.style.borderColor = PCOL[ws];
+    if(polarActive[ws]){b.classList.add('on');b.style.background=PCOL[ws];b.style.color='#000'}
+    b.onclick = function(){
+      polarActive[ws] = !polarActive[ws];
+      b.classList.toggle('on');
+      if(polarActive[ws]){b.style.background=PCOL[ws];b.style.color='#000'}
+      else{b.style.background='transparent';b.style.color='var(--tx2)'}
+      drawPolar();
+    };
+    c.appendChild(b);
+  });
+}
+
+function drawPolar() {
+  var cv = document.getElementById('polarCanvas');
+  var ctx = cv.getContext('2d');
+  var S = cv.width;
+  var CX = S/2, CY = S/2, MAX = 10, RAD = S/2 - 30;
+  ctx.clearRect(0,0,S,S);
+
+  function toXY(a, spd){var r=(spd/MAX)*RAD;var rd=(a-90)*Math.PI/180;return [CX+r*Math.cos(rd),CY+r*Math.sin(rd)]}
+
+  // Grid
+  ctx.strokeStyle='rgba(255,255,255,.08)';ctx.lineWidth=0.5;
+  for(var s=2;s<=MAX;s+=2){
+    var cr=(s/MAX)*RAD;
+    ctx.beginPath();ctx.arc(CX,CY,cr,-Math.PI/2,Math.PI/2);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.3)';ctx.font='10px sans-serif';ctx.textAlign='center';
+    ctx.fillText(s+'',CX,CY-cr-3);
+  }
+  [0,45,60,75,90,120,135,150,180].forEach(function(a){
+    var p=toXY(a,MAX);ctx.beginPath();ctx.moveTo(CX,CY);ctx.lineTo(p[0],p[1]);ctx.strokeStyle='rgba(255,255,255,.06)';ctx.stroke();
+    var lp=toXY(a,MAX+0.5);ctx.fillStyle='rgba(255,255,255,.3)';ctx.font='9px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(a+'°',lp[0],lp[1]);
+  });
+  ctx.strokeStyle='rgba(255,255,255,.15)';ctx.lineWidth=0.5;
+  ctx.beginPath();ctx.moveTo(CX,CY-RAD);ctx.lineTo(CX,CY+RAD);ctx.stroke();
+
+  // Curves
+  TWS_KEYS.forEach(function(ws){
+    if(!polarActive[ws]) return;
+    var d=P[ws];
+    ctx.beginPath();ctx.strokeStyle=PCOL[ws];ctx.lineWidth=2.5;
+    for(var i=0;i<d.twa.length;i++){var pt=toXY(d.twa[i],d.btv[i]);if(i===0)ctx.moveTo(pt[0],pt[1]);else ctx.lineTo(pt[0],pt[1])}
+    ctx.stroke();
+  });
+}
+
+// ===== VMG TABLE =====
+function buildVMGTable() {
+  var tb = document.getElementById('vmgBody');
+  tb.innerHTML = '';
+  TWS_KEYS.forEach(function(ws){
+    var d=P[ws];var mx=Math.max.apply(null,d.btv);
+    tb.innerHTML += '<tr><td style="color:'+PCOL[ws]+';font-weight:700">'+ws+'</td><td class="num">'+d.beatA.toFixed(1)+'°</td><td class="num" style="font-weight:600">'+d.beatVMG.toFixed(2)+'</td><td class="num">'+d.runA+'°</td><td class="num" style="font-weight:600">'+d.runVMG.toFixed(2)+'</td><td class="num" style="color:'+PCOL[ws]+';font-weight:700">'+mx.toFixed(2)+'</td></tr>';
+  });
+}
+
+// ===== FULL SPEED TABLE =====
+function showFullTable() {
+  var tws = +document.getElementById('fullTws').value;
+  var nearest = TWS_KEYS.reduce(function(p,c){return Math.abs(c-tws)<Math.abs(p-tws)?c:p});
+  document.getElementById('fullTwsVal').textContent = nearest;
+  document.getElementById('fullTws').value = nearest;
+  var d = P[nearest];
+  var tb = document.getElementById('fullBody');
+  tb.innerHTML = '';
+  for(var i=0;i<d.twa.length;i++){
+    tb.innerHTML += '<tr><td style="font-weight:600">'+d.twa[i]+'°</td><td class="num">'+d.btv[i].toFixed(2)+'</td><td class="num">'+d.vmg[i].toFixed(2)+'</td><td class="num">'+d.awa[i].toFixed(1)+'°</td><td class="num">'+d.heel[i].toFixed(1)+'°</td></tr>';
+  }
+}
+
+// ===== WIND FORECAST — MULTI-MODEL, MULTI-POINT =====
+
+function buildMultiLocUrl(model) {
+  var lats = GRID_POINTS.map(function(p){return p.lat}).join(',');
+  var lons = GRID_POINTS.map(function(p){return p.lon}).join(',');
+  return 'https://api.open-meteo.com/v1/forecast?latitude='+lats+'&longitude='+lons
+    +'&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kn&timezone=Europe/Zurich&forecast_days=2'
+    +'&models='+model;
+}
+
+function parseModelResponse(data, model) {
+  // Open-Meteo multi-location returns an array of objects
+  var results = Array.isArray(data) ? data : [data];
+  var suffix = '_' + model;
+  return results.map(function(r, idx){
+    var hourly = r.hourly;
+    // Keys may be suffixed with model name or plain
+    var speedKey = hourly['wind_speed_10m'+suffix] ? 'wind_speed_10m'+suffix : 'wind_speed_10m';
+    var dirKey = hourly['wind_direction_10m'+suffix] ? 'wind_direction_10m'+suffix : 'wind_direction_10m';
+    var gustKey = hourly['wind_gusts_10m'+suffix] ? 'wind_gusts_10m'+suffix : 'wind_gusts_10m';
+    return {
+      name: GRID_POINTS[idx].name,
+      zone: GRID_POINTS[idx].zone,
+      shore: GRID_POINTS[idx].shore,
+      hours: hourly.time.map(function(t){return new Date(t)}),
+      speed: hourly[speedKey] || [],
+      dir: hourly[dirKey] || [],
+      gust: hourly[gustKey] || []
+    };
+  });
+}
+
+function computeEnsemble() {
+  // Average across models for each grid point
+  var modelKeys = Object.keys(rawModelData);
+  if(modelKeys.length === 0) return;
+
+  // Use first model as template
+  var template = rawModelData[modelKeys[0]];
+  ensembleData = template.map(function(pt, pi){
+    var nHours = pt.hours.length;
+    var speed = new Array(nHours);
+    var dir = new Array(nHours);
+    var gust = new Array(nHours);
+    var spread = new Array(nHours);
+
+    for(var h=0; h<nHours; h++){
+      var speeds = [];
+      var dirs = [];
+      var gusts = [];
+      modelKeys.forEach(function(mk){
+        var mpt = rawModelData[mk][pi];
+        if(mpt && mpt.speed[h] != null) speeds.push(mpt.speed[h]);
+        if(mpt && mpt.dir[h] != null) dirs.push(mpt.dir[h]);
+        if(mpt && mpt.gust[h] != null) gusts.push(mpt.gust[h]);
+      });
+
+      if(speeds.length === 0){
+        speed[h] = 0; dir[h] = 0; gust[h] = 0; spread[h] = 0;
+        continue;
+      }
+
+      // Mean speed and gust
+      var sumSpd = 0, sumGst = 0;
+      for(var k=0;k<speeds.length;k++) sumSpd += speeds[k];
+      for(var k=0;k<gusts.length;k++) sumGst += gusts[k];
+      speed[h] = sumSpd / speeds.length;
+      gust[h] = sumGst / (gusts.length || 1);
+
+      // Circular mean for direction
+      var sinSum = 0, cosSum = 0;
+      for(var k=0;k<dirs.length;k++){
+        var rad = dirs[k] * Math.PI / 180;
+        sinSum += Math.sin(rad);
+        cosSum += Math.cos(rad);
+      }
+      var meanDir = Math.atan2(sinSum/dirs.length, cosSum/dirs.length) * 180 / Math.PI;
+      if(meanDir < 0) meanDir += 360;
+      dir[h] = meanDir;
+
+      // Spread = max - min speed across models
+      var minS = speeds[0], maxS = speeds[0];
+      for(var k=1;k<speeds.length;k++){
+        if(speeds[k]<minS) minS=speeds[k];
+        if(speeds[k]>maxS) maxS=speeds[k];
+      }
+      spread[h] = maxS - minS;
+    }
+
+    return {
+      name: pt.name,
+      zone: pt.zone,
+      shore: pt.shore,
+      hours: pt.hours,
+      speed: speed,
+      dir: dir,
+      gust: gust,
+      spread: spread
+    };
+  });
+}
+
+function fetchWind() {
+  document.getElementById('windForecast').innerHTML = '<div class="loading">Fetching 2 models x 9 points...</div>';
+  document.getElementById('dashWind').innerHTML = '<div class="loading">Fetching...</div>';
+  rawModelData = {};
+
+  var promises = MODELS.map(function(model){
+    var url = buildMultiLocUrl(model);
+    return fetch(url).then(function(r){return r.json()}).then(function(data){
+      rawModelData[model] = parseModelResponse(data, model);
+    });
+  });
+
+  Promise.all(promises).then(function(){
+    computeEnsemble();
+    renderWind();
+    renderDashWind();
+    updateStrategy();
+    if(raceSimActive) {
+      var ws = document.getElementById('simWindStatus');
+      if(ws) { ws.textContent = 'Wind data loaded (' + Object.keys(rawModelData).length + ' models)'; ws.style.color = '#6ee7b7'; }
+      try { renderRaceSim(); } catch(e) {
+        console.error('Race sim render error:', e);
+        if(document.getElementById('startConditions')) document.getElementById('startConditions').innerHTML = '<div class="loading" style="color:var(--err)">Render error: '+e.message+'</div>';
+      }
+    }
+    var updNow = new Date();
+    document.getElementById('windUpdated').textContent = 'Updated ' + String(updNow.getHours()).padStart(2,'0') + ':' + String(updNow.getMinutes()).padStart(2,'0') + ' — auto-refreshes every 15 min';
+  }).catch(function(e){
+    console.error('Wind fetch error:', e);
+    document.getElementById('windForecast').innerHTML = '<div class="loading">Wind fetch failed: '+e.message+' <br><button class="refresh-btn" onclick="fetchWind()" style="margin-top:8px">Retry</button></div>';
+    document.getElementById('dashWind').innerHTML = '<div class="loading">Wind fetch failed <button class="refresh-btn" onclick="fetchWind()" style="margin-left:8px">Retry</button></div>';
+    if(raceSimActive) {
+      document.getElementById('startConditions').innerHTML = '<div class="loading">Wind data unavailable — <button class="refresh-btn" onclick="fetchWind()">Retry fetch</button></div>';
+    }
+  });
+}
+
+function setZone(i) {
+  curZone = i;
+  document.querySelectorAll('#zoneTabs button').forEach(function(b,j){b.classList.toggle('on',j===i)});
+  renderWind();
+}
+
+function windDirName(deg) {
+  var dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(deg/22.5) % 16];
+}
+
+function windColor(spd) {
+  if(spd < 6) return '#5DCAA5';
+  if(spd < 12) return '#378ADD';
+  if(spd < 18) return '#7F77DD';
+  if(spd < 25) return '#D85A30';
+  return '#E24B4A';
+}
+
+function confPill(spread) {
+  if(spread <= 3) return '<span class="conf-pill conf-high">HIGH</span>';
+  if(spread <= 6) return '<span class="conf-pill conf-mod">MOD</span>';
+  return '<span class="conf-pill conf-low">LOW</span>';
+}
+
+function getZonePoints(zoneName) {
+  if(!ensembleData) return [];
+  return ensembleData.filter(function(p){return p.zone === zoneName});
+}
+
+function renderWind() {
+  if(!ensembleData) return;
+  var zoneName = ZONE_NAMES[curZone];
+  var pts = getZonePoints(zoneName); // [N, Mid, S]
+  if(pts.length < 3) return;
+
+  var html = '';
+  // Header
+  html += '<div class="wind-grid-header">';
+  html += '<div></div><div></div>';
+  html += '<div style="text-align:center">Swiss</div>';
+  html += '<div style="text-align:center">Mid</div>';
+  html += '<div style="text-align:center">French</div>';
+  html += '</div>';
+
+  var now = new Date();
+  var nHours = Math.min(pts[0].hours.length, 48);
+  var maxSpd = 30;
+
+  for(var i=0; i<nHours; i++){
+    if(pts[0].hours[i] < now && i < nHours-1 && pts[0].hours[i+1] < now) continue;
+    var h = pts[0].hours[i];
+    var timeStr = h.getHours().toString().padStart(2,'0') + ':00';
+    var dayStr = h.getDate() === now.getDate() ? '' : (h.getMonth()+1)+'/'+h.getDate()+' ';
+
+    // Compute average spread across the 3 points for confidence
+    var avgSpread = (pts[0].spread[i] + pts[1].spread[i] + pts[2].spread[i]) / 3;
+
+    html += '<div class="wind-grid-row">';
+    html += '<div class="forecast-time">'+dayStr+timeStr+'</div>';
+    // Confidence pill in the arrow column
+    html += '<div style="text-align:center">'+confPill(avgSpread)+'</div>';
+
+    // 3 cells: N (Swiss), Mid, S (French)
+    for(var p=0; p<3; p++){
+      var spd = Math.round(pts[p].speed[i]);
+      var gst = Math.round(pts[p].gust[i]);
+      var dir = Math.round(pts[p].dir[i]);
+      var arrow = '<span class="wind-arrow" style="transform:rotate('+dir+'deg);font-size:12px">&#8595;</span>';
+      html += '<div class="wind-cell" style="color:'+windColor(spd)+'">';
+      html += '<div>'+spd;
+      if(gst > spd + 3) html += '<span class="ws-gust">g'+gst+'</span>';
+      html += '</div>';
+      html += '<div class="ws-dir">'+arrow+' '+windDirName(dir)+'</div>';
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  // Model info footer
+  html += '<div style="font-size:10px;color:var(--tx3);padding:8px 0;text-align:center">';
+  html += 'Ensemble: AROME France HD + ICON D2 | Spread-based confidence';
+  html += '</div>';
+
+  document.getElementById('windForecast').innerHTML = html;
+}
+
+function renderDashWind() {
+  if(!ensembleData) return;
+  var now = new Date();
+  var html = '<div class="metric-row">';
+
+  ZONE_NAMES.forEach(function(zoneName){
+    // Use mid-lake point (index 1 within zone)
+    var pts = getZonePoints(zoneName);
+    if(pts.length < 2) return;
+    var d = pts[1]; // Mid-lake point
+    var idx = 0;
+    for(var i=0;i<d.hours.length-1;i++){if(d.hours[i] <= now && d.hours[i+1] > now){idx=i;break}}
+    var spd = Math.round(d.speed[idx]);
+    var dir = Math.round(d.dir[idx]);
+    var gst = Math.round(d.gust[idx]);
+    var spr = d.spread[idx];
+
+    // Confidence indicator
+    var confClass = spr <= 3 ? 'conf-high' : (spr <= 6 ? 'conf-mod' : 'conf-low');
+    var confLabel = spr <= 3 ? 'HIGH' : (spr <= 6 ? 'MOD' : 'LOW');
+
+    html += '<div class="metric"><div class="label">'+zoneName+' <span class="dash-conf '+confClass+'">'+confLabel+'</span></div>';
+    html += '<div class="val" style="color:'+windColor(spd)+'">'+spd;
+    if(gst > spd+3) html += '<span style="font-size:13px;color:var(--tx3)">g'+gst+'</span>';
+    html += '<span class="unit"> kn</span></div>';
+    html += '<div style="font-size:11px;color:var(--tx3)"><span class="wind-arrow" style="transform:rotate('+dir+'deg)">&#8595;</span> '+windDirName(dir)+' ('+dir+'°)</div></div>';
+  });
+  html += '</div>';
+  document.getElementById('dashWind').innerHTML = html;
+}
+
+// ===== STRATEGY / BANK SELECTION — 9-way =====
+function updateStrategy() {
+  var hourOffset = +document.getElementById('stratHour').value;
+  document.getElementById('stratHourVal').textContent = '+' + hourOffset + 'h';
+  if(!ensembleData){document.getElementById('bankCards').innerHTML='<div class="loading">Load wind data first (go to Wind tab)</div>';return}
+
+  var now = new Date();
+  var target = new Date(now.getTime() + hourOffset * 3600000);
+  var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var dayName = days[target.getDay()];
+  var timeStr = dayName + ' ' + String(target.getHours()).padStart(2,'0') + ':' + String(target.getMinutes()).padStart(2,'0');
+  document.getElementById('stratTimeLabel').textContent = hourOffset === 0 ? 'Now — ' + timeStr : timeStr;
+
+  var banks = ensembleData.map(function(d){
+    var idx = 0;
+    for(var i=0;i<d.hours.length-1;i++){if(d.hours[i] <= target && d.hours[i+1] > target){idx=i;break}}
+    var spd = d.speed[idx];
+    var dir = d.dir[idx];
+    var gst = d.gust[idx];
+    var spr = d.spread[idx];
+
+    // Course Geneva to Bouveret is ~65 deg true bearing
+    var courseBearing = 65;
+    var twa = Math.abs(dir - courseBearing);
+    if(twa > 180) twa = 360 - twa;
+
+    var polar = interpPolar(spd, twa);
+    var br = bestBeatRun(spd);
+
+    // Identify wind pattern
+    var pattern = 'Variable';
+    if(dir >= 20 && dir <= 70) pattern = 'Bise (NE)';
+    else if(dir >= 200 && dir <= 250) pattern = 'Vent (SW)';
+    else if(dir >= 160 && dir <= 200) pattern = 'Morget/S thermal';
+    else if(dir >= 280 && dir <= 340) pattern = 'Joran (NW)';
+    else if(dir >= 100 && dir <= 160) pattern = 'Vaudaire (SE)';
+
+    return {
+      name: d.name,
+      zone: d.zone,
+      shore: d.shore,
+      spd: Math.round(spd),
+      gst: Math.round(gst),
+      dir: Math.round(dir),
+      dirName: windDirName(dir),
+      twa: Math.round(twa),
+      btv: polar.btv,
+      vmg: polar.vmg,
+      pattern: pattern,
+      beatVMG: br.beatVMG,
+      spread: spr
+    };
+  });
+
+  // Sort by VMG (absolute value, higher is better)
+  banks.sort(function(a,b){return Math.abs(b.vmg) - Math.abs(a.vmg)});
+
+  var html = '';
+
+  // Zone-grouped summary first
+  html += '<div style="font-size:11px;color:var(--tx3);margin-bottom:8px;font-weight:600">9-POINT BANK SELECTION</div>';
+
+  banks.forEach(function(b, i){
+    var cls = i === 0 ? 'bank-card best' : 'bank-card';
+    var rank = i === 0 ? '1' : (i+1)+'';
+    var vmgColor = i === 0 ? 'var(--acc2)' : 'var(--tx)';
+
+    // Wind condition pill
+    var pill = b.spd < 6 ? '<span class="pill pill-y">light</span>' : (b.spd > 18 ? '<span class="pill pill-r">heavy</span>' : '<span class="pill pill-g">good</span>');
+    // Confidence pill
+    var confCls = b.spread <= 3 ? 'conf-high' : (b.spread <= 6 ? 'conf-mod' : 'conf-low');
+    var confTxt = b.spread <= 3 ? 'HIGH' : (b.spread <= 6 ? 'MOD' : 'LOW');
+    var confHtml = ' <span class="conf-pill '+confCls+'">'+confTxt+'</span>';
+
+    // Shore label
+    var shoreLabel = b.shore === 'N' ? 'Swiss' : (b.shore === 'S' ? 'French' : 'Mid');
+
+    html += '<div class="'+cls+'">';
+    html += '<div class="bank-rank" style="color:'+(i===0?'var(--acc2)':'var(--tx3)')+'">'+rank+'</div>';
+    html += '<div class="bank-info"><div class="bank-name">'+b.zone+' '+shoreLabel+' '+pill+confHtml+'</div>';
+    html += '<div class="bank-detail">'+b.spd+'kn '+b.dirName+' ('+b.dir+'°) — '+b.pattern+'</div>';
+    html += '<div class="bank-detail">TWA '+b.twa+'° | Beat VMG '+b.beatVMG.toFixed(2)+'kn</div></div>';
+    html += '<div class="bank-vmg"><div class="val" style="color:'+vmgColor+'">'+Math.abs(b.vmg).toFixed(1)+'</div><div class="label">VMG kn</div></div>';
+    html += '</div>';
+  });
+
+  // Add recommendation
+  var best = banks[0];
+  var note = '';
+  var shoreDesc = best.shore === 'N' ? 'Swiss (north) shore' : (best.shore === 'S' ? 'French (south) shore' : 'mid-lake');
+  if(best.spd < 6){
+    note = 'Light air conditions at '+best.zone+' '+shoreDesc+'. Keep the boat moving — minimise manoeuvres, sail for VMG not speed. In sub-6 kn, every tack costs. Stay patient and look for pressure lines.';
+  } else if(best.pattern.includes('Bise')){
+    note = 'Bise conditions favour the south (French) bank upwind. Best VMG at '+best.zone+' '+shoreDesc+' with '+best.spd+'kn. Expect steady wind with shifts on 10-15 minute cycles. Stay in pressure — the south shore often has 2-3 kn more in Bise.';
+  } else if(best.pattern.includes('Morget')){
+    note = 'Thermal pattern from the south. The north bank (Swiss shore) near Morges typically benefits first. Best VMG at '+best.zone+' '+shoreDesc+'. Watch for the thermal to fill in from 13:00-14:00 and strengthen through the afternoon.';
+  } else if(best.pattern.includes('Vent')){
+    note = 'SW wind (Vent) tends to be gusty near the mountains. Best VMG at '+best.zone+' '+shoreDesc+'. Mid-lake or north bank may offer steadier pressure. Watch for wind shifts as the Vent interacts with local thermals.';
+  } else {
+    note = best.zone + ' '+shoreDesc+' shows the best VMG potential at ' + Math.abs(best.vmg).toFixed(2) + ' kn. Wind: ' + best.spd + 'kn from ' + best.dirName + '. Keep monitoring — conditions on Leman can change rapidly between banks.';
+  }
+
+  // Confidence note
+  var avgSpread = 0;
+  for(var i=0;i<Math.min(3,banks.length);i++) avgSpread += banks[i].spread;
+  avgSpread /= Math.min(3, banks.length);
+  if(avgSpread > 6){
+    note += ' Models disagree significantly (spread >6kn) — treat rankings with caution.';
+  } else if(avgSpread > 3){
+    note += ' Moderate model agreement — rankings reliable but margins are thin.';
+  }
+
+  html += '<div class="strat-note" style="margin-top:12px">' + note + '</div>';
+
+  document.getElementById('bankCards').innerHTML = html;
+}
+
+// ===== LAKE MAP =====
+function drawLake() {
+  var cv = document.getElementById('lakeCanvas');
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  ctx.clearRect(0,0,W,H);
+
+  var lats = LAKE.map(function(p){return p[0]});
+  var lons = LAKE.map(function(p){return p[1]});
+  var latMin=Math.min.apply(null,lats),latMax=Math.max.apply(null,lats);
+  var lonMin=Math.min.apply(null,lons),lonMax=Math.max.apply(null,lons);
+  var pad=12;
+
+  function proj(lat,lon){
+    var x=pad+((lon-lonMin)/(lonMax-lonMin))*(W-2*pad);
+    var y=pad+((latMax-lat)/(latMax-latMin))*(H-2*pad);
+    return [x,y];
+  }
+
+  // Lake fill
+  ctx.beginPath();
+  LAKE.forEach(function(p,i){var pt=proj(p[0],p[1]);if(i===0)ctx.moveTo(pt[0],pt[1]);else ctx.lineTo(pt[0],pt[1])});
+  ctx.closePath();
+  ctx.fillStyle='rgba(55,138,221,.15)';ctx.fill();
+  ctx.strokeStyle='rgba(55,138,221,.5)';ctx.lineWidth=1.5;ctx.stroke();
+
+  // All 9 grid point markers
+  var pointColors = {
+    'Geneva':'#97C459','Lausanne':'#378ADD','Bouveret':'#D85A30'
+  };
+  GRID_POINTS.forEach(function(gp){
+    var pt=proj(gp.lat,gp.lon);
+    var col = pointColors[gp.zone] || '#fff';
+    var r = gp.shore === 'Mid' ? 5 : 3;
+    ctx.beginPath();ctx.arc(pt[0],pt[1],r,0,Math.PI*2);
+    ctx.fillStyle=col;ctx.fill();
+    if(gp.shore === 'Mid'){
+      ctx.fillStyle='rgba(255,255,255,.7)';ctx.font='bold 9px sans-serif';ctx.textAlign='center';
+      ctx.fillText(gp.zone,pt[0],pt[1]-9);
+    }
+  });
+
+  // Wind arrows from ensemble data for mid-lake points
+  if(ensembleData){
+    var now=new Date();
+    ensembleData.forEach(function(d){
+      if(d.shore !== 'Mid') return;
+      var gp = GRID_POINTS.filter(function(p){return p.name === d.name})[0];
+      if(!gp) return;
+      var idx=0;
+      for(var j=0;j<d.hours.length-1;j++){if(d.hours[j]<=now&&d.hours[j+1]>now){idx=j;break}}
+      var pt=proj(gp.lat,gp.lon);
+      var dir=d.dir[idx]*Math.PI/180;
+      var spd=d.speed[idx];
+      var len=Math.min(30, 8+spd);
+      var ex=pt[0]+Math.sin(dir)*len;
+      var ey=pt[1]-Math.cos(dir)*len;
+      ctx.beginPath();ctx.moveTo(pt[0],pt[1]);ctx.lineTo(ex,ey);
+      ctx.strokeStyle=windColor(spd);ctx.lineWidth=2;ctx.stroke();
+      // Arrowhead
+      var angle=Math.atan2(ey-pt[1],ex-pt[0]);
+      ctx.beginPath();
+      ctx.moveTo(ex,ey);
+      ctx.lineTo(ex-8*Math.cos(angle-0.4),ey-8*Math.sin(angle-0.4));
+      ctx.lineTo(ex-8*Math.cos(angle+0.4),ey-8*Math.sin(angle+0.4));
+      ctx.closePath();ctx.fillStyle=windColor(spd);ctx.fill();
+    });
+  }
+}
+
+// ===== RACE SIMULATION MODE =====
+var raceSimActive = false;
+var simStartTime = null; // When the simulated race starts
+var simInterval = null;
+
+function toggleRaceSim() {
+  raceSimActive = !raceSimActive;
+  var btn = document.getElementById('simBtn');
+  var panel = document.getElementById('raceSimPanel');
+
+  if(raceSimActive) {
+    btn.textContent = 'Stop Sim';
+    btn.classList.add('active');
+    panel.style.display = 'block';
+    // Set race start to 30 minutes from now
+    simStartTime = new Date(Date.now() + 30 * 60000);
+    updateSimCountdown();
+    simInterval = setInterval(updateSimCountdown, 1000);
+    var windStatus = document.getElementById('simWindStatus');
+    if(ensembleData) {
+      windStatus.textContent = 'Wind data loaded (' + Object.keys(rawModelData).length + ' models)';
+      windStatus.style.color = '#6ee7b7';
+      try { renderRaceSim(); } catch(e) {
+        console.error('Race sim render error:', e);
+        document.getElementById('startConditions').innerHTML = '<div class="loading" style="color:var(--err)">Error: '+e.message+'</div>';
+      }
+    } else {
+      windStatus.textContent = 'Fetching wind data...';
+      windStatus.style.color = '#fbbf24';
+      document.getElementById('startConditions').innerHTML = '<div class="loading">Waiting for wind data... <button class="refresh-btn" onclick="fetchWind()" style="margin-left:8px">Retry</button></div>';
+      document.getElementById('legForecast').innerHTML = '<div class="loading">Fetching forecast models...</div>';
+      document.getElementById('raceTimeline').innerHTML = '<div class="loading">Will populate after wind loads</div>';
+      // Trigger a fresh wind fetch
+      fetchWind();
+    }
+  } else {
+    btn.textContent = 'Race Sim';
+    btn.classList.remove('active');
+    panel.style.display = 'none';
+    simStartTime = null;
+    if(simInterval) { clearInterval(simInterval); simInterval = null; }
+  }
+}
+
+function updateSimCountdown() {
+  if(!simStartTime) return;
+  var diff = simStartTime - Date.now();
+  var el = document.getElementById('simCountdown');
+  var sub = document.getElementById('simStartTime');
+
+  if(diff <= 0) {
+    // Race has started — show elapsed race time
+    var elapsed = -diff;
+    var eh = Math.floor(elapsed / 3600000);
+    var em = Math.floor((elapsed % 3600000) / 60000);
+    var es = Math.floor((elapsed % 60000) / 1000);
+    el.textContent = eh + 'h ' + String(em).padStart(2,'0') + ':' + String(es).padStart(2,'0');
+    el.style.color = '#2dd4a8';
+    sub.textContent = 'Race in progress';
+  } else {
+    var min = Math.floor(diff / 60000);
+    var sec = Math.floor((diff % 60000) / 1000);
+    el.textContent = '-' + min + ':' + String(sec).padStart(2,'0');
+    el.style.color = '#fff';
+    var startStr = String(simStartTime.getHours()).padStart(2,'0') + ':' + String(simStartTime.getMinutes()).padStart(2,'0');
+    sub.textContent = 'Gun at ' + startStr + ' CEST';
+  }
+}
+
+function getWindAtTime(pt, targetTime) {
+  // Find the right hour index for a given time
+  var idx = 0;
+  for(var i=0; i<pt.hours.length-1; i++) {
+    if(pt.hours[i] <= targetTime && pt.hours[i+1] > targetTime) { idx = i; break; }
+  }
+  // Linear interpolation between hours
+  var t0 = pt.hours[idx].getTime();
+  var t1 = pt.hours[Math.min(idx+1, pt.hours.length-1)].getTime();
+  var f = t1 > t0 ? (targetTime.getTime() - t0) / (t1 - t0) : 0;
+  f = Math.max(0, Math.min(1, f));
+
+  var spd0 = pt.speed[idx], spd1 = pt.speed[Math.min(idx+1, pt.speed.length-1)];
+  var gst0 = pt.gust[idx], gst1 = pt.gust[Math.min(idx+1, pt.gust.length-1)];
+  var dir0 = pt.dir[idx], dir1 = pt.dir[Math.min(idx+1, pt.dir.length-1)];
+  var spr0 = pt.spread[idx], spr1 = pt.spread[Math.min(idx+1, pt.spread.length-1)];
+
+  // Circular interpolation for direction
+  var diff = dir1 - dir0;
+  if(diff > 180) diff -= 360;
+  if(diff < -180) diff += 360;
+  var dir = dir0 + f * diff;
+  if(dir < 0) dir += 360;
+  if(dir >= 360) dir -= 360;
+
+  return {
+    speed: spd0 + f * (spd1 - spd0),
+    gust: gst0 + f * (gst1 - gst0),
+    dir: dir,
+    spread: spr0 + f * (spr1 - spr0)
+  };
+}
+
+function renderRaceSim() {
+  if(!ensembleData || !simStartTime) return;
+
+  // === START LINE CONDITIONS (Geneva mid-lake) ===
+  var genevaPoints = getZonePoints('Geneva');
+  var genevaMid = genevaPoints[1]; // Mid
+  var startWind = getWindAtTime(genevaMid, simStartTime);
+
+  // Course bearing Geneva → Bouveret ≈ 65°
+  var courseBrg = 65;
+  var startTWA = Math.abs(startWind.dir - courseBrg);
+  if(startTWA > 180) startTWA = 360 - startTWA;
+  var startPolar = interpPolar(startWind.speed, startTWA);
+  var startBR = bestBeatRun(startWind.speed);
+
+  // Point of sail
+  var sail = 'Reaching';
+  if(startTWA < 60) sail = 'Beating';
+  else if(startTWA < 80) sail = 'Close reach';
+  else if(startTWA < 110) sail = 'Beam reach';
+  else if(startTWA < 150) sail = 'Broad reach';
+  else sail = 'Running';
+
+  var confCls = startWind.spread <= 3 ? 'conf-high' : (startWind.spread <= 6 ? 'conf-mod' : 'conf-low');
+  var confTxt = startWind.spread <= 3 ? 'HIGH' : (startWind.spread <= 6 ? 'MOD' : 'LOW');
+
+  var startHtml = '<div class="start-grid">';
+  startHtml += '<div class="start-cell"><div class="sc-lbl">Wind</div><div class="sc-val" style="color:'+windColor(startWind.speed)+'">'+Math.round(startWind.speed)+'<span class="unit"> kn</span></div>';
+  startHtml += '<div style="font-size:10px;color:var(--tx3)"><span class="wind-arrow" style="transform:rotate('+Math.round(startWind.dir)+'deg)">&#8595;</span> '+windDirName(startWind.dir)+' ('+Math.round(startWind.dir)+'°)</div></div>';
+  startHtml += '<div class="start-cell"><div class="sc-lbl">Gusts</div><div class="sc-val">'+Math.round(startWind.gust)+'<span class="unit"> kn</span></div>';
+  startHtml += '<div style="font-size:10px"><span class="conf-pill '+confCls+'">'+confTxt+'</span></div></div>';
+  startHtml += '<div class="start-cell"><div class="sc-lbl">TWA to Bouveret</div><div class="sc-val">'+Math.round(startTWA)+'<span class="unit">°</span></div>';
+  startHtml += '<div style="font-size:10px;color:var(--tx2)">'+sail+'</div></div>';
+  startHtml += '<div class="start-cell"><div class="sc-lbl">Target speed</div><div class="sc-val" style="color:var(--acc)">'+startPolar.btv.toFixed(1)+'<span class="unit"> kn</span></div>';
+  startHtml += '<div style="font-size:10px;color:var(--tx2)">VMG '+startPolar.vmg.toFixed(1)+' kn</div></div>';
+  startHtml += '</div>';
+
+  // Optimal angles
+  startHtml += '<div style="margin-top:10px;font-size:11px;color:var(--tx2);line-height:1.6">';
+  startHtml += '<strong style="color:var(--tx)">Optimal angles:</strong> Beat '+startBR.beatA.toFixed(0)+'° (VMG '+startBR.beatVMG.toFixed(2)+' kn) · Run '+Math.round(startBR.runA)+'° (VMG '+startBR.runVMG.toFixed(2)+' kn)';
+  startHtml += '</div>';
+
+  // Bank comparison at start
+  startHtml += '<div style="margin-top:10px">';
+  var shores = [{name:'Swiss (N)',idx:0},{name:'Mid',idx:1},{name:'French (S)',idx:2}];
+  shores.forEach(function(s){
+    var w = getWindAtTime(genevaPoints[s.idx], simStartTime);
+    var twa = Math.abs(w.dir - courseBrg); if(twa>180) twa = 360-twa;
+    var pol = interpPolar(w.speed, twa);
+    var best = s.idx === 0 ? (genevaPoints[0]) : null; // just for display
+    startHtml += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;border-bottom:1px solid rgba(255,255,255,.05)">';
+    startHtml += '<span style="color:var(--tx2)">'+s.name+'</span>';
+    startHtml += '<span style="color:'+windColor(w.speed)+'">'+Math.round(w.speed)+'kn '+windDirName(w.dir)+'</span>';
+    startHtml += '<span style="font-weight:600">VMG '+Math.abs(pol.vmg).toFixed(1)+' kn</span>';
+    startHtml += '</div>';
+  });
+  startHtml += '</div>';
+
+  document.getElementById('startConditions').innerHTML = startHtml;
+
+  // === LEG FORECAST ===
+  // Estimate leg timings based on average speed
+  var leg1Dist = 31; // NM Geneva → Bouveret
+  var leg2Dist = 31; // NM Bouveret → Geneva
+  var returnBrg = 245; // Course bearing Bouveret → Geneva
+
+  // Leg 1: get wind at Geneva (start), Lausanne (mid), Bouveret (end)
+  var zones = [
+    {name:'Geneva',pts:getZonePoints('Geneva'),brg:courseBrg},
+    {name:'Lausanne',pts:getZonePoints('Lausanne'),brg:courseBrg},
+    {name:'Bouveret',pts:getZonePoints('Bouveret'),brg:courseBrg}
+  ];
+
+  // Estimate time through each zone (roughly equal thirds)
+  var avgBoatSpeed = Math.max(3, startPolar.btv); // minimum 3 kn estimate
+  var legTime = leg1Dist / avgBoatSpeed; // hours
+  var zoneTimeHrs = legTime / 3;
+
+  var legHtml = '';
+
+  // Leg 1
+  legHtml += '<div class="leg-card">';
+  legHtml += '<div class="leg-header"><div class="leg-title">Leg 1: Geneva → Bouveret</div>';
+  legHtml += '<div class="leg-badge" style="background:rgba(74,158,255,.2);color:var(--acc)">'+leg1Dist+' NM</div></div>';
+
+  var leg1Spd = 0, leg1VMG = 0, leg1Count = 0;
+  zones.forEach(function(z, zi){
+    var eta = new Date(simStartTime.getTime() + zi * zoneTimeHrs * 3600000);
+    var midPt = z.pts[1];
+    var w = getWindAtTime(midPt, eta);
+    var twa = Math.abs(w.dir - z.brg); if(twa>180) twa=360-twa;
+    var pol = interpPolar(w.speed, twa);
+    leg1Spd += pol.btv; leg1VMG += Math.abs(pol.vmg); leg1Count++;
+  });
+
+  var est1 = leg1Dist / (leg1Spd/leg1Count);
+  var markTime = new Date(simStartTime.getTime() + est1 * 3600000);
+
+  legHtml += '<div class="leg-stats">';
+  legHtml += '<div class="leg-stat"><div class="ls-val">'+(leg1Spd/leg1Count).toFixed(1)+'</div><div class="ls-lbl">Avg BTV kn</div></div>';
+  legHtml += '<div class="leg-stat"><div class="ls-val">'+(leg1VMG/leg1Count).toFixed(1)+'</div><div class="ls-lbl">Avg VMG kn</div></div>';
+  legHtml += '<div class="leg-stat"><div class="ls-val">'+Math.floor(est1)+'h'+String(Math.round((est1%1)*60)).padStart(2,'0')+'</div><div class="ls-lbl">Est. time</div></div>';
+  legHtml += '</div>';
+  legHtml += '<div style="font-size:10px;color:var(--tx3);margin-top:6px">Mark ETA: '+String(markTime.getHours()).padStart(2,'0')+':'+String(markTime.getMinutes()).padStart(2,'0')+' CEST</div>';
+  legHtml += '</div>';
+
+  // Leg 2
+  var zones2 = [
+    {name:'Bouveret',pts:getZonePoints('Bouveret'),brg:returnBrg},
+    {name:'Lausanne',pts:getZonePoints('Lausanne'),brg:returnBrg},
+    {name:'Geneva',pts:getZonePoints('Geneva'),brg:returnBrg}
+  ];
+
+  legHtml += '<div class="leg-card leg2">';
+  legHtml += '<div class="leg-header"><div class="leg-title">Leg 2: Bouveret → Geneva</div>';
+  legHtml += '<div class="leg-badge" style="background:rgba(245,158,11,.2);color:var(--warn)">'+leg2Dist+' NM</div></div>';
+
+  var leg2Spd = 0, leg2VMG = 0, leg2Count = 0;
+  zones2.forEach(function(z, zi){
+    var eta2 = new Date(markTime.getTime() + zi * zoneTimeHrs * 3600000);
+    var midPt = z.pts[1];
+    var w = getWindAtTime(midPt, eta2);
+    var twa = Math.abs(w.dir - z.brg); if(twa>180) twa=360-twa;
+    var pol = interpPolar(w.speed, twa);
+    leg2Spd += pol.btv; leg2VMG += Math.abs(pol.vmg); leg2Count++;
+  });
+
+  var est2 = leg2Dist / (leg2Spd/leg2Count);
+  var finishTime = new Date(markTime.getTime() + est2 * 3600000);
+  var totalHrs = (finishTime - simStartTime) / 3600000;
+
+  legHtml += '<div class="leg-stats">';
+  legHtml += '<div class="leg-stat"><div class="ls-val">'+(leg2Spd/leg2Count).toFixed(1)+'</div><div class="ls-lbl">Avg BTV kn</div></div>';
+  legHtml += '<div class="leg-stat"><div class="ls-val">'+(leg2VMG/leg2Count).toFixed(1)+'</div><div class="ls-lbl">Avg VMG kn</div></div>';
+  legHtml += '<div class="leg-stat"><div class="ls-val">'+Math.floor(est2)+'h'+String(Math.round((est2%1)*60)).padStart(2,'0')+'</div><div class="ls-lbl">Est. time</div></div>';
+  legHtml += '</div>';
+  legHtml += '<div style="font-size:10px;color:var(--tx3);margin-top:6px">Finish ETA: '+String(finishTime.getHours()).padStart(2,'0')+':'+String(finishTime.getMinutes()).padStart(2,'0')+' CEST</div>';
+  legHtml += '</div>';
+
+  // Total race summary
+  legHtml += '<div style="text-align:center;padding:12px 0;border-top:1px solid var(--bg3);margin-top:8px">';
+  legHtml += '<div style="font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;font-weight:700">Total estimated race time</div>';
+  legHtml += '<div style="font-size:24px;font-weight:800;color:var(--acc);margin-top:4px">'+Math.floor(totalHrs)+'h '+String(Math.round((totalHrs%1)*60)).padStart(2,'0')+'m</div>';
+  legHtml += '<div style="font-size:11px;color:var(--tx3);margin-top:2px">62 NM at avg '+((leg1Spd/leg1Count+leg2Spd/leg2Count)/2).toFixed(1)+' kn BTV</div>';
+  legHtml += '</div>';
+
+  document.getElementById('legForecast').innerHTML = legHtml;
+
+  // === RACE TIMELINE ===
+  var tlHtml = '<div class="race-timeline">';
+
+  // Pre-start
+  var preStart = new Date(simStartTime.getTime() - 30*60000);
+  tlHtml += '<div class="tl-item active"><div class="tl-time">'+fmtTime(preStart)+' — NOW</div>';
+  tlHtml += '<div class="tl-desc">Pre-start preparation</div>';
+  tlHtml += '<div class="tl-wind">Check wind, set up instruments, warm up</div></div>';
+
+  // Start
+  var sw = getWindAtTime(genevaMid, simStartTime);
+  tlHtml += '<div class="tl-item"><div class="tl-time">'+fmtTime(simStartTime)+' — START</div>';
+  tlHtml += '<div class="tl-desc">Gun — Port Tunnel line</div>';
+  tlHtml += '<div class="tl-wind" style="color:'+windColor(sw.speed)+'">'+Math.round(sw.speed)+'kn '+windDirName(sw.dir)+' ('+Math.round(sw.dir)+'°) — '+sail+'</div></div>';
+
+  // Geneva basin exit (~20 min)
+  var genevaExit = new Date(simStartTime.getTime() + 20*60000);
+  var gw = getWindAtTime(genevaMid, genevaExit);
+  tlHtml += '<div class="tl-item"><div class="tl-time">'+fmtTime(genevaExit)+' — +20min</div>';
+  tlHtml += '<div class="tl-desc">Geneva basin exit — bank decision</div>';
+  var gwTwa = Math.abs(gw.dir - courseBrg); if(gwTwa>180) gwTwa=360-gwTwa;
+  tlHtml += '<div class="tl-wind" style="color:'+windColor(gw.speed)+'">'+Math.round(gw.speed)+'kn '+windDirName(gw.dir)+' TWA '+Math.round(gwTwa)+'°</div></div>';
+
+  // Lausanne area
+  var lausanneEta = new Date(simStartTime.getTime() + zoneTimeHrs * 3600000);
+  var lausanneMid = getZonePoints('Lausanne')[1];
+  var lw = getWindAtTime(lausanneMid, lausanneEta);
+  var lwTwa = Math.abs(lw.dir - courseBrg); if(lwTwa>180) lwTwa=360-lwTwa;
+  tlHtml += '<div class="tl-item"><div class="tl-time">'+fmtTime(lausanneEta)+' — Lausanne area</div>';
+  tlHtml += '<div class="tl-desc">Mid-lake — key tactical zone</div>';
+  tlHtml += '<div class="tl-wind" style="color:'+windColor(lw.speed)+'">'+Math.round(lw.speed)+'kn '+windDirName(lw.dir)+' TWA '+Math.round(lwTwa)+'°</div></div>';
+
+  // Mark rounding
+  var markEta = markTime;
+  var bouveretMid = getZonePoints('Bouveret')[1];
+  var bw = getWindAtTime(bouveretMid, markEta);
+  tlHtml += '<div class="tl-item"><div class="tl-time">'+fmtTime(markEta)+' — LE BOUVERET</div>';
+  tlHtml += '<div class="tl-desc">Mark rounding — starboard</div>';
+  var bwTwa = Math.abs(bw.dir - returnBrg); if(bwTwa>180) bwTwa=360-bwTwa;
+  var bwSail = bwTwa<60?'Beating':bwTwa<110?'Reaching':'Running';
+  tlHtml += '<div class="tl-wind" style="color:'+windColor(bw.speed)+'">'+Math.round(bw.speed)+'kn '+windDirName(bw.dir)+' → '+bwSail+' back TWA '+Math.round(bwTwa)+'°</div></div>';
+
+  // Return mid-lake
+  var retLausanne = new Date(markTime.getTime() + zoneTimeHrs * 3600000);
+  var rlw = getWindAtTime(lausanneMid, retLausanne);
+  var rlTwa = Math.abs(rlw.dir - returnBrg); if(rlTwa>180) rlTwa=360-rlTwa;
+  tlHtml += '<div class="tl-item"><div class="tl-time">'+fmtTime(retLausanne)+' — Return leg</div>';
+  tlHtml += '<div class="tl-desc">Lausanne area — homeward</div>';
+  tlHtml += '<div class="tl-wind" style="color:'+windColor(rlw.speed)+'">'+Math.round(rlw.speed)+'kn '+windDirName(rlw.dir)+' TWA '+Math.round(rlTwa)+'°</div></div>';
+
+  // Finish
+  var fw = getWindAtTime(genevaMid, finishTime);
+  tlHtml += '<div class="tl-item"><div class="tl-time">'+fmtTime(finishTime)+' — FINISH</div>';
+  tlHtml += '<div class="tl-desc">Port-Noir — estimated finish</div>';
+  tlHtml += '<div class="tl-wind" style="color:'+windColor(fw.speed)+'">'+Math.round(fw.speed)+'kn '+windDirName(fw.dir)+'</div></div>';
+
+  tlHtml += '</div>';
+
+  // Assumption box
+  tlHtml += '<div style="font-size:10px;color:var(--tx3);padding:8px;margin-top:8px;background:var(--bg2);border-radius:6px;border-left:2px solid var(--warn)">';
+  tlHtml += '<strong style="color:var(--warn)">Assumptions:</strong> ETAs based on polar targets at forecast TWS. Actual times will vary with current, wave state, tactical decisions, and start quality. Wind data from AROME HD + ICON D2 ensemble.';
+  tlHtml += '</div>';
+
+  document.getElementById('raceTimeline').innerHTML = tlHtml;
+}
+
+function fmtTime(d) {
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+// ===== INIT =====
+initPolarBtns();
+buildVMGTable();
+showFullTable();
+calcQuickVMG();
+fetchWind();
+
+// Auto-refresh wind every 15 minutes to keep strategy current
+setInterval(fetchWind, 15 * 60 * 1000);
+
+// Register service worker
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(function(){});
+}
+</script>
+</body>
+</html>
