@@ -106,10 +106,11 @@ a{color:var(--acc)}
     <label>LJ sim</label>
     <select id="ljStrategy" onchange="onLJStrategyChange(this.value)">
       <option value="" selected>Off</option>
-      <option value="auto">Auto VMC</option>
+      <option value="auto">Auto VMC (greedy)</option>
       <option value="swiss">Swiss bank</option>
       <option value="mid">Mid lake</option>
       <option value="french">French bank</option>
+      <option value="iso-auto">Isochrone ★</option>
     </select>
   </div>
 </div>
@@ -629,6 +630,112 @@ function simulateLJRoute(opts) {
   return {points:points, stats:{tacks:tackCount, reachedFinish: wpIdx >= waypoints.length}};
 }
 
+// ===== Isochrone routing (mirrors index.html) =====
+function pruneByAngularSector(points, goal, sectors, strategy) {
+  var buckets = new Array(sectors);
+  for(var i = 0; i < points.length; i++) {
+    var p = points[i];
+    var brg = bearingDeg(goal[0], goal[1], p.lat, p.lon);
+    var idx = Math.floor(brg / (360 / sectors)) % sectors;
+    var d = haversineNM(p.lat, p.lon, goal[0], goal[1]);
+    var bias = 0;
+    if(strategy && strategy !== 'auto') {
+      var ct = crossTrackNM(p.lat, p.lon);
+      if(strategy === 'swiss')  bias = -ct * 0.20;
+      else if(strategy === 'french') bias = ct * 0.20;
+      else if(strategy === 'mid') bias = Math.abs(ct) * 0.14;
+    }
+    var score = d + bias;
+    if(!buckets[idx] || score < buckets[idx]._s) { p._s = score; buckets[idx] = p; }
+  }
+  var out = [];
+  for(var k = 0; k < sectors; k++) if(buckets[k]) out.push(buckets[k]);
+  return out;
+}
+
+function isochroneLeg(startPos, startT, goal, windAt, opts) {
+  opts = opts || {};
+  var dtMs = opts.dtMs || 600000;
+  var polarScale = opts.polarScale || 0.93;
+  var maxSteps = opts.maxSteps || 200;
+  var arrivalNM = opts.arrivalNM || 0.27;
+  var sectors = opts.sectors || 36;
+  var hdgStep = opts.hdgStep || 10;
+  var strategy = opts.strategy || 'auto';
+
+  var iso = [{lat:startPos.lat, lon:startPos.lon, t:startT, parent:null, hdg:0, btv:0}];
+  var reached = null;
+  for(var s = 0; s < maxSteps; s++) {
+    var newIso = [];
+    for(var i = 0; i < iso.length; i++) {
+      var p = iso[i];
+      var wind = windAt(p.lat, p.lon, p.t);
+      if(!wind || wind.tws == null) continue;
+      if(wind.tws < 0.5) {
+        var brg = bearingDeg(p.lat, p.lon, goal[0], goal[1]);
+        var dist = 0.8 * dtMs / 3600000;
+        var np = movePoint(p, brg, dist);
+        if(pointInLake(np.lat, np.lon))
+          newIso.push({lat:np.lat, lon:np.lon, t:p.t + dtMs, parent:p, hdg:brg, btv:0.8});
+        continue;
+      }
+      for(var hdg = 0; hdg < 360; hdg += hdgStep) {
+        var twa = Math.abs((((hdg - wind.twd) + 540) % 360) - 180);
+        if(twa < 30) continue;
+        var pol = interpPolar(wind.tws, twa);
+        if(!pol.btv || pol.btv < 0.4) continue;
+        var distNM = pol.btv * polarScale * dtMs / 3600000;
+        var newPos = movePoint(p, hdg, distNM);
+        if(!pointInLake(newPos.lat, newPos.lon)) continue;
+        newIso.push({lat:newPos.lat, lon:newPos.lon, t:p.t + dtMs, parent:p, hdg:hdg, btv:pol.btv * polarScale});
+      }
+    }
+    if(!newIso.length) break;
+    iso = pruneByAngularSector(newIso, goal, sectors, strategy);
+    var bestReached = null, bestT = Infinity;
+    for(var k = 0; k < iso.length; k++) {
+      if(haversineNM(iso[k].lat, iso[k].lon, goal[0], goal[1]) < arrivalNM && iso[k].t < bestT) {
+        bestReached = iso[k]; bestT = iso[k].t;
+      }
+    }
+    if(bestReached) { reached = bestReached; break; }
+  }
+  if(!reached) return null;
+  var path = [];
+  var cur = reached;
+  while(cur) { path.unshift({lat:cur.lat, lon:cur.lon, t:cur.t, hdg:cur.hdg, btv:cur.btv}); cur = cur.parent; }
+  return path;
+}
+
+function isochroneRoute(opts) {
+  opts = opts || {};
+  var startPos = opts.startPos || [46.2044, 6.1568];
+  var startTime = opts.startTime || new Date();
+  var waypoints = opts.waypoints || [[46.391, 6.857], [46.2044, 6.1568]];
+  var windAt = opts.windAt;
+  var strategy = opts.strategy || 'auto';
+  var all = [];
+  var curPos = {lat: startPos[0], lon: startPos[1]};
+  var curT = +startTime;
+  var success = true;
+  for(var w = 0; w < waypoints.length; w++) {
+    var leg = isochroneLeg(curPos, curT, waypoints[w], windAt, {strategy: strategy});
+    if(!leg) { success = false; break; }
+    var startIdx = (w === 0) ? 0 : 1;
+    for(var j = startIdx; j < leg.length; j++) all.push(leg[j]);
+    var last = leg[leg.length - 1];
+    curPos = {lat: last.lat, lon: last.lon};
+    curT = last.t;
+  }
+  var formatted = all.map(function(p){ return {ts:p.t, lat:p.lat, lon:p.lon, sog:p.btv || 0, hdg:p.hdg || 0, didTack:false}; });
+  var tackCount = 0;
+  for(var i = 1; i < formatted.length - 1; i++) {
+    var d = ((formatted[i+1].hdg - formatted[i-1].hdg + 540) % 360) - 180;
+    if(Math.abs(d) > 60) { formatted[i].didTack = true; tackCount++; }
+  }
+  return {points: formatted, stats: {tacks: tackCount, reachedFinish: success}};
+}
+
 // ===== Historical wind (Open-Meteo archive ERA5) =====
 var RACE_DATES = {BOL25:'2025-06-14', BOPM24:'2024-06-15', BOM23:'2023-06-10', BOM21:'2021-06-12'};
 var RACE_START_LOCAL = {
@@ -691,17 +798,21 @@ function onLJStrategyChange(v) {
   ljResult = null;
   if(!ljStrategy) { drawAnimAt(tsAtSlider(document.getElementById('timeSlider').value)); return; }
   if(!currentYear) { setStatus('Pick a year first', 'error'); return; }
+  var isIso = ljStrategy.indexOf('iso-') === 0;
+  var coreStrategy = isIso ? ljStrategy.slice(4) : ljStrategy;
+  var label = isIso ? ('isochrone · ' + coreStrategy) : ljStrategy;
   setStatus('Fetching ' + RACE_LABELS[currentYear] + ' historical wind…');
   fetchHistoricalWind(currentYear).then(function(windData){
-    setStatus('Simulating Little Johnka (' + ljStrategy + ')…');
+    setStatus('Simulating Little Johnka (' + label + ')…');
     setTimeout(function(){
-      ljResult = simulateLJRoute({
+      var simOpts = {
         startPos: [46.2044, 6.1568],
         startTime: new Date(RACE_START_LOCAL[currentYear]),
         waypoints: [[46.391, 6.857], [46.2044, 6.1568]],
         windAt: makeHistoricalWindAdapter(windData),
-        strategy: ljStrategy
-      });
+        strategy: coreStrategy
+      };
+      ljResult = isIso ? isochroneRoute(simOpts) : simulateLJRoute(simOpts);
       // LJ polyline: white so it stays distinct from Pertuiset/Darnetal (#fbbf24)
       var coords = ljResult.points.map(function(p){ return [p.lat, p.lon]; });
       L.polyline(coords, {color:'#ffffff', weight:3, opacity:0.9, smoothFactor:1.5, interactive:false}).addTo(ljLayer);
@@ -713,7 +824,7 @@ function onLJStrategyChange(v) {
       });
       var ms = ljResult.points[ljResult.points.length-1].ts - ljResult.points[0].ts;
       var h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000);
-      setStatus('LJ sim: '+ljStrategy+' · ' + h + 'h' + String(m).padStart(2,'0') + ' · ' + ljResult.stats.tacks + ' tacks', 'success');
+      setStatus('LJ sim: '+label+' · ' + h + 'h' + String(m).padStart(2,'0') + ' · ' + ljResult.stats.tacks + ' tacks', 'success');
       drawAnimAt(tsAtSlider(document.getElementById('timeSlider').value));
     }, 30);
   }).catch(function(err){
