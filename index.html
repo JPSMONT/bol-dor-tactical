@@ -491,6 +491,13 @@ canvas{display:block}
           </select>
         </div>
         <div class="sim-row">
+          <label>Algorithm</label>
+          <select id="simAlgo">
+            <option value="greedy" selected>Greedy VMC — fast, step-by-step</option>
+            <option value="isochrone">Isochrone routing — slower, globally optimal</option>
+          </select>
+        </div>
+        <div class="sim-row">
           <label>Scenario</label>
           <select id="simScenario">
             <option value="now" selected>Now — live forecast</option>
@@ -3069,6 +3076,147 @@ function simulateLJRoute(opts) {
   };
 }
 
+// ===== Isochrone routing (PRD §17 P3 weather routing engine) =====
+// From start, expands an isochrone at each timestep by trying every heading,
+// prunes by angular sector toward the current leg goal, and traces back the
+// best chain to give a globally optimal route under the wind forecast.
+// Replaces the greedy step-by-step heading search when "Isochrone" is selected.
+function pruneByAngularSector(points, goal, sectors, strategy) {
+  var buckets = new Array(sectors);
+  for(var i = 0; i < points.length; i++) {
+    var p = points[i];
+    var brg = bearingDeg(goal[0], goal[1], p.lat, p.lon);
+    var idx = Math.floor(brg / (360 / sectors)) % sectors;
+    // Score = distance to goal + strategy bias (lower is better)
+    var d = haversineNM(p.lat, p.lon, goal[0], goal[1]);
+    var bias = 0;
+    if(strategy && strategy !== 'auto') {
+      var ct = crossTrackNM(p.lat, p.lon);          // + = north of rhumb
+      if(strategy === 'swiss')  bias = -ct * 0.20;
+      else if(strategy === 'french') bias = ct * 0.20;
+      else if(strategy === 'mid') bias = Math.abs(ct) * 0.14;
+    }
+    var score = d + bias;
+    if(!buckets[idx] || score < buckets[idx]._s) {
+      p._s = score;
+      buckets[idx] = p;
+    }
+  }
+  var out = [];
+  for(var k = 0; k < sectors; k++) if(buckets[k]) out.push(buckets[k]);
+  return out;
+}
+
+function isochroneLeg(startPos, startT, goal, windAt, opts) {
+  opts = opts || {};
+  var dtMs = opts.dtMs || 600000;              // 10-minute isochrones
+  var polarScale = opts.polarScale || 0.93;
+  var maxSteps = opts.maxSteps || 200;
+  var arrivalNM = opts.arrivalNM || 0.27;
+  var sectors = opts.sectors || 36;
+  var hdgStep = opts.hdgStep || 10;
+  var strategy = opts.strategy || 'auto';
+
+  var iso = [{lat:startPos.lat, lon:startPos.lon, t:startT, parent:null, hdg:0, btv:0}];
+  var reached = null;
+  for(var s = 0; s < maxSteps; s++) {
+    var newIso = [];
+    for(var i = 0; i < iso.length; i++) {
+      var p = iso[i];
+      var wind = windAt(p.lat, p.lon, p.t);
+      if(!wind || wind.tws == null) continue;
+      // For low wind, allow a single in-irons "drift" candidate so the algorithm doesn't deadlock
+      if(wind.tws < 0.5) {
+        var brg = bearingDeg(p.lat, p.lon, goal[0], goal[1]);
+        var dist = 0.8 * dtMs / 3600000;
+        var np = movePoint(p, brg, dist);
+        if(pointInLake(np.lat, np.lon))
+          newIso.push({lat:np.lat, lon:np.lon, t:p.t + dtMs, parent:p, hdg:brg, btv:0.8});
+        continue;
+      }
+      for(var hdg = 0; hdg < 360; hdg += hdgStep) {
+        var twa = Math.abs((((hdg - wind.twd) + 540) % 360) - 180);
+        if(twa < 30) continue;                  // skip in-irons
+        var pol = interpPolar(wind.tws, twa);
+        if(!pol.btv || pol.btv < 0.4) continue;
+        var distNM = pol.btv * polarScale * dtMs / 3600000;
+        var newPos = movePoint(p, hdg, distNM);
+        if(!pointInLake(newPos.lat, newPos.lon)) continue;
+        newIso.push({lat:newPos.lat, lon:newPos.lon, t:p.t + dtMs, parent:p, hdg:hdg, btv:pol.btv * polarScale});
+      }
+    }
+    if(!newIso.length) break;
+    iso = pruneByAngularSector(newIso, goal, sectors, strategy);
+    // Goal-reach check on this isochrone
+    var bestReached = null, bestT = Infinity;
+    for(var k = 0; k < iso.length; k++) {
+      if(haversineNM(iso[k].lat, iso[k].lon, goal[0], goal[1]) < arrivalNM && iso[k].t < bestT) {
+        bestReached = iso[k]; bestT = iso[k].t;
+      }
+    }
+    if(bestReached) { reached = bestReached; break; }
+  }
+  if(!reached) return null;
+  // Trace back through parent chain
+  var path = [];
+  var cur = reached;
+  while(cur) { path.unshift({lat:cur.lat, lon:cur.lon, t:cur.t, hdg:cur.hdg, btv:cur.btv}); cur = cur.parent; }
+  return path;
+}
+
+function isochroneRoute(opts) {
+  opts = opts || {};
+  var startPos = opts.startPos || [46.2044, 6.1568];
+  var startTime = opts.startTime || new Date();
+  var waypoints = opts.waypoints || [[46.391, 6.857], [46.2044, 6.1568]];
+  var windAt = opts.windAt || windAtFromEnsemble;
+  var strategy = opts.strategy || 'auto';
+
+  var all = [];
+  var curPos = {lat: startPos[0], lon: startPos[1]};
+  var curT = +startTime;
+  var success = true;
+  for(var w = 0; w < waypoints.length; w++) {
+    var leg = isochroneLeg(curPos, curT, waypoints[w], windAt, {strategy: strategy});
+    if(!leg) { success = false; break; }
+    var startIdx = (w === 0) ? 0 : 1;            // skip the duplicated handoff point
+    for(var j = startIdx; j < leg.length; j++) all.push(leg[j]);
+    var last = leg[leg.length - 1];
+    curPos = {lat: last.lat, lon: last.lon};
+    curT = last.t;
+  }
+
+  // Heading-change detection → mark tacks (>60° between consecutive segments)
+  var formatted = all.map(function(p){
+    return {ts: p.t, lat: p.lat, lon: p.lon, sog: p.btv || 0, hdg: p.hdg || 0, didTack: false};
+  });
+  var tackCount = 0;
+  for(var i = 1; i < formatted.length - 1; i++) {
+    var d = ((formatted[i+1].hdg - formatted[i-1].hdg + 540) % 360) - 180;
+    if(Math.abs(d) > 60) { formatted[i].didTack = true; tackCount++; }
+  }
+
+  var totalDist = 0;
+  for(var i = 1; i < formatted.length; i++) {
+    totalDist += haversineNM(formatted[i-1].lat, formatted[i-1].lon, formatted[i].lat, formatted[i].lon);
+  }
+  var totalMs = formatted.length > 1 ? (formatted[formatted.length-1].ts - formatted[0].ts) : 0;
+  var avgSOG = totalMs > 0 ? totalDist / (totalMs / 3600000) : 0;
+
+  return {
+    points: formatted,
+    stats: {
+      totalDist: totalDist,
+      durationMs: totalMs,
+      avgSOG: avgSOG,
+      tacks: tackCount,
+      reachedFinish: success,
+      strategy: strategy,
+      algorithm: 'isochrone'
+    }
+  };
+}
+
 // ===== Historical wind for past Bol d'Or races (Open-Meteo archive, ERA5) =====
 var RACE_DATES = {BOL25:'2025-06-14', BOPM24:'2024-06-15', BOM23:'2023-06-10', BOM21:'2021-06-12'};
 var RACE_START_LOCAL = {
@@ -3244,6 +3392,7 @@ function runSimulation() {
   simTrackLayer.clearLayers();
 
   var strategy = document.getElementById('simStrategy').value;
+  var algo = (document.getElementById('simAlgo') || {}).value || 'greedy';
   var scenario = document.getElementById('simScenario').value;
   var historicalCode = /^(BOL25|BOPM24|BOM23|BOM21)$/.test(scenario) ? scenario : null;
 
@@ -3273,13 +3422,14 @@ function runSimulation() {
     noteEl.textContent = 'Running simulation…';
     var windAt = ctx.historical ? makeHistoricalWindAdapter(ctx.wind) : windAtFromEnsemble;
     setTimeout(function(){
-      var result = simulateLJRoute({
+      var simOpts = {
         startPos: [46.2044, 6.1568],
         startTime: ctx.startTime,
         waypoints: [[46.391, 6.857], [46.2044, 6.1568]],
         windAt: windAt,
         strategy: strategy
-      });
+      };
+      var result = (algo === 'isochrone') ? isochroneRoute(simOpts) : simulateLJRoute(simOpts);
       lastSimResult = result;
       renderSimTrack(result);
       if(ctx.historical && ctx.boats) {
@@ -3293,10 +3443,13 @@ function runSimulation() {
       if(s.reachedFinish) {
         var fin = new Date(result.points[result.points.length-1].ts);
         var ctxLabel = ctx.historical ? (RACE_LABELS[historicalCode] + ' historical wind (ERA5 25km)') : 'live forecast';
-        noteEl.textContent = 'Finish reached at ' + fin.toLocaleTimeString() + ' · ' + strategy + ' · 93% of polar · ' + ctxLabel;
+        var algoLabel = algo === 'isochrone' ? 'isochrone routing' : 'greedy VMC';
+        noteEl.textContent = 'Finish reached at ' + fin.toLocaleTimeString() + ' · ' + strategy + ' · ' + algoLabel + ' · 93% of polar · ' + ctxLabel;
         noteEl.className = 'sim-note ok';
       } else {
-        noteEl.textContent = 'Did not reach finish within 30h cap — wind too light, polygon blocked, or strategy too constrained.';
+        noteEl.textContent = (algo === 'isochrone'
+          ? 'Isochrone did not reach finish within step cap — wind data may not span the race window. Try Greedy VMC.'
+          : 'Did not reach finish within 30h cap — wind too light, polygon blocked, or strategy too constrained.');
         noteEl.className = 'sim-note warn';
       }
     }, 30);
