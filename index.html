@@ -8,6 +8,8 @@
 <meta name="theme-color" content="#0a1628">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <title>Bol d'Or Tactical</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -122,6 +124,59 @@ canvas{display:block}
 .zone-subhead{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;padding:4px 0;margin-left:76px;margin-bottom:4px}
 .zone-subhead span{text-align:center;font-size:9px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:0.3px}
 @media(min-width:420px){.metric .val{font-size:24px}}
+/* Leaflet map for Strategy tab */
+#lakeMap{width:100%;height:300px;border-radius:8px;background:#000}
+#lakeMap .leaflet-container{background:#000}
+#lakeMap .leaflet-control-attribution{background:rgba(0,0,0,.75);color:var(--tx3);font-size:9px}
+#lakeMap .leaflet-control-attribution a{color:var(--tx2)}
+#lakeMap .leaflet-control-zoom a{background:var(--bg3);color:var(--tx);border-color:var(--bg2)}
+#lakeMap .leaflet-control-zoom a:hover{background:var(--card)}
+.lake-tip{background:rgba(10,22,40,.85);color:var(--tx);border:1px solid var(--bg3);font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;box-shadow:none}
+.lake-tip:before{display:none}
+.wind-marker{pointer-events:none}
+.wp-badge{background:#2dd4a8;color:#000;font-weight:700;padding:3px 7px;border-radius:4px;font-size:10px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.6);letter-spacing:.3px}
+.wp-badge.mark{background:#f59e0b}
+.wp-badge.active{box-shadow:0 0 0 2px #fff,0 0 10px rgba(45,212,168,.9);background:#2dd4a8}
+.wp-badge.passed{background:#5a7290;opacity:.65}
+.wp-badge.num{background:#4a9eff}
+/* GPS / Nav panel */
+.gps-btn{background:var(--bg3);color:var(--tx);border:1px solid var(--bg3);font-size:12px;font-weight:700;padding:7px 14px;border-radius:20px;cursor:pointer;letter-spacing:.3px}
+.gps-btn.start{background:var(--acc2);color:#000;border-color:var(--acc2)}
+.gps-btn.active{background:var(--err);color:#fff;border-color:var(--err)}
+.gps-status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--err);margin-right:6px;vertical-align:middle}
+.gps-status-dot.searching{background:var(--warn);animation:gpspulse 1.2s infinite}
+.gps-status-dot.live{background:var(--acc2);box-shadow:0 0 6px rgba(45,212,168,.8);animation:gpspulse 1.5s infinite}
+@keyframes gpspulse{0%,100%{opacity:1}50%{opacity:.45}}
+.compass-wrap{display:flex;justify-content:center;padding:6px 0 4px}
+.wp-btn-row{display:flex;gap:4px;margin-top:10px;flex-wrap:wrap}
+.wp-btn{flex:1 1 calc(14% - 4px);min-width:46px;padding:7px 2px;font-size:10px;font-weight:700;border:1px solid var(--bg3);background:transparent;color:var(--tx2);border-radius:6px;cursor:pointer;letter-spacing:.3px;line-height:1.2}
+.wp-btn.active{background:var(--acc2);color:#000;border-color:var(--acc2)}
+.wp-btn.passed{color:var(--tx3);opacity:.55}
+.off-course{text-align:center;font-size:15px;font-weight:700;margin:8px 0;padding:6px;border-radius:6px;background:var(--bg2)}
+.boat-icon{filter:drop-shadow(0 0 4px rgba(251,191,36,.7))}
+.nav-footer{font-size:10px;color:var(--tx3);margin-top:8px;text-align:center;font-variant-numeric:tabular-nums}
+/* PPR bar — PRD §7.1 SOG vs polar target */
+.ppr-box{margin-top:10px;padding:8px 10px;background:var(--bg2);border-radius:8px}
+.ppr-box.ppr-off{font-size:10px;color:var(--tx3);text-align:center}
+.ppr-head{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:4px}
+.ppr-pct{font-size:14px;font-weight:800}
+.ppr-bar{position:relative;height:10px;background:var(--bg);border-radius:5px;overflow:hidden}
+.ppr-fill{height:100%;border-radius:5px;transition:width .25s ease-out}
+.ppr-100tick{position:absolute;top:-2px;bottom:-2px;left:calc(100% - 1px);width:2px;background:rgba(255,255,255,.5)}
+.ppr-foot{font-size:10px;color:var(--tx3);margin-top:4px;font-variant-numeric:tabular-nums}
+/* Big-bearing night-mode display — PRD §7.3 */
+.big-bearing{background:#000;border-radius:8px;padding:18px 12px 16px;text-align:center;margin:8px -4px;border:1px solid #1a0606}
+.big-bearing .bb-brg{font-size:72px;font-weight:900;color:#ef4444;line-height:.95;letter-spacing:-2px;font-variant-numeric:tabular-nums;text-shadow:0 0 12px rgba(239,68,68,.4)}
+.big-bearing .bb-brg span{font-size:36px;color:#7f1d1d;font-weight:700;margin-left:2px}
+.big-bearing .bb-label{font-size:10px;color:#7f1d1d;font-weight:700;letter-spacing:2px;margin-top:2px}
+.big-bearing .bb-row{display:flex;justify-content:space-around;margin-top:14px;font-size:14px}
+.big-bearing .bb-row .bb-k{color:#7f1d1d;font-weight:700;letter-spacing:1px;font-size:11px}
+.big-bearing .bb-row .bb-v{color:#ef4444;font-weight:800;font-variant-numeric:tabular-nums}
+.big-bearing .bb-off{margin-top:10px;font-size:22px;font-weight:800;color:#ef4444;letter-spacing:1px}
+.big-bearing .bb-off.ok{color:#fbbf24}
+@media(min-width:420px){
+  .big-bearing .bb-brg{font-size:88px}
+}
 </style>
 </head>
 <body>
@@ -273,6 +328,22 @@ canvas{display:block}
 
     <!-- ===== STRATEGY ===== -->
     <div class="view" id="v3">
+      <div class="card" id="navCard">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div class="card-title" style="margin:0"><span id="gpsDot" class="gps-status-dot"></span>GPS Navigation</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+            <button class="refresh-btn" id="gpsCenterBtn" onclick="centerOnBoat()" style="display:none">Center</button>
+            <button class="gps-btn" id="nightBtn" onclick="toggleNightMode()" style="display:none">Night</button>
+            <button class="gps-btn start" id="gpsBtn" onclick="toggleGPS()">Enable GPS</button>
+          </div>
+        </div>
+        <div id="navPanel"><div class="loading">GPS off — tap "Enable GPS" to start live tracking.</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Race course — Lac Léman</div>
+        <div id="lakeMap"></div>
+        <div style="font-size:10px;color:var(--tx3);margin-top:6px;line-height:1.4">OpenSeaMap nautical overlay · 5-waypoint route · 9-point wind grid</div>
+      </div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <div class="card-title" style="margin:0">Bank selection advisor</div>
@@ -298,10 +369,6 @@ canvas{display:block}
             <strong>Little Johnka's edge:</strong> CYD 27 excels in 8-14 kn TWS with VMG >4 kn upwind. In light air (<6 kn), keep the boat moving with minimal manoeuvres. Sail inventory: Main (27.1 m²), Jib (17.7 m²), Spinnaker (47.2 m²).
           </div>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Lake overview</div>
-        <canvas id="lakeCanvas" width="360" height="180" style="width:100%"></canvas>
       </div>
     </div>
 
@@ -625,6 +692,7 @@ function fetchWind() {
     renderWind();
     renderDashWind();
     updateStrategy();
+    updateLakeWind();
     if(raceSimActive) {
       var ws = document.getElementById('simWindStatus');
       if(ws) { ws.textContent = 'Wind data loaded (' + Object.keys(rawModelData).length + ' models)'; ws.style.color = '#6ee7b7'; }
@@ -880,74 +948,693 @@ function updateStrategy() {
   document.getElementById('bankCards').innerHTML = html;
 }
 
-// ===== LAKE MAP =====
-function drawLake() {
-  var cv = document.getElementById('lakeCanvas');
-  var ctx = cv.getContext('2d');
-  var W = cv.width, H = cv.height;
-  ctx.clearRect(0,0,W,H);
+// ===== WAYPOINTS (PRD v4.0 §7.3 — Bol d'Or round trip) =====
+var WAYPOINTS = [
+  {name:'Start (Genève)',      short:'GVA',  lat:46.2044, lon:6.1568, note:'SNG start area'},
+  {name:'Nyon passage',        short:'NYO',  lat:46.3830, lon:6.2340, note:'Petit Lac exit'},
+  {name:'Lausanne abeam',      short:'LAU',  lat:46.5080, lon:6.6280, note:'Grand Lac midpoint'},
+  {name:'Montreux approach',   short:'MTX',  lat:46.4340, lon:6.9100, note:'Haut-Lac entry'},
+  {name:'Le Bouveret mark',    short:'BVT',  lat:46.3910, lon:6.8570, note:'Mandatory rounding'},
+  {name:'Return: Lausanne',    short:'LAU↩', lat:46.5080, lon:6.6280, note:'Grand Lac return'},
+  {name:'Finish (Genève)',     short:'FIN',  lat:46.2044, lon:6.1568, note:'SNG finish line'}
+];
+var ARRIVAL_NM = 0.27; // ~500 m per PRD §7.3 auto-advance
 
-  var lats = LAKE.map(function(p){return p[0]});
-  var lons = LAKE.map(function(p){return p[1]});
-  var latMin=Math.min.apply(null,lats),latMax=Math.max.apply(null,lats);
-  var lonMin=Math.min.apply(null,lons),lonMax=Math.max.apply(null,lons);
-  var pad=12;
+// ===== GREAT-CIRCLE MATH =====
+function haversineNM(lat1, lon1, lat2, lon2) {
+  var R = 3440.065; // earth radius in NM
+  var toR = Math.PI/180;
+  var dLat = (lat2 - lat1) * toR;
+  var dLon = (lon2 - lon1) * toR;
+  var a = Math.sin(dLat/2)*Math.sin(dLat/2) +
+          Math.cos(lat1*toR)*Math.cos(lat2*toR) *
+          Math.sin(dLon/2)*Math.sin(dLon/2);
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+function bearingDeg(lat1, lon1, lat2, lon2) {
+  var toR = Math.PI/180;
+  var dLon = (lon2 - lon1) * toR;
+  var y = Math.sin(dLon) * Math.cos(lat2*toR);
+  var x = Math.cos(lat1*toR)*Math.sin(lat2*toR) -
+          Math.sin(lat1*toR)*Math.cos(lat2*toR)*Math.cos(dLon);
+  var b = Math.atan2(y, x) * 180/Math.PI;
+  return (b + 360) % 360;
+}
 
-  function proj(lat,lon){
-    var x=pad+((lon-lonMin)/(lonMax-lonMin))*(W-2*pad);
-    var y=pad+((latMax-lat)/(latMax-latMin))*(H-2*pad);
-    return [x,y];
-  }
+// ===== TRACK RECORDING (IndexedDB) — PRD §7.1 =====
+var trackDB = null;
+var trackPointCount = 0;
+var trackSessionId = null;
 
-  // Lake fill
-  ctx.beginPath();
-  LAKE.forEach(function(p,i){var pt=proj(p[0],p[1]);if(i===0)ctx.moveTo(pt[0],pt[1]);else ctx.lineTo(pt[0],pt[1])});
-  ctx.closePath();
-  ctx.fillStyle='rgba(55,138,221,.15)';ctx.fill();
-  ctx.strokeStyle='rgba(55,138,221,.5)';ctx.lineWidth=1.5;ctx.stroke();
+function openTrackDB() {
+  if(trackDB || !('indexedDB' in window)) return Promise.resolve(trackDB);
+  return new Promise(function(resolve){
+    var req = indexedDB.open('bol-tactic', 1);
+    req.onupgradeneeded = function(e){
+      var db = e.target.result;
+      if(!db.objectStoreNames.contains('fixes')) {
+        var store = db.createObjectStore('fixes', {keyPath:'ts'});
+        store.createIndex('session', 'session', {unique:false});
+      }
+    };
+    req.onsuccess = function(e){ trackDB = e.target.result; resolve(trackDB); };
+    req.onerror = function(){ resolve(null); };
+  });
+}
 
-  // All 9 grid point markers
-  var pointColors = {
-    'Geneva':'#97C459','Lausanne':'#378ADD','Bouveret':'#D85A30'
-  };
-  GRID_POINTS.forEach(function(gp){
-    var pt=proj(gp.lat,gp.lon);
-    var col = pointColors[gp.zone] || '#fff';
-    var r = gp.shore === 'Mid' ? 5 : 3;
-    ctx.beginPath();ctx.arc(pt[0],pt[1],r,0,Math.PI*2);
-    ctx.fillStyle=col;ctx.fill();
-    if(gp.shore === 'Mid'){
-      ctx.fillStyle='rgba(255,255,255,.7)';ctx.font='bold 9px sans-serif';ctx.textAlign='center';
-      ctx.fillText(gp.zone,pt[0],pt[1]-9);
-    }
+function saveFix(fix) {
+  if(!trackDB) return;
+  try {
+    var tx = trackDB.transaction('fixes', 'readwrite');
+    tx.objectStore('fixes').put(fix);
+    trackPointCount++;
+  } catch(e) { /* silently ignore — race condition during close */ }
+}
+
+// ===== LAKE MAP (Leaflet + OpenSeaMap) =====
+var lakeMap = null;
+var lakeWindLayer = null;
+var lakeGridLayer = null;
+var lakeRouteLayer = null;   // polyline + numbered waypoint badges
+var lakeBoatLayer = null;    // boat icon + line to next waypoint
+
+function initLakeMap() {
+  if(lakeMap || typeof L === 'undefined') return;
+
+  lakeMap = L.map('lakeMap', {
+    zoomControl: true,
+    attributionControl: true,
+    preferCanvas: true
   });
 
-  // Wind arrows from ensemble data for mid-lake points
-  if(ensembleData){
-    var now=new Date();
-    ensembleData.forEach(function(d){
-      if(d.shore !== 'Mid') return;
-      var gp = GRID_POINTS.filter(function(p){return p.name === d.name})[0];
-      if(!gp) return;
-      var idx=0;
-      for(var j=0;j<d.hours.length-1;j++){if(d.hours[j]<=now&&d.hours[j+1]>now){idx=j;break}}
-      var pt=proj(gp.lat,gp.lon);
-      var dir=d.dir[idx]*Math.PI/180;
-      var spd=d.speed[idx];
-      var len=Math.min(30, 8+spd);
-      var ex=pt[0]+Math.sin(dir)*len;
-      var ey=pt[1]-Math.cos(dir)*len;
-      ctx.beginPath();ctx.moveTo(pt[0],pt[1]);ctx.lineTo(ex,ey);
-      ctx.strokeStyle=windColor(spd);ctx.lineWidth=2;ctx.stroke();
-      // Arrowhead
-      var angle=Math.atan2(ey-pt[1],ex-pt[0]);
-      ctx.beginPath();
-      ctx.moveTo(ex,ey);
-      ctx.lineTo(ex-8*Math.cos(angle-0.4),ey-8*Math.sin(angle-0.4));
-      ctx.lineTo(ex-8*Math.cos(angle+0.4),ey-8*Math.sin(angle+0.4));
-      ctx.closePath();ctx.fillStyle=windColor(spd);ctx.fill();
+  // Black canvas — no base map. OpenSeaMap seamarks rendered directly on black.
+  L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openseamap.org">OpenSeaMap</a>'
+  }).addTo(lakeMap);
+
+  // Lake outline — now the primary visual reference for the shoreline
+  L.polygon(LAKE, {
+    color: '#4a9eff', weight: 1.5, opacity: 0.85,
+    fillColor: '#0a1628', fillOpacity: 0.6,
+    interactive: false
+  }).addTo(lakeMap);
+
+  // 9-point bank selection grid
+  lakeGridLayer = L.layerGroup().addTo(lakeMap);
+  var pointColors = {'Geneva':'#97C459','Lausanne':'#378ADD','Bouveret':'#D85A30'};
+  GRID_POINTS.forEach(function(gp){
+    var col = pointColors[gp.zone] || '#fff';
+    var r = gp.shore === 'Mid' ? 6 : 4;
+    var m = L.circleMarker([gp.lat, gp.lon], {
+      radius: r,
+      color: '#fff', weight: 1.2,
+      fillColor: col, fillOpacity: 0.9
+    }).bindTooltip(gp.name, {
+      permanent: gp.shore === 'Mid',
+      direction: 'top', offset: [0,-6],
+      className: 'lake-tip'
     });
+    m.addTo(lakeGridLayer);
+  });
+
+  // Route + waypoint badges (drawn separately so we can repaint on advance)
+  lakeRouteLayer = L.layerGroup().addTo(lakeMap);
+  drawWaypointsOnMap();
+
+  // Wind arrows layer (populated by updateLakeWind)
+  lakeWindLayer = L.layerGroup().addTo(lakeMap);
+
+  // Boat icon + course-to-go line (populated when GPS active)
+  lakeBoatLayer = L.layerGroup().addTo(lakeMap);
+
+  // Fit to the race corridor
+  lakeMap.fitBounds([[46.195, 6.13], [46.52, 6.95]], {padding:[6,6]});
+}
+
+function drawWaypointsOnMap() {
+  if(!lakeRouteLayer) return;
+  lakeRouteLayer.clearLayers();
+  // Dashed route line connecting all waypoints in order
+  var coords = WAYPOINTS.map(function(w){return [w.lat, w.lon]});
+  L.polyline(coords, {
+    color:'#4a9eff', weight:2, opacity:0.55,
+    dashArray:'6,6', interactive:false
+  }).addTo(lakeRouteLayer);
+  // Numbered badges (passed = grey, active = green pulse, upcoming = blue)
+  WAYPOINTS.forEach(function(wp, i){
+    var cls = 'wp-badge num';
+    var label = (i+1) + ' · ' + wp.short;
+    if(i === activeWpIdx) { cls = 'wp-badge active'; }
+    else if(i < activeWpIdx) { cls = 'wp-badge passed'; }
+    L.marker([wp.lat, wp.lon], {
+      icon: L.divIcon({className:'', html:'<div class="'+cls+'">'+label+'</div>', iconSize:[72,18], iconAnchor:[36,9]})
+    }).addTo(lakeRouteLayer);
+  });
+}
+
+function updateLakeWind() {
+  if(!lakeWindLayer || !ensembleData) return;
+  lakeWindLayer.clearLayers();
+  var now = new Date();
+  ensembleData.forEach(function(d){
+    if(d.shore !== 'Mid') return;
+    var gp = GRID_POINTS.filter(function(p){return p.name === d.name})[0];
+    if(!gp) return;
+    var idx = 0;
+    for(var j=0; j<d.hours.length-1; j++){
+      if(d.hours[j] <= now && d.hours[j+1] > now){idx=j;break}
+    }
+    var dir = d.dir[idx];
+    var spd = d.speed[idx];
+    var col = windColor(spd);
+    // ↓ arrow points in the direction the wind blows TOWARDS, rotated by met-convention bearing
+    var html =
+      '<div style="display:flex;flex-direction:column;align-items:center;line-height:1">' +
+        '<div style="transform:rotate('+dir+'deg);color:'+col+';font-size:24px;text-shadow:0 0 4px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,1);font-weight:700">&#8595;</div>' +
+        '<div style="font-size:10px;font-weight:700;color:'+col+';text-shadow:0 0 4px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,1);margin-top:-3px;white-space:nowrap">'+Math.round(spd)+'kn</div>' +
+      '</div>';
+    L.marker([gp.lat, gp.lon], {
+      icon: L.divIcon({className:'wind-marker', html: html, iconSize:[40,44], iconAnchor:[20,22]}),
+      interactive: false,
+      keyboard: false
+    }).addTo(lakeWindLayer);
+  });
+}
+
+// ===== GPS / BOAT / WAYPOINT NAVIGATION (PRD v4.0 §7) =====
+var gpsActive = false;
+var gpsWatchId = null;
+var gpsPos = null;             // {lat,lon,sog,cog,accuracy,ts}
+var activeWpIdx = 0;
+var hasAutoCentered = false;
+var wakeLock = null;
+var nightMode = false;         // PRD §7.3 high-contrast bearing display
+
+// Device compass (PRD §7.2) — independent of GPS heading
+var compassHeading = null;     // 0-360 magnetic
+var compassListener = null;
+var compassAvailable = false;
+var compassRequestedPermission = false;
+var screenOrientationAngle = 0;
+var compassUiThrottleTs = 0;
+
+function toggleGPS() {
+  if(gpsActive) stopGPS(); else startGPS();
+}
+
+function startGPS() {
+  if(!navigator.geolocation) {
+    alert('Geolocation is not supported by this browser.');
+    return;
   }
+  setGpsStatus('searching', 'Acquiring fix…');
+  try {
+    gpsWatchId = navigator.geolocation.watchPosition(
+      onGPSUpdate, onGPSError,
+      {enableHighAccuracy:true, maximumAge:1000, timeout:15000}
+    );
+  } catch(e) {
+    alert('GPS error: ' + e.message);
+    return;
+  }
+  gpsActive = true;
+  hasAutoCentered = false;
+  trackSessionId = Date.now();
+  trackPointCount = 0;
+  // Open IndexedDB for track recording (PRD §7.1)
+  openTrackDB();
+  // Best-effort screen wake lock
+  if('wakeLock' in navigator) {
+    navigator.wakeLock.request('screen').then(function(wl){
+      wakeLock = wl;
+      wakeLock.addEventListener('release', function(){ wakeLock = null; });
+    }).catch(function(){});
+  }
+  // Request device compass (PRD §7.2) — same user gesture as GPS enable
+  enableCompass();
+  updateGPSButtons();
+  renderNavPanel();
+}
+
+function stopGPS() {
+  if(gpsWatchId !== null) navigator.geolocation.clearWatch(gpsWatchId);
+  gpsActive = false;
+  gpsWatchId = null;
+  gpsPos = null;
+  if(lakeBoatLayer) lakeBoatLayer.clearLayers();
+  if(wakeLock) { try { wakeLock.release(); } catch(e) {} wakeLock = null; }
+  disableCompass();
+  setGpsStatus('off', null);
+  updateGPSButtons();
+  renderNavPanel();
+}
+
+function onGPSUpdate(pos) {
+  var c = pos.coords;
+  gpsPos = {
+    lat: c.latitude,
+    lon: c.longitude,
+    sog: (c.speed != null && !isNaN(c.speed)) ? c.speed * 1.94384 : null, // m/s → kn
+    cog: (c.heading != null && !isNaN(c.heading)) ? c.heading : null,
+    accuracy: c.accuracy,
+    ts: pos.timestamp || Date.now()
+  };
+  setGpsStatus('live', null);
+  // Record fix to IndexedDB (PRD §7.1 — for post-race analysis)
+  saveFix({
+    ts: gpsPos.ts,
+    session: trackSessionId,
+    lat: gpsPos.lat, lon: gpsPos.lon,
+    sog: gpsPos.sog, cog: gpsPos.cog,
+    hdg: compassHeading,
+    accuracy: gpsPos.accuracy
+  });
+  if(lakeMap && !hasAutoCentered) {
+    lakeMap.setView([gpsPos.lat, gpsPos.lon], 13);
+    hasAutoCentered = true;
+  }
+  updateBoatOnMap();
+  autoAdvanceWaypoint();
+  renderNavPanel();
+}
+
+function onGPSError(err) {
+  setGpsStatus('off', 'GPS error: ' + err.message);
+  var p = document.getElementById('navPanel');
+  if(p) p.innerHTML = '<div class="loading" style="color:var(--err)">GPS error: '+err.message+'. Check permissions and try again.</div>';
+}
+
+function setGpsStatus(state, msg) {
+  var dot = document.getElementById('gpsDot');
+  if(!dot) return;
+  dot.className = 'gps-status-dot' + (state === 'live' ? ' live' : state === 'searching' ? ' searching' : '');
+  if(msg) dot.title = msg;
+}
+
+function updateGPSButtons() {
+  var btn = document.getElementById('gpsBtn');
+  var center = document.getElementById('gpsCenterBtn');
+  var night = document.getElementById('nightBtn');
+  if(btn) {
+    btn.textContent = gpsActive ? 'Stop GPS' : 'Enable GPS';
+    btn.className = 'gps-btn ' + (gpsActive ? 'active' : 'start');
+  }
+  if(center) center.style.display = gpsActive ? '' : 'none';
+  if(night) night.style.display = gpsActive ? '' : 'none';
+}
+
+function centerOnBoat() {
+  if(gpsPos && lakeMap) lakeMap.setView([gpsPos.lat, gpsPos.lon], Math.max(lakeMap.getZoom(), 13));
+}
+
+function toggleNightMode() {
+  nightMode = !nightMode;
+  var nb = document.getElementById('nightBtn');
+  if(nb) {
+    nb.textContent = nightMode ? 'Compass' : 'Night';
+    nb.className = 'gps-btn' + (nightMode ? ' active' : '');
+  }
+  renderNavPanel();
+}
+
+function autoAdvanceWaypoint() {
+  if(!gpsPos || activeWpIdx >= WAYPOINTS.length - 1) return;
+  var wp = WAYPOINTS[activeWpIdx];
+  if(haversineNM(gpsPos.lat, gpsPos.lon, wp.lat, wp.lon) < ARRIVAL_NM) {
+    activeWpIdx++;
+    drawWaypointsOnMap();
+  }
+}
+
+function setActiveWaypoint(i) {
+  if(i < 0 || i >= WAYPOINTS.length) return;
+  activeWpIdx = i;
+  drawWaypointsOnMap();
+  updateBoatOnMap();
+  renderNavPanel();
+}
+
+// ===== DEVICE COMPASS (PRD §7.2 DeviceOrientation API) =====
+function enableCompass() {
+  // iOS 13+: requestPermission must be called from a user gesture
+  if(typeof DeviceOrientationEvent !== 'undefined' &&
+     typeof DeviceOrientationEvent.requestPermission === 'function') {
+    if(compassRequestedPermission) { attachCompassListener(); return; }
+    compassRequestedPermission = true;
+    DeviceOrientationEvent.requestPermission().then(function(state){
+      if(state === 'granted') attachCompassListener();
+    }).catch(function(){ /* user denied or feature unavailable */ });
+  } else {
+    // Non-iOS or older iOS — just attach
+    attachCompassListener();
+  }
+}
+
+function attachCompassListener() {
+  if(compassListener || typeof window === 'undefined') return;
+  // Track screen orientation for Android alpha compensation
+  if(screen && screen.orientation) {
+    screenOrientationAngle = screen.orientation.angle || 0;
+    try {
+      screen.orientation.addEventListener('change', function(){
+        screenOrientationAngle = screen.orientation.angle || 0;
+      });
+    } catch(e) {}
+  } else if(typeof window.orientation === 'number') {
+    screenOrientationAngle = window.orientation;
+  }
+  var useAbsolute = 'ondeviceorientationabsolute' in window;
+  compassListener = function(ev){
+    var h = null;
+    // iOS: webkitCompassHeading is the magnetic heading directly (0=N, clockwise)
+    if(typeof ev.webkitCompassHeading === 'number' && !isNaN(ev.webkitCompassHeading)) {
+      h = ev.webkitCompassHeading;
+    } else if((ev.absolute || useAbsolute) && typeof ev.alpha === 'number' && !isNaN(ev.alpha)) {
+      // Android absolute: alpha increases CCW from N; compass heading = (360 - alpha) compensated for screen rotation
+      h = (360 - ev.alpha + screenOrientationAngle) % 360;
+      if(h < 0) h += 360;
+    }
+    if(h != null && !isNaN(h)) {
+      compassHeading = h;
+      compassAvailable = true;
+      // Throttle UI to ~10 Hz (sensor fires ~60 Hz)
+      var now = Date.now();
+      if(now - compassUiThrottleTs > 100) {
+        compassUiThrottleTs = now;
+        if(gpsActive && gpsPos) { updateBoatOnMap(); renderNavPanel(); }
+      }
+    }
+  };
+  window.addEventListener(useAbsolute ? 'deviceorientationabsolute' : 'deviceorientation', compassListener, true);
+}
+
+function disableCompass() {
+  if(compassListener) {
+    window.removeEventListener('deviceorientationabsolute', compassListener, true);
+    window.removeEventListener('deviceorientation', compassListener, true);
+    compassListener = null;
+  }
+  compassHeading = null;
+  compassAvailable = false;
+  compassRequestedPermission = false;
+}
+
+// Fused heading per PRD §15: GPS heading when moving (>3 kn), compass when slow
+function fusedHeading() {
+  if(gpsPos && gpsPos.sog != null && gpsPos.sog >= 3 && gpsPos.cog != null) {
+    return {value: gpsPos.cog, source: 'GPS'};
+  }
+  if(compassAvailable && compassHeading != null) {
+    return {value: compassHeading, source: 'compass'};
+  }
+  if(gpsPos && gpsPos.cog != null) {
+    return {value: gpsPos.cog, source: 'GPS'};
+  }
+  return {value: null, source: null};
+}
+
+// ===== PERFORMANCE: wind-at-boat, PPR, VMC =====
+function currentWindForBoat() {
+  if(!gpsPos || !ensembleData) return null;
+  var nearest = null, nearestD = Infinity;
+  for(var i=0; i<ensembleData.length; i++){
+    var d = ensembleData[i];
+    var gp = GRID_POINTS.filter(function(p){return p.name === d.name})[0];
+    if(!gp) continue;
+    var dd = haversineNM(gpsPos.lat, gpsPos.lon, gp.lat, gp.lon);
+    if(dd < nearestD) { nearestD = dd; nearest = d; }
+  }
+  if(!nearest) return null;
+  return getWindAtTime(nearest, new Date());
+}
+
+function twaFor(hdg, twd) {
+  // True wind angle 0..180. TWD is the direction the wind comes FROM.
+  var d = ((twd - hdg) + 540) % 360 - 180;
+  return Math.abs(d);
+}
+
+function computePerf() {
+  if(!gpsPos || gpsPos.sog == null) return null;
+  var fh = fusedHeading();
+  if(fh.value == null) return null;
+  var wind = currentWindForBoat();
+  if(!wind) return null;
+  var twa = twaFor(fh.value, wind.dir);
+  var target = interpPolar(wind.speed, twa).btv;
+  if(target <= 0.1) return null;
+  return {
+    target: target, twa: twa, tws: wind.speed, twd: wind.dir,
+    ratio: gpsPos.sog / target, hdg: fh.value, hdgSrc: fh.source
+  };
+}
+
+function computeVMC(brg) {
+  // PRD §7.1, §10.1: VMC = SOG · cos(brg − hdg)
+  if(!gpsPos || gpsPos.sog == null) return null;
+  var fh = fusedHeading();
+  if(fh.value == null) return null;
+  var diff = (((brg - fh.value + 540) % 360) - 180) * Math.PI/180;
+  return gpsPos.sog * Math.cos(diff);
+}
+
+// Gold boat icon per PRD §7.1
+function boatIconHtml(hdg) {
+  var r = (hdg != null && !isNaN(hdg)) ? hdg : 0;
+  return '<div class="boat-icon" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;transform:rotate('+r+'deg)">' +
+         '<svg width="24" height="30" viewBox="0 0 24 30">' +
+         '<path d="M12 1 L22 28 L12 23 L2 28 Z" fill="#fbbf24" stroke="#0a1628" stroke-width="1.5" stroke-linejoin="round"/>' +
+         '<circle cx="12" cy="16" r="2.2" fill="#0a1628"/>' +
+         '</svg></div>';
+}
+
+function updateBoatOnMap() {
+  if(!lakeBoatLayer || !gpsPos) return;
+  lakeBoatLayer.clearLayers();
+  var ll = [gpsPos.lat, gpsPos.lon];
+  // Accuracy circle
+  if(gpsPos.accuracy && gpsPos.accuracy < 500) {
+    L.circle(ll, {
+      radius: gpsPos.accuracy,
+      color: '#fbbf24', weight: 1, opacity: 0.4,
+      fillColor: '#fbbf24', fillOpacity: 0.05,
+      interactive: false
+    }).addTo(lakeBoatLayer);
+  }
+  // Line to active waypoint
+  var wp = WAYPOINTS[activeWpIdx];
+  if(wp) {
+    L.polyline([ll, [wp.lat, wp.lon]], {
+      color:'#fbbf24', weight:2, opacity:0.75, dashArray:'4,4', interactive:false
+    }).addTo(lakeBoatLayer);
+  }
+  // Boat icon rotated by fused heading (compass fills in at low speed)
+  var fh = fusedHeading();
+  L.marker(ll, {
+    icon: L.divIcon({className:'', html: boatIconHtml(fh.value), iconSize:[32,32], iconAnchor:[16,16]}),
+    interactive: false, keyboard: false, zIndexOffset: 1000
+  }).addTo(lakeBoatLayer);
+}
+
+// ===== COMPASS ROSE — PRD §7.3 (heading and bearing distinguished) =====
+function compassSVG(hdg, brg, hdgSrc) {
+  var size = 200, cx = size/2, cy = size/2, r = size/2 - 14;
+  var hasHdg = (hdg != null);
+  var rotate = hasHdg ? -hdg : 0;
+  var s = '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'" style="display:block">';
+  s += '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="rgba(10,22,40,.6)" stroke="rgba(255,255,255,.18)" stroke-width="1"/>';
+  s += '<g transform="rotate('+rotate+' '+cx+' '+cy+')">';
+  for(var deg=0; deg<360; deg+=10){
+    var a = (deg-90)*Math.PI/180;
+    var inner = (deg%30===0) ? r-12 : r-5;
+    var x1 = cx + Math.cos(a)*r, y1 = cy + Math.sin(a)*r;
+    var x2 = cx + Math.cos(a)*inner, y2 = cy + Math.sin(a)*inner;
+    var op = deg%30===0 ? 0.55 : 0.25;
+    s += '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="#fff" stroke-opacity="'+op+'" stroke-width="1"/>';
+  }
+  [{l:'N',d:0,c:'#ef4444'},{l:'E',d:90,c:'rgba(255,255,255,.7)'},{l:'S',d:180,c:'rgba(255,255,255,.7)'},{l:'W',d:270,c:'rgba(255,255,255,.7)'}].forEach(function(it){
+    var a = (it.d-90)*Math.PI/180;
+    var x = cx + Math.cos(a)*(r-24), y = cy + Math.sin(a)*(r-24);
+    s += '<text x="'+x+'" y="'+y+'" fill="'+it.c+'" font-size="13" font-weight="800" text-anchor="middle" dominant-baseline="central">'+it.l+'</text>';
+  });
+  // Bearing-to-waypoint pointer (green triangle on rim — distinct from heading)
+  var ba = (brg-90)*Math.PI/180;
+  var tx = cx + Math.cos(ba)*(r-8), ty = cy + Math.sin(ba)*(r-8);
+  s += '<g transform="translate('+tx+','+ty+') rotate('+brg+')">';
+  s += '<polygon points="0,-10 7,4 -7,4" fill="#2dd4a8" stroke="#0a1628" stroke-width="1"/>';
+  s += '</g>';
+  s += '</g>';
+  // Fixed heading indicator at top (gold = boat-icon colour) — PRD distinguishes heading from bearing
+  if(hasHdg) {
+    s += '<polygon points="'+cx+','+(cy-r-4)+' '+(cx-9)+','+(cy-r+11)+' '+(cx+9)+','+(cy-r+11)+'" fill="#fbbf24" stroke="#0a1628" stroke-width="1.2"/>';
+  } else {
+    s += '<polygon points="'+cx+','+(cy-r-4)+' '+(cx-9)+','+(cy-r+11)+' '+(cx+9)+','+(cy-r+11)+'" fill="rgba(255,255,255,.25)" stroke="rgba(255,255,255,.4)"/>';
+  }
+  // Centre readouts
+  s += '<circle cx="'+cx+'" cy="'+cy+'" r="3" fill="#fff"/>';
+  s += '<text x="'+cx+'" y="'+(cy-6)+'" fill="#2dd4a8" font-size="24" font-weight="800" text-anchor="middle">'+Math.round(brg)+'°</text>';
+  s += '<text x="'+cx+'" y="'+(cy+8)+'" fill="rgba(255,255,255,.55)" font-size="9" font-weight="700" text-anchor="middle" letter-spacing="1">BEARING</text>';
+  if(hasHdg) {
+    s += '<text x="'+cx+'" y="'+(cy+26)+'" fill="#fbbf24" font-size="12" font-weight="700" text-anchor="middle">HDG '+Math.round(hdg)+'° </text>';
+    s += '<text x="'+cx+'" y="'+(cy+38)+'" fill="rgba(255,255,255,.5)" font-size="9" font-weight="600" text-anchor="middle">via '+(hdgSrc||'?')+'</text>';
+  } else {
+    s += '<text x="'+cx+'" y="'+(cy+26)+'" fill="rgba(255,255,255,.4)" font-size="10" text-anchor="middle">HDG —</text>';
+  }
+  s += '</svg>';
+  return s;
+}
+
+// ===== BIG-BEARING NIGHT-MODE DISPLAY (PRD §7.3) =====
+function bigBearingHtml(hdg, brg, hdgSrc, dist, wp) {
+  var off = (hdg != null) ? (((brg - hdg + 540) % 360) - 180) : null;
+  var distStr = dist < 0.5 ? (dist*1852).toFixed(0)+' m' : dist.toFixed(2)+' NM';
+  var h = '<div class="big-bearing">';
+  h += '<div class="bb-brg">'+Math.round(brg)+'<span>°</span></div>';
+  h += '<div class="bb-label">BEARING TO '+wp.short+'</div>';
+  h += '<div class="bb-row">';
+  h += '<div><span class="bb-k">HDG</span> <span class="bb-v">'+(hdg != null ? Math.round(hdg)+'°' : '—')+'</span></div>';
+  h += '<div><span class="bb-k">DST</span> <span class="bb-v">'+distStr+'</span></div>';
+  h += '</div>';
+  if(off != null) {
+    var ok = Math.abs(off) < 5;
+    var arrow = ok ? '●' : (off > 0 ? '▶' : '◀');
+    h += '<div class="bb-off'+(ok ? ' ok' : '')+'">'+arrow+' '+Math.round(Math.abs(off))+'°</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+// ===== NAV PANEL =====
+function renderNavPanel() {
+  var panel = document.getElementById('navPanel');
+  if(!panel) return;
+
+  if(!gpsActive) {
+    panel.innerHTML =
+      '<div class="loading">GPS off — tap "Enable GPS" to start live tracking.</div>' +
+      waypointButtonsHtml();
+    return;
+  }
+  if(!gpsPos) {
+    panel.innerHTML =
+      '<div class="loading">Acquiring GPS fix…</div>' +
+      waypointButtonsHtml();
+    return;
+  }
+
+  var wp = WAYPOINTS[activeWpIdx];
+  var brg = bearingDeg(gpsPos.lat, gpsPos.lon, wp.lat, wp.lon);
+  var dist = haversineNM(gpsPos.lat, gpsPos.lon, wp.lat, wp.lon);
+  var fh = fusedHeading();
+  var hdg = fh.value;
+  var off = (hdg != null) ? (((brg - hdg + 540) % 360) - 180) : null;
+  var sog = gpsPos.sog;
+  var vmc = computeVMC(brg);
+  var perf = computePerf();
+  // ETA via VMC if making good progress, else fall back to SOG
+  var etaHrs = (vmc != null && vmc > 0.3) ? (dist / vmc)
+            : ((sog != null && sog > 0.3)  ? (dist / sog) : null);
+
+  var html = '';
+
+  // Live data row 1: SOG / COG
+  html += '<div class="metric-row">';
+  html += '<div class="metric"><div class="label">SOG</div><div class="val">'+(sog != null ? sog.toFixed(1) : '--')+'<span class="unit"> kn</span></div></div>';
+  html += '<div class="metric"><div class="label">COG</div><div class="val">'+(gpsPos.cog != null ? Math.round(gpsPos.cog) : '--')+'<span class="unit">°</span></div></div>';
+  html += '</div>';
+  // Row 2: bearing / distance
+  html += '<div class="metric-row">';
+  html += '<div class="metric"><div class="label">Bearing to WP</div><div class="val" style="color:var(--acc2)">'+Math.round(brg)+'<span class="unit">°</span></div></div>';
+  html += '<div class="metric"><div class="label">Distance</div><div class="val">'+(dist < 0.5 ? (dist*1852).toFixed(0)+'<span class="unit"> m</span>' : dist.toFixed(2)+'<span class="unit"> NM</span>')+'</div></div>';
+  html += '</div>';
+  // Row 3: VMC / fused heading
+  html += '<div class="metric-row">';
+  html += '<div class="metric"><div class="label">VMC to WP</div><div class="val" style="color:'+(vmc != null && vmc > 0 ? 'var(--acc2)' : 'var(--err)')+'">'+(vmc != null ? vmc.toFixed(1) : '--')+'<span class="unit"> kn</span></div></div>';
+  html += '<div class="metric"><div class="label">Heading <span style="font-size:9px;color:var(--tx3)">'+(fh.source||'')+'</span></div><div class="val">'+(hdg != null ? Math.round(hdg) : '--')+'<span class="unit">°</span></div></div>';
+  html += '</div>';
+
+  // Compass rose OR big-bearing (night mode)
+  if(nightMode) {
+    html += bigBearingHtml(hdg, brg, fh.source, dist, wp);
+  } else {
+    html += '<div class="compass-wrap">' + compassSVG(hdg, brg, fh.source) + '</div>';
+    // Off-course callout
+    if(off != null) {
+      var col, label;
+      if(Math.abs(off) < 5) { col = 'var(--acc2)'; label = 'On course'; }
+      else if(off > 0)      { col = Math.abs(off) > 30 ? 'var(--err)' : 'var(--warn)'; label = '▶ Turn right '+Math.round(off)+'°'; }
+      else                  { col = Math.abs(off) > 30 ? 'var(--err)' : 'var(--warn)'; label = '◀ Turn left '+Math.round(-off)+'°'; }
+      html += '<div class="off-course" style="color:'+col+'">'+label+'</div>';
+    } else {
+      html += '<div class="off-course" style="color:var(--tx3);font-size:11px;font-weight:600">Heading unavailable — move &gt;3 kn or grant compass permission</div>';
+    }
+  }
+
+  // Performance vs polar (PRD §7.1 + §10.1 PPR)
+  if(perf) {
+    var pct = Math.round(perf.ratio * 100);
+    var clampedPct = Math.min(120, Math.max(0, pct));
+    var barCol = pct >= 90 ? 'var(--acc2)' : (pct >= 75 ? 'var(--acc)' : (pct >= 60 ? 'var(--warn)' : 'var(--err)'));
+    html += '<div class="ppr-box">';
+    html += '<div class="ppr-head"><span>SOG vs polar target</span><span class="ppr-pct" style="color:'+barCol+'">'+pct+'%</span></div>';
+    html += '<div class="ppr-bar"><div class="ppr-fill" style="width:'+Math.min(100, clampedPct)+'%;background:'+barCol+'"></div>';
+    html += '<div class="ppr-100tick"></div></div>';
+    html += '<div class="ppr-foot">Target '+perf.target.toFixed(1)+' kn @ TWA '+Math.round(perf.twa)+'°, TWS '+perf.tws.toFixed(1)+' kn</div>';
+    html += '</div>';
+  } else {
+    html += '<div class="ppr-box ppr-off">Polar comparison needs wind data and heading — load wind on the Wind or Strategy tab.</div>';
+  }
+
+  // Next waypoint detail
+  html += '<div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:10px">Next waypoint</div>';
+  html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:2px">';
+  html += '<div style="font-size:14px;font-weight:700">'+(activeWpIdx+1)+'. '+wp.name+'</div>';
+  if(etaHrs != null && etaHrs < 99) {
+    var eh = Math.floor(etaHrs);
+    var em = Math.round((etaHrs - eh) * 60);
+    var etaStr = eh > 0 ? (eh+'h '+String(em).padStart(2,'0')+'m') : (em+' min');
+    html += '<div style="font-size:11px;color:var(--tx2)">ETA '+etaStr+'</div>';
+  } else {
+    html += '<div style="font-size:11px;color:var(--tx3)">ETA —</div>';
+  }
+  html += '</div>';
+  if(wp.note) html += '<div style="font-size:10px;color:var(--tx3);margin-top:2px">'+wp.note+'</div>';
+
+  html += waypointButtonsHtml();
+
+  // Footer: position + accuracy + track record count
+  var ageS = Math.max(0, Math.floor((Date.now() - gpsPos.ts)/1000));
+  html += '<div class="nav-footer">';
+  html += gpsPos.lat.toFixed(5)+', '+gpsPos.lon.toFixed(5);
+  html += ' · ±'+Math.round(gpsPos.accuracy)+' m';
+  html += ' · '+ageS+'s ago';
+  if(trackPointCount > 0) html += ' · ◉ '+trackPointCount+' fixes';
+  html += '</div>';
+
+  panel.innerHTML = html;
+}
+
+function waypointButtonsHtml() {
+  var h = '<div class="wp-btn-row">';
+  WAYPOINTS.forEach(function(w, i){
+    var cls = 'wp-btn';
+    if(i === activeWpIdx) cls += ' active';
+    else if(i < activeWpIdx) cls += ' passed';
+    h += '<button class="'+cls+'" onclick="setActiveWaypoint('+i+')">'+(i+1)+'<br>'+w.short+'</button>';
+  });
+  h += '</div>';
+  return h;
+}
+
+function drawLake() {
+  if(!lakeMap) initLakeMap();
+  if(lakeMap) {
+    setTimeout(function(){ lakeMap.invalidateSize(); }, 0);
+    updateLakeWind();
+    updateBoatOnMap();
+  }
+  renderNavPanel();
 }
 
 // ===== RACE SIMULATION MODE =====
