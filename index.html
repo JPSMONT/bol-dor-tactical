@@ -221,6 +221,26 @@ canvas{display:block}
 .sec-table td.sec-leader{color:var(--acc2);font-weight:700}
 .sec-delta{color:var(--tx3);font-size:10px;font-weight:500}
 .sec-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.chart-label{font-size:10px;color:var(--tx3);margin-top:10px;line-height:1.4;text-align:center}
+/* Time scrubber */
+#rivalScrubber{margin-top:10px;padding:8px 10px;background:var(--bg2);border-radius:8px}
+.scrub-row{display:flex;align-items:center;gap:8px}
+.scrub-row input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:6px;background:var(--bg);border-radius:3px;outline:none;accent-color:var(--acc)}
+.scrub-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--acc);cursor:pointer;border:2px solid #0a1628}
+.scrub-row input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--acc);cursor:pointer;border:2px solid #0a1628}
+.scrub-time{font-size:12px;font-weight:700;color:var(--acc);min-width:62px;text-align:right;font-variant-numeric:tabular-nums}
+.scrub-hint{font-size:10px;color:var(--tx3);margin-top:4px;line-height:1.3}
+/* Race-day mode and DeepRegatta link */
+.rival-actions{display:flex;gap:6px;margin-bottom:8px}
+.rival-link{flex:1;text-align:center;padding:7px 10px;font-size:11px;font-weight:700;border:1px solid var(--bg3);background:transparent;color:var(--tx2);border-radius:6px;cursor:pointer;text-decoration:none;letter-spacing:.3px;display:block}
+.rival-link:hover{background:var(--bg3);color:var(--tx)}
+.rival-link.rival-live{background:transparent;color:var(--tx2)}
+.rival-link.rival-live.on{background:var(--acc2);color:#000;border-color:var(--acc2)}
+.race-day-banner{font-size:11px;padding:8px 10px;border-radius:6px;margin-bottom:8px;line-height:1.4}
+.race-day-banner.pre{background:rgba(74,158,255,.1);border-left:3px solid var(--acc);color:var(--tx2)}
+.race-day-banner.live{background:rgba(45,212,168,.12);border-left:3px solid var(--acc2);color:#a7f3d0}
+.race-day-banner.past{background:var(--bg2);border-left:3px solid var(--tx3);color:var(--tx3)}
+.race-day-banner b{color:var(--tx)}
 </style>
 </head>
 <body>
@@ -430,14 +450,29 @@ canvas{display:block}
           <button class="year-btn" data-race="BOM23" onclick="loadRaceYear('BOM23')">2023</button>
           <button class="year-btn" data-race="BOM21" onclick="loadRaceYear('BOM21')">2021</button>
         </div>
+        <div class="rival-actions">
+          <a id="oscarLink" class="rival-link" href="https://oscar.deepregatta.com/?race=BOL25" target="_blank" rel="noopener">View 2025 on OSCAR ↗</a>
+          <button id="liveBtn" class="rival-link rival-live" onclick="toggleLiveMode()" type="button">Race day live</button>
+        </div>
+        <div id="raceDayBanner" class="race-day-banner" style="display:none"></div>
         <div id="rivalStatus" class="rival-status">Tap a year above to load competitor tracks (~400 boats per year).</div>
         <div id="rivalMap"></div>
+        <div id="rivalScrubber" style="display:none">
+          <div class="scrub-row">
+            <button class="refresh-btn" id="scrubPlayBtn" onclick="toggleScrubPlay()">Play</button>
+            <input type="range" id="scrubSlider" min="0" max="1000" value="0" oninput="onScrub(this.value)">
+            <span class="scrub-time" id="scrubTime">T+00:00</span>
+          </div>
+          <div class="scrub-hint">Slide to replay rival positions through the race. Tap a visible target above to add/remove from the follow set.</div>
+        </div>
         <div id="rivalLegend"></div>
       </div>
       <div class="card" id="rivalRanksCard" style="display:none">
         <div class="card-title">Head-to-head — sector times &amp; distance to Bouveret</div>
         <div id="rivalRanks"></div>
         <div id="rivalChart" style="margin-top:14px"></div>
+        <div class="chart-label">Bank commitment — perpendicular distance from the Genève → Bouveret rhumb line (+north / Swiss, –south / French)</div>
+        <div id="rivalLateralChart" style="margin-top:4px"></div>
       </div>
       <div class="card">
         <div class="card-title">Primary targets — PRD §4.1</div>
@@ -1729,6 +1764,11 @@ var rivalAllTracksLayer = null;
 var rivalTargetsLayer = null;
 var rivalTargetMarkersLayer = null;
 var rivalManoeuvreLayer = null;
+var rivalScrubLayer = null;
+// Time scrubber state
+var scrubMinTs = null, scrubMaxTs = null;
+var scrubPlayTimer = null;
+var scrubPlaying = false;
 var rivalDataByYear = {};       // {raceCode: [{name, points:[{ts,lat,lon}]}]}
 var currentRivalYear = null;
 var rivalsInitialFitDone = false;
@@ -1743,10 +1783,87 @@ function showRivals() {
   if(!rivalMap) initRivalMap();
   if(rivalMap) setTimeout(function(){ rivalMap.invalidateSize(); }, 0);
   renderRivalTargetsList();
+  updateRaceDayBanner();
+  updateOscarLink('BOL25');
   // Auto-load BOL25 the first time the user opens the tab
   if(!currentRivalYear && rivalDataByYear['BOL25'] == null) {
     loadRaceYear('BOL25');
   }
+}
+
+// ===== DeepRegatta link-out (no programmatic API — see deepregatta-firebase memory) =====
+var OSCAR_RACE_FOR_YEAR = {BOL25:'BOL25', BOPM24:'BOPM24', BOM23:'BOM23', BOM21:'BOM21'};
+function updateOscarLink(raceCode) {
+  var a = document.getElementById('oscarLink');
+  if(!a) return;
+  var code = OSCAR_RACE_FOR_YEAR[raceCode] || 'BOL25';
+  a.href = 'https://oscar.deepregatta.com/?race=' + code;
+  a.textContent = 'View ' + (RACE_LABELS[raceCode] || '2025') + ' on OSCAR ↗';
+}
+
+// ===== Race-day banner + live mode stub =====
+var BOL_DOR_START = new Date('2026-06-06T09:00:00+02:00').getTime();
+var BOL_DOR_END   = BOL_DOR_START + 36 * 3600 * 1000;
+var liveModePolling = false;
+var liveModeTimer = null;
+
+function raceState() {
+  var now = Date.now();
+  if(now < BOL_DOR_START) return 'pre';
+  if(now < BOL_DOR_END) return 'live';
+  return 'past';
+}
+
+function updateRaceDayBanner() {
+  var b = document.getElementById('raceDayBanner');
+  var btn = document.getElementById('liveBtn');
+  if(!b || !btn) return;
+  var st = raceState();
+  if(st === 'pre') {
+    var diff = BOL_DOR_START - Date.now();
+    var days = Math.floor(diff / 86400000);
+    var hours = Math.floor((diff % 86400000) / 3600000);
+    b.className = 'race-day-banner pre';
+    b.style.display = '';
+    b.innerHTML = '<b>Bol d\'Or 2026:</b> ' + days + 'd ' + hours + 'h until the gun (6 June 2026, 10:00 CEST). Race-day live tracking activates automatically when the start window opens.';
+    btn.textContent = 'Race day live';
+    btn.classList.remove('on');
+    btn.disabled = false;
+    btn.title = 'Will poll SuiviRegate hourly during the race window.';
+  } else if(st === 'live') {
+    b.className = 'race-day-banner live';
+    b.style.display = '';
+    b.innerHTML = '<b>Race in progress.</b> Live mode polls the in-progress KMZ every 60 minutes (PRD §12.1). Toggle with the Live button.';
+    btn.classList.toggle('on', liveModePolling);
+    btn.textContent = liveModePolling ? 'Live ON · 60 min' : 'Activate live';
+    btn.disabled = false;
+  } else {
+    b.className = 'race-day-banner past';
+    b.style.display = '';
+    b.innerHTML = 'Bol d\'Or 2026 finished. Historical tracks above; download via SuiviRegate when archive publishes.';
+    btn.style.display = 'none';
+  }
+}
+
+function toggleLiveMode() {
+  var st = raceState();
+  if(st === 'pre') {
+    alert('Live mode activates automatically when the Bol d\'Or 2026 start window opens (6 June 2026, 10:00 CEST).');
+    return;
+  }
+  if(st === 'past') return;
+  if(liveModePolling) {
+    if(liveModeTimer) { clearInterval(liveModeTimer); liveModeTimer = null; }
+    liveModePolling = false;
+  } else {
+    liveModePolling = true;
+    // The 2026 race code is unknown until SuiviRegate publishes it. Until then,
+    // re-fetch the most recent loaded year (or BOL25) as a stand-in.
+    var poll = function(){ if(currentRivalYear) loadRaceYear(currentRivalYear); };
+    poll();
+    liveModeTimer = setInterval(poll, 60 * 60 * 1000);
+  }
+  updateRaceDayBanner();
 }
 
 function initRivalMap() {
@@ -1769,7 +1886,108 @@ function initRivalMap() {
   rivalTargetsLayer = L.layerGroup().addTo(rivalMap);
   rivalManoeuvreLayer = L.layerGroup().addTo(rivalMap);
   rivalTargetMarkersLayer = L.layerGroup().addTo(rivalMap);
+  rivalScrubLayer = L.layerGroup().addTo(rivalMap);  // on top — scrubber positions
   rivalMap.fitBounds([[46.195, 6.13], [46.52, 6.95]], {padding:[6,6]});
+}
+
+// ===== Time scrubber (follow-mode for visible targets) =====
+function setupScrubber(year) {
+  var boats = rivalDataByYear[year] || [];
+  scrubMinTs = Infinity; scrubMaxTs = -Infinity;
+  boats.forEach(function(b){
+    var t = findRivalForName(b.name);
+    if(!t) return;
+    b.points.forEach(function(p){
+      if(!p.ts) return;
+      if(p.ts < scrubMinTs) scrubMinTs = p.ts;
+      if(p.ts > scrubMaxTs) scrubMaxTs = p.ts;
+    });
+  });
+  var wrapper = document.getElementById('rivalScrubber');
+  if(!wrapper) return;
+  if(!isFinite(scrubMinTs) || !isFinite(scrubMaxTs) || scrubMaxTs <= scrubMinTs) {
+    wrapper.style.display = 'none';
+    if(rivalScrubLayer) rivalScrubLayer.clearLayers();
+    stopScrubPlay();
+    return;
+  }
+  wrapper.style.display = '';
+  var slider = document.getElementById('scrubSlider');
+  if(slider) slider.value = 0;
+  onScrub(0);
+}
+
+function tsFromSlider(v) {
+  var f = (+v || 0) / 1000;
+  return scrubMinTs + f * (scrubMaxTs - scrubMinTs);
+}
+
+function interpolateAtTs(boat, ts) {
+  var pts = boat.points;
+  // Bracket search; track points are in chronological order
+  if(!pts.length) return null;
+  if(ts <= pts[0].ts) return null;
+  if(ts >= pts[pts.length - 1].ts) return null;
+  // Linear scan is fine for ~200 points
+  for(var i=0; i<pts.length-1; i++){
+    if(pts[i].ts <= ts && pts[i+1].ts > ts) {
+      var t0 = pts[i].ts, t1 = pts[i+1].ts;
+      var f = (ts - t0) / (t1 - t0);
+      return {
+        lat: pts[i].lat + f * (pts[i+1].lat - pts[i].lat),
+        lon: pts[i].lon + f * (pts[i+1].lon - pts[i].lon)
+      };
+    }
+  }
+  return null;
+}
+
+function onScrub(v) {
+  if(!rivalScrubLayer || !currentRivalYear) return;
+  var ts = tsFromSlider(v);
+  rivalScrubLayer.clearLayers();
+  var boats = rivalDataByYear[currentRivalYear] || [];
+  boats.forEach(function(b){
+    var t = findRivalForName(b.name);
+    if(!t || !rivalVisible[t.key]) return;
+    var pos = interpolateAtTs(b, ts);
+    if(!pos) return;
+    var icon = L.divIcon({
+      className:'',
+      html: '<div style="width:18px;height:18px;border-radius:50%;background:'+t.color+';border:2.5px solid #fff;box-shadow:0 0 0 1px #0a1628,0 0 8px '+t.color+'80"></div>',
+      iconSize:[22,22], iconAnchor:[11,11]
+    });
+    L.marker([pos.lat, pos.lon], {icon: icon, interactive:false, zIndexOffset: 1000}).addTo(rivalScrubLayer);
+  });
+  // Time label
+  var elapsed = ts - scrubMinTs;
+  var totalMin = Math.floor(elapsed / 60000);
+  var h = Math.floor(totalMin / 60);
+  var m = totalMin % 60;
+  var lbl = document.getElementById('scrubTime');
+  if(lbl) lbl.textContent = 'T+' + String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+}
+
+function toggleScrubPlay() {
+  var btn = document.getElementById('scrubPlayBtn');
+  if(scrubPlaying) { stopScrubPlay(); return; }
+  scrubPlaying = true;
+  if(btn) btn.textContent = 'Pause';
+  scrubPlayTimer = setInterval(function(){
+    var slider = document.getElementById('scrubSlider');
+    if(!slider) { stopScrubPlay(); return; }
+    var v = (+slider.value || 0) + 5;
+    if(v >= 1000) { v = 1000; stopScrubPlay(); }
+    slider.value = v;
+    onScrub(v);
+  }, 80);
+}
+
+function stopScrubPlay() {
+  scrubPlaying = false;
+  if(scrubPlayTimer) { clearInterval(scrubPlayTimer); scrubPlayTimer = null; }
+  var btn = document.getElementById('scrubPlayBtn');
+  if(btn) btn.textContent = 'Play';
 }
 
 // PRD §10.1 — Tack/gybe = heading change >60° within ~2 min
@@ -1921,6 +2139,7 @@ function loadRaceYear(raceCode) {
   initRivalMap();
   currentRivalYear = raceCode;
   setYearButton(raceCode, 'loading');
+  updateOscarLink(raceCode);
   var reload = document.getElementById('rivalReloadBtn');
   if(reload) reload.style.display = 'none';
 
@@ -1934,6 +2153,8 @@ function loadRaceYear(raceCode) {
     renderRivalTargetsList();
     renderSectorRanks(raceCode);
     renderDistanceChart(raceCode);
+    renderLateralChart(raceCode);
+    setupScrubber(raceCode);
   };
 
   // Use cache if we already loaded this year
@@ -2146,8 +2367,101 @@ function toggleRivalVisible(key) {
     renderRivalTracks(currentRivalYear);
     renderSectorRanks(currentRivalYear);
     renderDistanceChart(currentRivalYear);
+    renderLateralChart(currentRivalYear);
+    // Refresh scrubber markers in case visibility changed
+    var slider = document.getElementById('scrubSlider');
+    if(slider) onScrub(slider.value);
   }
   renderRivalTargetsList();
+}
+
+// ===== Cross-track / lateral deviation (PRD §10.1 bank commitment) =====
+var RHUMB_START_LL = [46.2044, 6.1568];     // Genève
+var RHUMB_END_LL   = [46.3910, 6.8570];     // Le Bouveret
+var RHUMB_BEARING = bearingDeg(RHUMB_START_LL[0], RHUMB_START_LL[1], RHUMB_END_LL[0], RHUMB_END_LL[1]);
+
+// Signed cross-track distance in NM. Positive = left of rhumb (= north of GVA→BVT line = Swiss).
+function crossTrackNM(lat, lon) {
+  var R = 3440.065;
+  var d13 = haversineNM(RHUMB_START_LL[0], RHUMB_START_LL[1], lat, lon);
+  var b13 = bearingDeg(RHUMB_START_LL[0], RHUMB_START_LL[1], lat, lon);
+  var diff = (b13 - RHUMB_BEARING) * Math.PI / 180;
+  // Normalise diff into [-π, π]
+  while(diff > Math.PI) diff -= 2*Math.PI;
+  while(diff < -Math.PI) diff += 2*Math.PI;
+  return Math.asin(Math.sin(d13 / R) * Math.sin(diff)) * R;
+}
+
+function renderLateralChart(year) {
+  var el = document.getElementById('rivalLateralChart');
+  if(!el) return;
+  var boats = rivalDataByYear[year] || [];
+  var lines = [];
+  boats.forEach(function(b){
+    var t = findRivalForName(b.name);
+    if(!t || !rivalVisible[t.key]) return;
+    var pts = [];
+    for(var i=0; i<b.points.length; i++){
+      var p = b.points[i];
+      if(!p.ts) continue;
+      pts.push({ts: p.ts, dev: crossTrackNM(p.lat, p.lon)});
+    }
+    if(pts.length > 1) lines.push({target:t, points:pts});
+  });
+  if(!lines.length) { el.innerHTML = ''; return; }
+
+  var minTs = Infinity, maxTs = -Infinity, maxAbs = 0.5;
+  lines.forEach(function(L){
+    L.points.forEach(function(p){
+      if(p.ts < minTs) minTs = p.ts;
+      if(p.ts > maxTs) maxTs = p.ts;
+      var a = Math.abs(p.dev);
+      if(a > maxAbs) maxAbs = a;
+    });
+  });
+  maxAbs = Math.ceil(maxAbs * 2) / 2; // round up to 0.5-NM step
+
+  var W = 480, H = 160, padL = 30, padR = 10, padT = 14, padB = 24;
+  var plotW = W - padL - padR, plotH = H - padT - padB;
+  function x(ts){ return padL + (ts - minTs) / (maxTs - minTs) * plotW; }
+  function y(d){ return padT + (1 - (d + maxAbs) / (2 * maxAbs)) * plotH; } // d ∈ [-maxAbs, +maxAbs]
+
+  var s = '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:160px">';
+  s += '<rect x="'+padL+'" y="'+padT+'" width="'+plotW+'" height="'+plotH+'" fill="rgba(10,22,40,.5)" stroke="rgba(255,255,255,.1)"/>';
+  // Half-plane tints — subtle north/south backdrop
+  s += '<rect x="'+padL+'" y="'+padT+'" width="'+plotW+'" height="'+(plotH/2)+'" fill="rgba(74,158,255,.05)"/>';
+  s += '<rect x="'+padL+'" y="'+(padT+plotH/2)+'" width="'+plotW+'" height="'+(plotH/2)+'" fill="rgba(245,158,11,.05)"/>';
+  // 0 line (rhumb)
+  s += '<line x1="'+padL+'" y1="'+y(0)+'" x2="'+(W-padR)+'" y2="'+y(0)+'" stroke="rgba(255,255,255,.4)" stroke-dasharray="2,3" stroke-width="1"/>';
+  s += '<text x="'+(W-padR-3)+'" y="'+(y(0)-2)+'" fill="rgba(255,255,255,.5)" font-size="9" text-anchor="end">rhumb</text>';
+  // Y-axis ticks at +maxAbs, 0, -maxAbs and halves
+  [maxAbs, maxAbs/2, 0, -maxAbs/2, -maxAbs].forEach(function(d){
+    var yp = y(d);
+    s += '<line x1="'+padL+'" y1="'+yp+'" x2="'+(W-padR)+'" y2="'+yp+'" stroke="rgba(255,255,255,.05)" stroke-width="1"/>';
+    var lbl = (d > 0 ? '+' : '') + d.toFixed(1);
+    s += '<text x="'+(padL-4)+'" y="'+yp+'" fill="rgba(255,255,255,.45)" font-size="9" text-anchor="end" dominant-baseline="central">'+lbl+'</text>';
+  });
+  // X-axis ticks every 3 h
+  var totalH = (maxTs - minTs) / 3600000;
+  var step = totalH > 24 ? 6 : (totalH > 12 ? 3 : 1);
+  for(var h=0; h<=totalH; h+=step) {
+    var xp = x(minTs + h * 3600000);
+    s += '<line x1="'+xp+'" y1="'+padT+'" x2="'+xp+'" y2="'+(padT+plotH)+'" stroke="rgba(255,255,255,.05)" stroke-width="1"/>';
+    s += '<text x="'+xp+'" y="'+(padT+plotH+12)+'" fill="rgba(255,255,255,.45)" font-size="9" text-anchor="middle">'+h+'h</text>';
+  }
+  lines.forEach(function(L){
+    var d = '';
+    L.points.forEach(function(p, i){
+      d += (i === 0 ? 'M' : 'L') + x(p.ts).toFixed(1) + ' ' + y(p.dev).toFixed(1) + ' ';
+    });
+    s += '<path d="'+d+'" stroke="'+L.target.color+'" stroke-width="1.6" fill="none" opacity="0.92"/>';
+  });
+  // Labels on the bands
+  s += '<text x="'+(padL+4)+'" y="'+(padT+10)+'" fill="rgba(74,158,255,.7)" font-size="9" font-weight="700">SWISS / NORTH</text>';
+  s += '<text x="'+(padL+4)+'" y="'+(padT+plotH-3)+'" fill="rgba(245,158,11,.7)" font-size="9" font-weight="700">FRENCH / SOUTH</text>';
+  s += '<text x="'+padL+'" y="'+(padT-3)+'" fill="rgba(255,255,255,.5)" font-size="9">NM from rhumb</text>';
+  s += '</svg>';
+  el.innerHTML = s;
 }
 
 // ===== Head-to-head distance-to-Bouveret chart (PRD §10.2) =====
