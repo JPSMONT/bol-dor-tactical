@@ -241,6 +241,35 @@ canvas{display:block}
 .race-day-banner.live{background:rgba(45,212,168,.12);border-left:3px solid var(--acc2);color:#a7f3d0}
 .race-day-banner.past{background:var(--bg2);border-left:3px solid var(--tx3);color:var(--tx3)}
 .race-day-banner b{color:var(--tx)}
+/* Race prep phase timeline */
+.phase-timeline{display:flex;gap:2px;margin-bottom:10px}
+.phase-step{flex:1;padding:6px 4px;background:var(--bg2);text-align:center;border-radius:4px;font-size:9px;font-weight:700;color:var(--tx3);letter-spacing:.3px;line-height:1.2;border:1px solid transparent}
+.phase-step.done{background:var(--bg3);color:var(--tx3);opacity:.6}
+.phase-step.current{background:var(--acc);color:#000;border-color:var(--acc)}
+.phase-step.upcoming{background:transparent;color:var(--tx3);border-color:var(--bg3)}
+.phase-step .ps-day{display:block;font-size:11px;font-weight:900;letter-spacing:0}
+.phase-guide{font-size:12px;color:var(--tx2);line-height:1.5;background:var(--bg2);padding:10px;border-radius:6px;border-left:3px solid var(--acc)}
+.phase-guide b{color:var(--tx);font-weight:700}
+/* MeteoSwiss stations */
+.ms-table{width:100%;font-size:11px;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.ms-table th{text-align:left;color:var(--tx3);font-weight:700;padding:6px 4px;border-bottom:1px solid var(--bg3);text-transform:uppercase;font-size:10px;letter-spacing:.3px}
+.ms-table td{padding:7px 4px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--tx)}
+.ms-table .ms-name{font-size:12px;font-weight:600}
+.ms-table .ms-role{font-size:9px;color:var(--tx3)}
+.ms-stale{color:var(--warn)}
+.ms-fresh{color:var(--tx3)}
+/* Pattern classifier */
+.pattern-banner{background:var(--bg2);padding:10px 12px;border-radius:8px;border-left:4px solid var(--acc);margin-bottom:8px}
+.pattern-banner.bise{border-color:#60a5fa}
+.pattern-banner.vent{border-color:#f59e0b}
+.pattern-banner.joran{border-color:#a78bfa}
+.pattern-banner.vaudaire{border-color:var(--err)}
+.pattern-banner.thermal{border-color:var(--acc2)}
+.pattern-banner.calm{border-color:var(--tx3)}
+.pattern-banner.mixed{border-color:var(--tx3)}
+.pattern-name{font-size:16px;font-weight:800;color:var(--tx)}
+.pattern-stats{font-size:11px;color:var(--tx3);margin-top:2px;font-variant-numeric:tabular-nums}
+.pattern-desc{font-size:11px;color:var(--tx2);line-height:1.5;margin-top:6px}
 </style>
 </head>
 <body>
@@ -365,6 +394,26 @@ canvas{display:block}
 
     <!-- ===== WIND ===== -->
     <div class="view" id="v2">
+      <div class="card" id="phaseCard">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="card-title" style="margin:0">Race-prep phase</div>
+          <a class="rival-link" href="https://www.meteoswiss.admin.ch/weather/measurement-values.html" target="_blank" rel="noopener" style="flex:0 0 auto;padding:5px 10px">Radar ↗</a>
+        </div>
+        <div id="phaseTimeline" class="phase-timeline"></div>
+        <div id="phaseGuide" class="phase-guide"></div>
+      </div>
+      <div class="card" id="stationsCard">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="card-title" style="margin:0">MeteoSwiss live stations</div>
+          <button class="refresh-btn" onclick="fetchStations()">Refresh</button>
+        </div>
+        <div id="stationsUpdated" style="font-size:10px;color:var(--tx3);margin-bottom:8px">Auto-refreshes every 10 min · obs in CH1903+, converted to knots</div>
+        <div id="msStations" class="loading">Fetching MeteoSwiss observations…</div>
+      </div>
+      <div class="card" id="patternCard">
+        <div class="card-title">Pattern read</div>
+        <div id="patternRead" class="loading">Waiting on station data…</div>
+      </div>
       <div class="card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
           <div class="card-title" style="margin:0">48h wind forecast</div>
@@ -531,6 +580,7 @@ function showTab(i) {
   document.querySelectorAll('.tabs button').forEach(function(b,j){b.classList.toggle('on',j===i)});
   document.querySelectorAll('.view').forEach(function(v,j){v.classList.toggle('on',j===i)});
   if(i===1) drawPolar();
+  if(i===2) { renderPhase(); if(msStationsData) renderStations(); }
   if(i===3) drawLake();
   if(i===4) showRivals();
 }
@@ -783,6 +833,202 @@ function computeEnsemble() {
       spread: spread
     };
   });
+}
+
+// ===== MeteoSwiss live stations (PRD §5, §8.3) =====
+var ML_STATIONS = [
+  {id:'GVE', name:'Genève / Cointrin', lat:46.247, lon:6.128, role:'Petit Lac SW (airport)'},
+  {id:'CGI', name:'Nyon / Changins',   lat:46.401, lon:6.243, role:'Petit Lac N shore'},
+  {id:'PUY', name:'Pully',             lat:46.512, lon:6.668, role:'Grand Lac N (Lausanne)'},
+  {id:'VEV', name:'Vevey / Corseaux',  lat:46.479, lon:6.820, role:'Haut-Lac N shore'},
+  {id:'AIG', name:'Aigle',             lat:46.327, lon:6.924, role:'Haut-Lac SE (Vaudaire)'},
+  {id:'EVI', name:'Evionnaz',          lat:46.176, lon:7.035, role:'Rhône valley (Vaudaire)'}
+];
+var msStationsData = null;
+var msStationsTimer = null;
+var MS_SPEED_URL = 'https://data.geo.admin.ch/ch.meteoschweiz.messwerte-windgeschwindigkeit-kmh-10min/ch.meteoschweiz.messwerte-windgeschwindigkeit-kmh-10min_en.json';
+var MS_GUST_URL  = 'https://data.geo.admin.ch/ch.meteoschweiz.messwerte-wind-boeenspitze-kmh-10min/ch.meteoschweiz.messwerte-wind-boeenspitze-kmh-10min_en.json';
+
+function fetchStations() {
+  var status = document.getElementById('msStations');
+  if(status && !msStationsData) status.innerHTML = '<div class="loading">Fetching MeteoSwiss observations…</div>';
+  return Promise.all([
+    fetch(MS_SPEED_URL).then(function(r){ if(!r.ok) throw new Error('speed HTTP '+r.status); return r.json(); }),
+    fetch(MS_GUST_URL ).then(function(r){ if(!r.ok) throw new Error('gust HTTP '+r.status); return r.json(); })
+  ]).then(function(res){
+    var speedJson = res[0], gustJson = res[1];
+    var byId = {};
+    ML_STATIONS.forEach(function(s){
+      byId[s.id] = {id:s.id, name:s.name, role:s.role, lat:s.lat, lon:s.lon, speed:null, gust:null, dir:null, ts:null};
+    });
+    (speedJson.features || []).forEach(function(f){
+      if(!byId[f.id]) return;
+      var p = f.properties || {};
+      if(p.value != null) byId[f.id].speed = p.value / 1.852;          // km/h → kn
+      if(p.wind_direction != null) byId[f.id].dir = p.wind_direction;
+      if(p.reference_ts) byId[f.id].ts = Date.parse(p.reference_ts);
+    });
+    (gustJson.features || []).forEach(function(f){
+      if(!byId[f.id]) return;
+      var p = f.properties || {};
+      if(p.value != null) byId[f.id].gust = p.value / 1.852;
+    });
+    msStationsData = ML_STATIONS.map(function(s){ return byId[s.id]; });
+    renderStations();
+    renderPattern();
+    var t = document.getElementById('stationsUpdated');
+    var now = new Date();
+    if(t) t.textContent = 'Updated ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ' · auto-refreshes every 10 min';
+  }).catch(function(e){
+    if(status) status.innerHTML = '<div class="loading" style="color:var(--err)">MeteoSwiss fetch failed: '+e.message+'</div>';
+    console.error('MeteoSwiss fetch:', e);
+  });
+}
+
+function renderStations() {
+  if(!msStationsData) return;
+  var el = document.getElementById('msStations');
+  if(!el) return;
+  var now = Date.now();
+  var html = '<table class="ms-table"><thead><tr><th>Station</th><th>Wind</th><th>Gust</th><th>Dir</th></tr></thead><tbody>';
+  msStationsData.forEach(function(s){
+    var age = s.ts ? Math.floor((now - s.ts) / 60000) : null;
+    var ageCls = (age != null && age > 20) ? 'ms-stale' : 'ms-fresh';
+    var spdCol = s.speed != null ? windColor(s.speed) : 'var(--tx3)';
+    html += '<tr>';
+    html += '<td><div class="ms-name">'+s.name+' <span style="color:var(--tx3);font-weight:500">'+s.id+'</span></div><div class="ms-role">'+s.role;
+    if(age != null) html += ' · <span class="'+ageCls+'">'+age+'m</span>';
+    html += '</div></td>';
+    html += '<td style="color:'+spdCol+';font-weight:700">'+(s.speed != null ? s.speed.toFixed(1) : '—')+'<span style="font-weight:500"> kn</span></td>';
+    html += '<td>'+(s.gust != null ? s.gust.toFixed(0) : '—')+'<span style="color:var(--tx3)"> kn</span></td>';
+    if(s.dir != null) {
+      html += '<td><span class="wind-arrow" style="display:inline-block;transform:rotate('+s.dir+'deg)">&#8595;</span> '+windDirName(s.dir)+' <span style="color:var(--tx3)">'+Math.round(s.dir)+'°</span></td>';
+    } else {
+      html += '<td style="color:var(--tx3)">—</td>';
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// ===== Pattern classifier (PRD §5.3, §11) =====
+function circularMean(dirs) {
+  var s = 0, c = 0, n = 0;
+  dirs.forEach(function(d){
+    if(d == null) return;
+    var r = d * Math.PI / 180;
+    s += Math.sin(r); c += Math.cos(r); n++;
+  });
+  if(!n) return null;
+  var m = Math.atan2(s/n, c/n) * 180 / Math.PI;
+  return (m + 360) % 360;
+}
+
+function classifyWindPattern() {
+  if(!msStationsData) return null;
+  var lakeIds = ['GVE','CGI','PUY','VEV'];
+  var rhoneIds = ['AIG','EVI'];
+  var lake = msStationsData.filter(function(s){ return lakeIds.indexOf(s.id) !== -1 && s.dir != null && s.speed != null; });
+  var rhone = msStationsData.filter(function(s){ return rhoneIds.indexOf(s.id) !== -1 && s.dir != null && s.speed != null; });
+  if(lake.length === 0) return null;
+
+  var meanDir = circularMean(lake.map(function(s){ return s.dir; }));
+  var meanSpd = lake.reduce(function(a,s){ return a + s.speed; }, 0) / lake.length;
+
+  // Vaudaire: Rhône valley showing strong S/SE flow (foehn signal)
+  var vaudaireSignal = rhone.some(function(s){
+    return s.speed >= 8 && s.dir >= 120 && s.dir <= 200;
+  });
+
+  // Inter-station agreement (max dir spread on lake stations)
+  var dirs = lake.map(function(s){ return s.dir; });
+  var spread = 0;
+  for(var i=0;i<dirs.length;i++) for(var j=i+1;j<dirs.length;j++){
+    var d = Math.abs(dirs[i]-dirs[j]); if(d>180) d=360-d;
+    if(d > spread) spread = d;
+  }
+
+  var hour = new Date().getHours();
+  var pattern, css, desc;
+  if(vaudaireSignal) {
+    pattern = 'Vaudaire (SE foehn)'; css = 'vaudaire';
+    desc = 'Rhône valley shows ≥8 kn S/SE flow. Classic foehn signal — dominates Haut-Lac, can build to >25 kn near Bouveret. Treat with caution; watch for thunderstorm-outflow gusts.';
+  } else if(meanSpd < 3 && spread > 90) {
+    pattern = 'Calm / transition'; css = 'calm';
+    desc = 'Light, variable wind across the lake. Likely thermal break or pre-frontal lull. Watch for the next pattern to fill in — direction first, speed second.';
+  } else if(meanDir >= 20 && meanDir <= 70 && meanSpd >= 4) {
+    pattern = 'Bise (NE)'; css = 'bise';
+    desc = 'Steady NE flow. Bise on Lac Léman favours the south (French) bank upwind because of stronger pressure mid-lake. Most reliable Léman pattern — 3/6/9-day cycles.';
+  } else if(meanDir >= 200 && meanDir <= 250) {
+    pattern = 'Vent (SW)'; css = 'vent';
+    desc = 'SW flow, often pre-frontal. Highly variable, gusty near the mountains. Mid-lake usually most consistent. Watch for backing/veering as fronts pass.';
+  } else if(meanDir >= 280 && meanDir <= 340) {
+    pattern = 'Joran (NW)'; css = 'joran';
+    desc = 'Katabatic NW from the Jura — can build quickly in the evening and bring thunderstorms. Strong for reaching east; can reverse race dynamics in the Petit Lac.';
+  } else if(meanDir >= 160 && meanDir <= 200 && meanSpd < 12 && hour >= 12 && hour <= 19) {
+    pattern = 'Morget (S thermal)'; css = 'thermal';
+    desc = 'Afternoon S thermal near Morges/Lausanne. Reliable 8–15 kn. Favours the north (Swiss) bank in the Grand Lac transit.';
+  } else if(meanDir >= 20 && meanDir <= 70 && meanSpd < 4 && hour <= 12) {
+    pattern = 'Séchard (NE thermal)'; css = 'thermal';
+    desc = 'Light morning NE thermal, common in June. Tricky and patchy — useful for setting up the return leg strategy.';
+  } else {
+    pattern = 'Mixed / unsettled'; css = 'mixed';
+    desc = 'No single dominant pattern across stations (dir spread ' + Math.round(spread) + '°). Could be transitioning between patterns — recheck in 30 min.';
+  }
+  return {pattern:pattern, css:css, dir:meanDir, spd:meanSpd, spread:spread, desc:desc, lakeCount:lake.length};
+}
+
+function renderPattern() {
+  var el = document.getElementById('patternRead');
+  if(!el) return;
+  var p = classifyWindPattern();
+  if(!p) { el.innerHTML = '<div class="loading">No live observations yet — pattern read waits on MeteoSwiss data.</div>'; return; }
+  var html = '<div class="pattern-banner '+p.css+'">';
+  html += '<div class="pattern-name">'+p.pattern+'</div>';
+  html += '<div class="pattern-stats">Lake mean '+p.spd.toFixed(1)+' kn @ '+Math.round(p.dir)+'° ('+windDirName(p.dir)+') · '+p.lakeCount+' stations · dir spread '+Math.round(p.spread)+'°</div>';
+  html += '<div class="pattern-desc">'+p.desc+'</div>';
+  html += '</div>';
+  html += '<div style="font-size:10px;color:var(--tx3);line-height:1.5">Rule-based read from current MeteoSwiss observations. Cross-check against the forecast below and the pattern guide further down — patterns evolve faster than 10-minute polls can show.</div>';
+  el.innerHTML = html;
+}
+
+// ===== Race-prep phase (PRD §5.1 D-14 → race day timeline) =====
+var RACE_PHASES = [
+  {key:'far',     dayMin: 14, label:'Pre-prep',  short:'D-14+', guide:'<b>>2 weeks out.</b> Too early for AROME HD forecast — track climatology and synoptic-scale patterns only.'},
+  {key:'synoptic',dayMin:  7, label:'Synoptic',  short:'D-14',  guide:'<b>Synoptic phase (D-14 → D-7).</b> Watch the large-scale pattern: blocking high? Frontal sequence? Bise setup? Use Open-Meteo GFS forecast in the next card for direction trends.'},
+  {key:'models',  dayMin:  5, label:'Model cmp', short:'D-7',   guide:'<b>Model comparison (D-7 → D-5).</b> Compare ICON-CH1, AROME HD, ICON-D2. Watch for convergence vs divergence — confidence builds as models agree.'},
+  {key:'pattern', dayMin:  3, label:'Pattern',   short:'D-5',   guide:'<b>Pattern settlement (D-5 → D-3).</b> Models should converge on direction. Key question: Bise, Vent, thermal, or transition? Lock in the strategic option.'},
+  {key:'timing',  dayMin:  1, label:'Timing',    short:'D-2',   guide:'<b>Detailed timing (D-2 → D-1).</b> Nail down wind transitions: when does Bise weaken, when does thermal kick in, what is the overnight pattern? Hour-by-hour matters now.'},
+  {key:'final',   dayMin:  0, label:'Final',     short:'D-0',   guide:'<b>Final check (race-day morning).</b> Last model run + MeteoSwiss radar + station observations. Confirm or update the tactical plan. Pre-race checklist.'},
+  {key:'live',    dayMin: -1, label:'Race day',  short:'GO',    guide:'<b>Race in progress.</b> Monitor stations vs forecast. Flag deviations >5 kn or >30°. Adapt the plan.'},
+  {key:'past',    dayMin: -3, label:'Post-race', short:'POST',  guide:'<b>Post-race.</b> Pull track from SuiviRegate, run head-to-head vs the 5 targets in the Rivals tab, calibrate the simulation.'}
+];
+
+function currentRacePhase() {
+  var diffMs = BOL_DOR_START - Date.now();
+  var diffDays = diffMs / 86400000;
+  // Choose the first phase whose dayMin <= diffDays (sorted descending)
+  for(var i=0; i<RACE_PHASES.length; i++) {
+    if(diffDays >= RACE_PHASES[i].dayMin) return {idx:i, phase:RACE_PHASES[i], diffDays:diffDays};
+  }
+  return {idx: RACE_PHASES.length-1, phase: RACE_PHASES[RACE_PHASES.length-1], diffDays:diffDays};
+}
+
+function renderPhase() {
+  var line = document.getElementById('phaseTimeline');
+  var guide = document.getElementById('phaseGuide');
+  if(!line || !guide) return;
+  var st = currentRacePhase();
+  var h = '';
+  RACE_PHASES.forEach(function(ph, i){
+    var cls = i < st.idx ? 'phase-step done' : (i === st.idx ? 'phase-step current' : 'phase-step upcoming');
+    h += '<div class="'+cls+'" title="'+ph.label+'"><span class="ps-day">'+ph.short+'</span>'+ph.label+'</div>';
+  });
+  line.innerHTML = h;
+  var days = Math.floor(Math.abs(st.diffDays));
+  var prefix = st.diffDays >= 0 ? 'T-' + days + 'd' : 'T+' + days + 'd';
+  guide.innerHTML = '<div style="font-size:11px;font-weight:700;color:var(--acc);margin-bottom:4px">' + prefix + ' · ' + st.phase.label + '</div>' + st.phase.guide;
 }
 
 function fetchWind() {
@@ -2894,9 +3140,13 @@ buildVMGTable();
 showFullTable();
 calcQuickVMG();
 fetchWind();
+fetchStations();
+renderPhase();
 
-// Auto-refresh wind every 15 minutes to keep strategy current
+// Auto-refresh wind every 15 minutes, MeteoSwiss every 10, phase every hour
 setInterval(fetchWind, 15 * 60 * 1000);
+setInterval(fetchStations, 10 * 60 * 1000);
+setInterval(renderPhase, 60 * 60 * 1000);
 
 // Register service worker
 if('serviceWorker' in navigator){
