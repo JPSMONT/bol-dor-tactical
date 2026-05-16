@@ -10,6 +10,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js" crossorigin=""></script>
 <title>Bol d'Or Tactical</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -177,6 +178,33 @@ canvas{display:block}
 @media(min-width:420px){
   .big-bearing .bb-brg{font-size:88px}
 }
+/* Rivals tab */
+.year-row{display:flex;gap:4px;margin-bottom:10px}
+.year-btn{flex:1;padding:8px 4px;font-size:12px;font-weight:700;border:1px solid var(--bg3);background:transparent;color:var(--tx2);border-radius:6px;cursor:pointer;letter-spacing:.3px}
+.year-btn.on{background:var(--acc);color:#000;border-color:var(--acc)}
+.year-btn.loading{background:var(--warn);color:#000;border-color:var(--warn)}
+.rival-status{font-size:11px;color:var(--tx3);padding:8px 10px;background:var(--bg2);border-radius:6px;margin-bottom:8px;line-height:1.4}
+.rival-status.error{color:#fca5a5;background:rgba(127,29,29,.3);border-left:3px solid var(--err)}
+.rival-status.success{color:#6ee7b7;background:rgba(6,78,59,.3);border-left:3px solid var(--acc2)}
+#rivalMap{width:100%;height:340px;border-radius:8px;background:#000}
+#rivalMap .leaflet-container{background:#000}
+#rivalMap .leaflet-control-attribution{background:rgba(0,0,0,.75);color:var(--tx3);font-size:9px}
+#rivalMap .leaflet-control-attribution a{color:var(--tx2)}
+#rivalMap .leaflet-control-zoom a{background:var(--bg3);color:var(--tx);border-color:var(--bg2)}
+#rivalMap .leaflet-control-zoom a:hover{background:var(--card)}
+#rivalLegend{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:8px;font-size:10px}
+.legend-item{display:flex;align-items:center;gap:5px;color:var(--tx2)}
+.legend-swatch{width:14px;height:3px;border-radius:1px}
+.rival-target{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.rival-target:last-child{border:none}
+.rival-target-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.rival-target-info{flex:1;min-width:0}
+.rival-target-name{font-size:13px;font-weight:700}
+.rival-target-meta{font-size:10px;color:var(--tx3);margin-top:1px}
+.rival-target-tcf{font-size:12px;font-weight:700;color:var(--tx2);font-variant-numeric:tabular-nums}
+.rival-target.found .rival-target-name{color:var(--acc2)}
+.rival-target.missing .rival-target-name{color:var(--tx3)}
+.rival-target.missing .rival-target-dot{opacity:.3}
 </style>
 </head>
 <body>
@@ -193,6 +221,7 @@ canvas{display:block}
     <button onclick="showTab(1)">Polars</button>
     <button onclick="showTab(2)">Wind</button>
     <button onclick="showTab(3)">Strategy</button>
+    <button onclick="showTab(4)">Rivals</button>
   </div>
   <div class="views">
 
@@ -372,6 +401,30 @@ canvas{display:block}
       </div>
     </div>
 
+    <!-- ===== RIVALS ===== -->
+    <div class="view" id="v4">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div class="card-title" style="margin:0">SuiviRegate historical tracks</div>
+          <button class="refresh-btn" id="rivalReloadBtn" onclick="loadRaceYear(currentRivalYear)" style="display:none">Reload</button>
+        </div>
+        <div class="year-row" id="yearRow">
+          <button class="year-btn on" data-race="BOL25" onclick="loadRaceYear('BOL25')">2025</button>
+          <button class="year-btn" data-race="BOPM24" onclick="loadRaceYear('BOPM24')">2024</button>
+          <button class="year-btn" data-race="BOM23" onclick="loadRaceYear('BOM23')">2023</button>
+          <button class="year-btn" data-race="BOM21" onclick="loadRaceYear('BOM21')">2021</button>
+        </div>
+        <div id="rivalStatus" class="rival-status">Tap a year above to load competitor tracks (~400 boats per year).</div>
+        <div id="rivalMap"></div>
+        <div id="rivalLegend"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Primary targets — PRD §4.1</div>
+        <div id="rivalTargets"></div>
+        <div style="font-size:10px;color:var(--tx3);margin-top:8px;line-height:1.5">5 boats selected for follow-boat strategy: closest in speed (Leone), class winner (Pertuiset), strategic upset (Monachon), mid-fleet reference (Rottet), 2024 winner (Borter). Rivals identified by KMZ boat-name match.</div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -423,6 +476,7 @@ function showTab(i) {
   document.querySelectorAll('.view').forEach(function(v,j){v.classList.toggle('on',j===i)});
   if(i===1) drawPolar();
   if(i===3) drawLake();
+  if(i===4) showRivals();
 }
 
 // ===== COUNTDOWN =====
@@ -1635,6 +1689,305 @@ function drawLake() {
     updateBoatOnMap();
   }
   renderNavPanel();
+}
+
+// ===== RIVALS TAB — SuiviRegate historical tracks (PRD §4, §8.1, §9) =====
+var RIVAL_TARGETS = [
+  {key:'leone',     skipper:'Leone',     sailNo:'FRA 15710', boat:'747 One Design', tcf:1.039, kmName:'illico Ti Vitti team', color:'#ef4444'},
+  {key:'pertuiset', skipper:'Pertuiset', sailNo:'SUI 076',   boat:'Esse 850',       tcf:1.113, kmName:'Darnetal',             color:'#fbbf24'},
+  {key:'monachon',  skipper:'Monachon',  sailNo:'SUI 9',     boat:'6.5m SI',        tcf:0.976, kmName:'Ondine',               color:'#2dd4a8'},
+  {key:'rottet',    skipper:'Rottet',    sailNo:'SUI 140',   boat:'Esse 850',       tcf:1.087, kmName:'Storm',                color:'#a78bfa'},
+  {key:'borter',    skipper:'Borter',    sailNo:'SUI 102',   boat:'Grand Surprise', tcf:1.112, kmName:'Little Nemo II',       color:'#60a5fa'}
+];
+
+var RACE_LABELS = {BOL25:'2025', BOPM24:'2024', BOM23:'2023', BOM21:'2021'};
+
+// State
+var rivalMap = null;
+var rivalAllTracksLayer = null;
+var rivalTargetsLayer = null;
+var rivalTargetMarkersLayer = null;
+var rivalDataByYear = {};       // {raceCode: [{name, points:[{ts,lat,lon}]}]}
+var currentRivalYear = null;
+var rivalsInitialFitDone = false;
+
+function showRivals() {
+  if(!rivalMap) initRivalMap();
+  if(rivalMap) setTimeout(function(){ rivalMap.invalidateSize(); }, 0);
+  renderRivalTargetsList();
+  // Auto-load BOL25 the first time the user opens the tab
+  if(!currentRivalYear && rivalDataByYear['BOL25'] == null) {
+    loadRaceYear('BOL25');
+  }
+}
+
+function initRivalMap() {
+  if(rivalMap || typeof L === 'undefined') return;
+  rivalMap = L.map('rivalMap', {
+    zoomControl: true,
+    attributionControl: true,
+    preferCanvas: true       // Canvas renderer scales to 400+ polylines
+  });
+  L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openseamap.org">OpenSeaMap</a> · tracks &copy; <a href="https://www.suiviregate.ch">SuiviRegate</a>'
+  }).addTo(rivalMap);
+  L.polygon(LAKE, {
+    color: '#4a9eff', weight: 1.5, opacity: 0.85,
+    fillColor: '#0a1628', fillOpacity: 0.6,
+    interactive: false
+  }).addTo(rivalMap);
+  rivalAllTracksLayer = L.layerGroup().addTo(rivalMap);
+  rivalTargetsLayer = L.layerGroup().addTo(rivalMap);
+  rivalTargetMarkersLayer = L.layerGroup().addTo(rivalMap);
+  rivalMap.fitBounds([[46.195, 6.13], [46.52, 6.95]], {padding:[6,6]});
+}
+
+// ===== KMZ / KML parsing (PRD §15 KMZ parser) =====
+function findRivalForName(name) {
+  if(!name) return null;
+  var lower = name.toLowerCase();
+  for(var i=0; i<RIVAL_TARGETS.length; i++){
+    var km = RIVAL_TARGETS[i].kmName.toLowerCase();
+    if(lower === km || lower.indexOf(km) !== -1) return RIVAL_TARGETS[i];
+  }
+  return null;
+}
+
+function parseKmlString(text) {
+  // Parse KML and extract every Placemark with a gx:Track inside.
+  // gx:Track interleaves <when> timestamps with <gx:coord> "lon lat alt" strings.
+  var parser = new DOMParser();
+  var doc = parser.parseFromString(text, 'application/xml');
+  // DOMParser does not throw on bad XML — it emits a <parsererror>
+  var perr = doc.getElementsByTagName('parsererror');
+  if(perr && perr.length) throw new Error('KML parse error');
+  var placemarks = doc.getElementsByTagName('Placemark');
+  var boats = [];
+  for(var i=0; i<placemarks.length; i++){
+    var pm = placemarks[i];
+    var nameNode = pm.getElementsByTagName('name')[0];
+    var name = nameNode ? (nameNode.textContent || '').trim() : null;
+    if(!name) continue;
+    // Track may be in gx namespace — use namespace-agnostic lookup
+    var tracks = pm.getElementsByTagNameNS('*', 'Track');
+    if(!tracks.length) {
+      tracks = pm.getElementsByTagName('gx:Track');
+      if(!tracks.length) continue;
+    }
+    var track = tracks[0];
+    var whenNodes = track.getElementsByTagNameNS('*', 'when');
+    if(!whenNodes.length) whenNodes = track.getElementsByTagName('when');
+    var coordNodes = track.getElementsByTagNameNS('*', 'coord');
+    if(!coordNodes.length) coordNodes = track.getElementsByTagName('gx:coord');
+    var n = Math.min(whenNodes.length, coordNodes.length);
+    if(n < 2) continue;
+    var points = [];
+    for(var k=0; k<n; k++){
+      var parts = (coordNodes[k].textContent || '').trim().split(/\s+/);
+      var lon = parseFloat(parts[0]);
+      var lat = parseFloat(parts[1]);
+      if(isNaN(lat) || isNaN(lon)) continue;
+      var tsStr = whenNodes[k].textContent;
+      var ts = tsStr ? Date.parse(tsStr) : null;
+      points.push({ts: ts, lat: lat, lon: lon});
+    }
+    if(points.length > 1) boats.push({name: name, points: points});
+  }
+  return boats;
+}
+
+// suiviregate.ch sends the KMZ but no CORS headers, so a same-origin proxy is
+// needed when the app is hosted on a different domain. Direct fetch is tried
+// first; on failure we fall back to a public CORS proxy.
+var SUIVIREGATE_BASE = 'https://www.suiviregate.ch/sync/';
+var CORS_PROXIES = [
+  function(u){ return 'https://corsproxy.io/?' + encodeURIComponent(u); },
+  function(u){ return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); }
+];
+
+function fetchKmzWithFallback(url) {
+  // Try direct → fall back through CORS_PROXIES
+  return fetch(url).then(function(r){
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    return r.blob();
+  }).catch(function(directErr){
+    var attempt = function(idx){
+      if(idx >= CORS_PROXIES.length) throw new Error(directErr.message + ' (CORS proxies also failed)');
+      var proxied = CORS_PROXIES[idx](url);
+      return fetch(proxied).then(function(r){
+        if(!r.ok) throw new Error('proxy HTTP ' + r.status);
+        return r.blob();
+      }).catch(function(){ return attempt(idx+1); });
+    };
+    setRivalStatus('Direct fetch blocked (CORS); trying proxy…', null);
+    return attempt(0);
+  });
+}
+
+function fetchAndParseRace(raceCode) {
+  var url = SUIVIREGATE_BASE + raceCode + '/kml/data.kmz';
+  setRivalStatus('Fetching ' + RACE_LABELS[raceCode] + ' KMZ archive…', null);
+  return fetchKmzWithFallback(url)
+    .then(function(blob){
+      setRivalStatus('Decompressing archive (' + Math.round(blob.size/1024) + ' KB)…', null);
+      if(typeof JSZip === 'undefined') throw new Error('JSZip not loaded');
+      return JSZip.loadAsync(blob);
+    })
+    .then(function(zip){
+      // Find the main KML file in the archive
+      var kmlName = Object.keys(zip.files).find(function(n){ return /\.kml$/i.test(n); });
+      if(!kmlName) throw new Error('No KML inside archive');
+      setRivalStatus('Parsing ' + kmlName + '…', null);
+      return zip.files[kmlName].async('text');
+    })
+    .then(function(text){
+      return parseKmlString(text);
+    });
+}
+
+// ===== Rendering =====
+function setRivalStatus(msg, kind) {
+  var el = document.getElementById('rivalStatus');
+  if(!el) return;
+  el.textContent = msg;
+  el.className = 'rival-status' + (kind ? ' ' + kind : '');
+}
+
+function setYearButton(raceCode, state) {
+  document.querySelectorAll('.year-btn').forEach(function(b){
+    b.classList.remove('on', 'loading');
+    if(b.dataset.race === raceCode) b.classList.add(state || 'on');
+  });
+}
+
+function loadRaceYear(raceCode) {
+  if(!raceCode) return;
+  initRivalMap();
+  currentRivalYear = raceCode;
+  setYearButton(raceCode, 'loading');
+  var reload = document.getElementById('rivalReloadBtn');
+  if(reload) reload.style.display = 'none';
+
+  var doRender = function(boats){
+    rivalDataByYear[raceCode] = boats;
+    renderRivalTracks(raceCode);
+    var found = countFoundTargets(boats);
+    setRivalStatus(boats.length + ' boats loaded · ' + found + '/' + RIVAL_TARGETS.length + ' primary targets identified', 'success');
+    setYearButton(raceCode, 'on');
+    if(reload) reload.style.display = '';
+    renderRivalTargetsList();
+  };
+
+  // Use cache if we already loaded this year
+  if(rivalDataByYear[raceCode]) { doRender(rivalDataByYear[raceCode]); return; }
+
+  fetchAndParseRace(raceCode)
+    .then(doRender)
+    .catch(function(err){
+      setRivalStatus('Could not load ' + RACE_LABELS[raceCode] + ': ' + err.message + '. If this is CORS, you may need to host the app over HTTPS or proxy suiviregate.ch.', 'error');
+      setYearButton(raceCode, 'on');
+      if(reload) reload.style.display = '';
+    });
+}
+
+function countFoundTargets(boats) {
+  var seen = {};
+  boats.forEach(function(b){
+    var t = findRivalForName(b.name);
+    if(t) seen[t.key] = true;
+  });
+  return Object.keys(seen).length;
+}
+
+function renderRivalTracks(raceCode) {
+  if(!rivalMap || !rivalAllTracksLayer) return;
+  rivalAllTracksLayer.clearLayers();
+  rivalTargetsLayer.clearLayers();
+  rivalTargetMarkersLayer.clearLayers();
+
+  var boats = rivalDataByYear[raceCode] || [];
+  var bounds = null;
+  // First pass: faint background tracks for the rest of the fleet
+  boats.forEach(function(b){
+    var rival = findRivalForName(b.name);
+    if(rival) return; // targets in second pass on top
+    var coords = b.points.map(function(p){ return [p.lat, p.lon]; });
+    if(coords.length < 2) return;
+    L.polyline(coords, {
+      color: '#4a9eff', weight: 0.8, opacity: 0.18,
+      smoothFactor: 2, interactive: false
+    }).addTo(rivalAllTracksLayer);
+  });
+  // Second pass: 5 targets on top, distinctive colour + click popup
+  boats.forEach(function(b){
+    var rival = findRivalForName(b.name);
+    if(!rival) return;
+    var coords = b.points.map(function(p){ return [p.lat, p.lon]; });
+    if(coords.length < 2) return;
+    var pl = L.polyline(coords, {
+      color: rival.color, weight: 2.5, opacity: 0.95, smoothFactor: 1.5
+    });
+    pl.bindTooltip(rival.skipper + ' · ' + b.name, {sticky:true, className:'lake-tip'});
+    pl.on('click', function(){
+      pl.openTooltip();
+    });
+    pl.addTo(rivalTargetsLayer);
+    // Start-point marker
+    var start = coords[0];
+    var startIcon = L.divIcon({
+      className: '',
+      html: '<div style="background:'+rival.color+';color:#000;font-weight:800;padding:2px 6px;border-radius:4px;font-size:10px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.7)">'+rival.skipper+'</div>',
+      iconSize: [80,16], iconAnchor: [40,8]
+    });
+    L.marker(start, {icon: startIcon, interactive:false}).addTo(rivalTargetMarkersLayer);
+    if(!bounds) bounds = L.latLngBounds(coords); else bounds.extend(L.latLngBounds(coords));
+  });
+  // Fit to the target tracks so the user sees the strategic picture immediately
+  if(bounds && !rivalsInitialFitDone) {
+    rivalMap.fitBounds(bounds, {padding:[20,20]});
+    rivalsInitialFitDone = true;
+  }
+  renderRivalLegend();
+}
+
+function renderRivalLegend() {
+  var el = document.getElementById('rivalLegend');
+  if(!el) return;
+  var html = '';
+  RIVAL_TARGETS.forEach(function(t){
+    html += '<div class="legend-item"><span class="legend-swatch" style="background:'+t.color+'"></span>'+t.skipper+' <span style="color:var(--tx3)">('+t.kmName+')</span></div>';
+  });
+  html += '<div class="legend-item"><span class="legend-swatch" style="background:#4a9eff;opacity:.35"></span>Fleet (other boats)</div>';
+  el.innerHTML = html;
+}
+
+function renderRivalTargetsList() {
+  var el = document.getElementById('rivalTargets');
+  if(!el) return;
+  var boats = currentRivalYear ? (rivalDataByYear[currentRivalYear] || []) : [];
+  var foundKeys = {};
+  boats.forEach(function(b){
+    var r = findRivalForName(b.name);
+    if(r) foundKeys[r.key] = b;
+  });
+  var html = '';
+  RIVAL_TARGETS.forEach(function(t){
+    var hit = foundKeys[t.key];
+    var cls = currentRivalYear ? (hit ? 'rival-target found' : 'rival-target missing') : 'rival-target';
+    html += '<div class="'+cls+'">';
+    html += '<span class="rival-target-dot" style="background:'+t.color+'"></span>';
+    html += '<div class="rival-target-info">';
+    html += '<div class="rival-target-name">'+t.skipper+' <span style="color:var(--tx3);font-weight:500">· '+t.kmName+'</span></div>';
+    html += '<div class="rival-target-meta">'+t.sailNo+' · '+t.boat;
+    if(hit) html += ' · '+hit.points.length+' fixes';
+    else if(currentRivalYear) html += ' · not found in '+RACE_LABELS[currentRivalYear];
+    html += '</div>';
+    html += '</div>';
+    html += '<div class="rival-target-tcf">TCF '+t.tcf.toFixed(3)+'</div>';
+    html += '</div>';
+  });
+  el.innerHTML = html;
 }
 
 // ===== RACE SIMULATION MODE =====
