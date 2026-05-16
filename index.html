@@ -283,6 +283,8 @@ canvas{display:block}
 .sim-note.warn{color:var(--warn)}
 .sim-note.ok{color:#a7f3d0}
 @media(max-width:380px){.sim-stats{grid-template-columns:repeat(2,1fr)}}
+.sim-compare{margin-top:12px;padding:10px;background:var(--bg2);border-radius:6px}
+.sim-compare-title{font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;font-weight:700;margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -483,15 +485,20 @@ canvas{display:block}
           </select>
         </div>
         <div class="sim-row">
-          <label>Start</label>
-          <select id="simStart">
+          <label>Scenario</label>
+          <select id="simScenario">
             <option value="now" selected>Now — live forecast</option>
-            <option value="race">Race day (2026-06-06 09:00 CEST)</option>
+            <option value="race2026">Bol d'Or 2026 — race day (when in 48h horizon)</option>
+            <option value="BOL25">2025 race + rivals (head-to-head)</option>
+            <option value="BOPM24">2024 race + rivals</option>
+            <option value="BOM23">2023 race + rivals</option>
+            <option value="BOM21">2021 race + rivals</option>
           </select>
         </div>
         <button class="gps-btn start" style="width:100%" onclick="runSimulation()">Run simulation</button>
         <div id="simStats" class="sim-stats" style="display:none"></div>
-        <div id="simNote" class="sim-note">Generates a synthetic Little Johnka track by stepping through polars + forecast wind. Auto picks best VMC each minute; bank modes bias toward that shore.</div>
+        <div id="simCompare" class="sim-compare" style="display:none"></div>
+        <div id="simNote" class="sim-note">Generates a synthetic Little Johnka track by stepping through polars + wind. Auto picks best VMC each minute; bank modes bias toward that shore. Pick a historical year to overlay rival KMZ tracks and compare gate times.</div>
       </div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -3043,74 +3050,239 @@ function simulateLJRoute(opts) {
   };
 }
 
+// ===== Historical wind for past Bol d'Or races (Open-Meteo archive, ERA5) =====
+var RACE_DATES = {BOL25:'2025-06-14', BOPM24:'2024-06-15', BOM23:'2023-06-10', BOM21:'2021-06-12'};
+var RACE_START_LOCAL = {
+  BOL25:  '2025-06-14T10:00:00+02:00',
+  BOPM24: '2024-06-15T10:00:00+02:00',
+  BOM23:  '2023-06-10T10:00:00+02:00',
+  BOM21:  '2021-06-12T10:00:00+02:00'
+};
+var historicalWindCache = {};
+
+function fetchHistoricalWind(raceCode) {
+  if(historicalWindCache[raceCode]) return Promise.resolve(historicalWindCache[raceCode]);
+  var date0 = RACE_DATES[raceCode];
+  if(!date0) return Promise.reject(new Error('Unknown race ' + raceCode));
+  var d = new Date(date0 + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + 1);
+  var date1 = d.toISOString().slice(0, 10);
+  var lats = GRID_POINTS.map(function(p){ return p.lat; }).join(',');
+  var lons = GRID_POINTS.map(function(p){ return p.lon; }).join(',');
+  var url = 'https://archive-api.open-meteo.com/v1/archive?latitude=' + lats +
+            '&longitude=' + lons +
+            '&start_date=' + date0 + '&end_date=' + date1 +
+            '&hourly=wind_speed_10m,wind_direction_10m' +
+            '&wind_speed_unit=kn&timezone=Europe/Zurich';
+  return fetch(url).then(function(r){
+    if(!r.ok) throw new Error('archive HTTP ' + r.status);
+    return r.json();
+  }).then(function(data){
+    var results = Array.isArray(data) ? data : [data];
+    var parsed = results.map(function(r, i){
+      var hourly = r.hourly || {};
+      return {
+        name: GRID_POINTS[i] ? GRID_POINTS[i].name : ('p'+i),
+        lat: GRID_POINTS[i].lat, lon: GRID_POINTS[i].lon,
+        hours: (hourly.time || []).map(function(t){ return new Date(t); }),
+        speed: hourly.wind_speed_10m || [],
+        dir:   hourly.wind_direction_10m || []
+      };
+    });
+    historicalWindCache[raceCode] = parsed;
+    return parsed;
+  });
+}
+
+function makeHistoricalWindAdapter(windData) {
+  return function(lat, lon, ts) {
+    var bestPt = null, bestD = Infinity;
+    windData.forEach(function(pt){
+      var d = haversineNM(lat, lon, pt.lat, pt.lon);
+      if(d < bestD) { bestD = d; bestPt = pt; }
+    });
+    if(!bestPt || !bestPt.hours.length) return null;
+    var target = new Date(ts);
+    var hours = bestPt.hours;
+    var i;
+    for(i = 0; i < hours.length - 1; i++) {
+      if(hours[i] <= target && hours[i+1] > target) break;
+    }
+    if(i >= hours.length - 1) return null;
+    var t0 = hours[i].getTime(), t1 = hours[i+1].getTime();
+    var f = t1 > t0 ? (target.getTime() - t0) / (t1 - t0) : 0;
+    f = Math.max(0, Math.min(1, f));
+    var spd = bestPt.speed[i] + f * (bestPt.speed[i+1] - bestPt.speed[i]);
+    var d0 = bestPt.dir[i], d1 = bestPt.dir[i+1];
+    var diff = d1 - d0;
+    if(diff > 180) diff -= 360;
+    if(diff < -180) diff += 360;
+    var dir = (d0 + f * diff + 360) % 360;
+    return {tws: spd, twd: dir};
+  };
+}
+
+// ===== Render helpers (LJ track + rival overlay) =====
+function renderSimTrack(result) {
+  var coords = result.points.map(function(p){ return [p.lat, p.lon]; });
+  L.polyline(coords, {color:'#fbbf24', weight:2.5, opacity:0.92, smoothFactor:1.5, interactive:false}).addTo(simTrackLayer);
+  result.points.forEach(function(p){
+    if(p.didTack) {
+      L.circleMarker([p.lat, p.lon], {
+        radius:2.5, color:'#fff', weight:1, opacity:0.7,
+        fillColor:'#fbbf24', fillOpacity:0.9, interactive:false
+      }).addTo(simTrackLayer);
+    }
+  });
+}
+
+function renderSimRivalTracks(boats) {
+  boats.forEach(function(b){
+    var t = findRivalForName(b.name);
+    if(!t) return;
+    var coords = b.points.map(function(p){ return [p.lat, p.lon]; });
+    if(coords.length < 2) return;
+    L.polyline(coords, {
+      color: t.color, weight: 1.8, opacity: 0.55,
+      smoothFactor: 2, dashArray: '4,3', interactive: false
+    }).addTo(simTrackLayer);
+  });
+}
+
+// Compare LJ sim gate times vs each rival's gate times for the same race.
+// SECTORS and computeSectorTimes are defined for the Rivals tab and re-used here.
+function computeRivalComparison(simResult, boats) {
+  if(!simResult.points.length) return [];
+  var ljStart = simResult.points[0].ts;
+  var ljTimes = computeSectorTimes(simResult);
+  var rows = [];
+  RIVAL_TARGETS.forEach(function(t){
+    var hit = null;
+    for(var i=0; i<boats.length; i++) {
+      if(findRivalForName(boats[i].name) === t) { hit = boats[i]; break; }
+    }
+    if(!hit) { rows.push({target:t, deltas:[], missing:true}); return; }
+    var rivStart = null;
+    for(var k=0; k<hit.points.length; k++) if(hit.points[k].ts) { rivStart = hit.points[k].ts; break; }
+    if(!rivStart) { rows.push({target:t, deltas:[], missing:true}); return; }
+    var rivTimes = computeSectorTimes(hit);
+    var deltas = SECTORS.map(function(_, idx){
+      if(!ljTimes[idx] || !rivTimes[idx]) return null;
+      // Positive = LJ slower (took longer to reach this gate)
+      return (ljTimes[idx] - ljStart) - (rivTimes[idx] - rivStart);
+    });
+    rows.push({target:t, deltas:deltas, missing:false});
+  });
+  return rows;
+}
+
+function renderSimStats(result, comparisons, raceCode) {
+  var s = result.stats;
+  var h = Math.floor(s.durationMs / 3600000);
+  var m = Math.floor((s.durationMs % 3600000) / 60000);
+  var html = '';
+  html += '<div class="ss-cell"><div class="ss-k">Duration</div><div class="ss-v gold">'+h+'h'+String(m).padStart(2,'0')+'</div></div>';
+  html += '<div class="ss-cell"><div class="ss-k">Distance</div><div class="ss-v">'+s.totalDist.toFixed(1)+'<span style="font-size:10px;color:var(--tx3)"> NM</span></div></div>';
+  html += '<div class="ss-cell"><div class="ss-k">Avg SOG</div><div class="ss-v">'+s.avgSOG.toFixed(1)+'<span style="font-size:10px;color:var(--tx3)"> kn</span></div></div>';
+  html += '<div class="ss-cell"><div class="ss-k">Tacks</div><div class="ss-v">'+s.tacks+'</div></div>';
+  var stats = document.getElementById('simStats');
+  stats.innerHTML = html;
+  stats.style.display = '';
+
+  var cmpEl = document.getElementById('simCompare');
+  if(!cmpEl) return;
+  if(!comparisons || !comparisons.length) { cmpEl.style.display = 'none'; cmpEl.innerHTML = ''; return; }
+  var h2 = '<div class="sim-compare-title">vs ' + RACE_LABELS[raceCode] + ' rivals — minutes behind (+) / ahead (–) of rival at each gate</div>';
+  h2 += '<table class="sec-table"><thead><tr><th>Boat</th>';
+  SECTORS.forEach(function(sec){ h2 += '<th>'+sec.key+'</th>'; });
+  h2 += '</tr></thead><tbody>';
+  comparisons.forEach(function(c){
+    h2 += '<tr><td><span class="sec-dot" style="background:'+c.target.color+'"></span>'+c.target.skipper+'</td>';
+    if(c.missing) {
+      SECTORS.forEach(function(){ h2 += '<td class="sec-dash">—</td>'; });
+    } else {
+      c.deltas.forEach(function(dMs){
+        if(dMs == null) { h2 += '<td class="sec-dash">—</td>'; return; }
+        var mins = Math.round(dMs / 60000);
+        var col = mins > 5 ? 'var(--err)' : mins > 0 ? 'var(--warn)' : mins < -5 ? 'var(--acc2)' : 'var(--tx)';
+        var sign = mins > 0 ? '+' : (mins < 0 ? '–' : '');
+        h2 += '<td style="color:'+col+';font-weight:700">'+sign+Math.abs(mins)+'m</td>';
+      });
+    }
+    h2 += '</tr>';
+  });
+  h2 += '</tbody></table>';
+  cmpEl.innerHTML = h2;
+  cmpEl.style.display = '';
+}
+
 function runSimulation() {
   var noteEl = document.getElementById('simNote');
-  if(!ensembleData) {
-    noteEl.textContent = 'No wind data yet — load the Wind tab first, then try again.';
-    noteEl.className = 'sim-note warn';
-    return;
-  }
   if(!lakeMap) initLakeMap();
   if(!simTrackLayer) simTrackLayer = L.layerGroup().addTo(lakeMap);
   simTrackLayer.clearLayers();
 
   var strategy = document.getElementById('simStrategy').value;
-  var startMode = document.getElementById('simStart').value;
-  var startTime = startMode === 'race' ? new Date(BOL_DOR_START) : new Date();
+  var scenario = document.getElementById('simScenario').value;
+  var historicalCode = /^(BOL25|BOPM24|BOM23|BOM21)$/.test(scenario) ? scenario : null;
 
-  noteEl.textContent = 'Running simulation…';
+  noteEl.textContent = 'Preparing simulation…';
   noteEl.className = 'sim-note';
+  var cmpEl = document.getElementById('simCompare');
+  if(cmpEl) { cmpEl.style.display = 'none'; cmpEl.innerHTML = ''; }
 
-  // Defer so the UI updates first
-  setTimeout(function(){
-    var result = simulateLJRoute({
-      startPos: [46.2044, 6.1568],
-      startTime: startTime,
-      waypoints: [[46.391, 6.857], [46.2044, 6.1568]],
-      windAt: windAtFromEnsemble,
-      strategy: strategy
+  var prep;
+  if(historicalCode) {
+    noteEl.textContent = 'Fetching historical wind + KMZ for ' + RACE_LABELS[historicalCode] + '…';
+    var kmzPromise = rivalDataByYear[historicalCode]
+      ? Promise.resolve(rivalDataByYear[historicalCode])
+      : fetchAndParseRace(historicalCode).then(function(boats){ rivalDataByYear[historicalCode] = boats; return boats; });
+    prep = Promise.all([fetchHistoricalWind(historicalCode), kmzPromise]).then(function(arr){
+      return {historical:true, wind:arr[0], boats:arr[1], startTime:new Date(RACE_START_LOCAL[historicalCode])};
     });
-    lastSimResult = result;
+  } else if(scenario === 'race2026') {
+    if(!ensembleData) { noteEl.textContent = 'No forecast yet — open the Wind tab first.'; noteEl.className = 'sim-note warn'; return; }
+    prep = Promise.resolve({historical:false, startTime:new Date(BOL_DOR_START)});
+  } else {
+    if(!ensembleData) { noteEl.textContent = 'No forecast yet — open the Wind tab first.'; noteEl.className = 'sim-note warn'; return; }
+    prep = Promise.resolve({historical:false, startTime:new Date()});
+  }
 
-    // Track polyline
-    var coords = result.points.map(function(p){ return [p.lat, p.lon]; });
-    L.polyline(coords, {
-      color: '#fbbf24', weight: 2.5, opacity: 0.92,
-      smoothFactor: 1.5, interactive: false
-    }).addTo(simTrackLayer);
-
-    // Tack markers
-    result.points.forEach(function(p){
-      if(p.didTack) {
-        L.circleMarker([p.lat, p.lon], {
-          radius: 2.5, color: '#fff', weight: 1, opacity: 0.7,
-          fillColor: '#fbbf24', fillOpacity: 0.9, interactive: false
-        }).addTo(simTrackLayer);
+  prep.then(function(ctx){
+    noteEl.textContent = 'Running simulation…';
+    var windAt = ctx.historical ? makeHistoricalWindAdapter(ctx.wind) : windAtFromEnsemble;
+    setTimeout(function(){
+      var result = simulateLJRoute({
+        startPos: [46.2044, 6.1568],
+        startTime: ctx.startTime,
+        waypoints: [[46.391, 6.857], [46.2044, 6.1568]],
+        windAt: windAt,
+        strategy: strategy
+      });
+      lastSimResult = result;
+      renderSimTrack(result);
+      if(ctx.historical && ctx.boats) {
+        renderSimRivalTracks(ctx.boats);
+        var cmp = computeRivalComparison(result, ctx.boats);
+        renderSimStats(result, cmp, historicalCode);
+      } else {
+        renderSimStats(result, null, null);
       }
-    });
-
-    // Stats panel
-    var s = result.stats;
-    var h = Math.floor(s.durationMs / 3600000);
-    var m = Math.floor((s.durationMs % 3600000) / 60000);
-    var html = '';
-    html += '<div class="ss-cell"><div class="ss-k">Duration</div><div class="ss-v gold">'+h+'h'+String(m).padStart(2,'0')+'</div></div>';
-    html += '<div class="ss-cell"><div class="ss-k">Distance</div><div class="ss-v">'+s.totalDist.toFixed(1)+'<span style="font-size:10px;color:var(--tx3)"> NM</span></div></div>';
-    html += '<div class="ss-cell"><div class="ss-k">Avg SOG</div><div class="ss-v">'+s.avgSOG.toFixed(1)+'<span style="font-size:10px;color:var(--tx3)"> kn</span></div></div>';
-    html += '<div class="ss-cell"><div class="ss-k">Tacks</div><div class="ss-v">'+s.tacks+'</div></div>';
-    var stats = document.getElementById('simStats');
-    stats.innerHTML = html;
-    stats.style.display = '';
-
-    if(s.reachedFinish) {
-      var fin = new Date(result.points[result.points.length-1].ts);
-      noteEl.textContent = 'Finish reached at ' + fin.toLocaleTimeString() + ' · ' + strategy + ' strategy · 93% of polar';
-      noteEl.className = 'sim-note ok';
-    } else {
-      noteEl.textContent = 'Did not reach finish within 30h cap — wind too light, polygon constraint blocked, or strategy too constrained.';
-      noteEl.className = 'sim-note warn';
-    }
-  }, 30);
+      var s = result.stats;
+      if(s.reachedFinish) {
+        var fin = new Date(result.points[result.points.length-1].ts);
+        var ctxLabel = ctx.historical ? (RACE_LABELS[historicalCode] + ' historical wind (ERA5 25km)') : 'live forecast';
+        noteEl.textContent = 'Finish reached at ' + fin.toLocaleTimeString() + ' · ' + strategy + ' · 93% of polar · ' + ctxLabel;
+        noteEl.className = 'sim-note ok';
+      } else {
+        noteEl.textContent = 'Did not reach finish within 30h cap — wind too light, polygon blocked, or strategy too constrained.';
+        noteEl.className = 'sim-note warn';
+      }
+    }, 30);
+  }).catch(function(err){
+    noteEl.textContent = 'Sim failed: ' + err.message;
+    noteEl.className = 'sim-note warn';
+  });
 }
 
 // ===== RACE SIMULATION MODE =====
