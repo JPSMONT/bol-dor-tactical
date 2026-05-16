@@ -211,6 +211,21 @@ canvas{display:block}
 .rival-target.off .rival-target-dot{opacity:.25}
 .rival-target-eye{font-size:14px;color:var(--acc2);width:18px;text-align:center}
 .rival-target.off .rival-target-eye{color:var(--tx3)}
+.rival-analyse-btn{background:var(--bg3);color:var(--tx2);border:1px solid var(--bg3);font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;cursor:pointer;letter-spacing:.3px}
+.rival-analyse-btn:hover{background:var(--acc);color:#000;border-color:var(--acc)}
+/* Performance analysis */
+.an-row{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+.an-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;font-variant-numeric:tabular-nums}
+.an-cell{background:var(--bg2);padding:8px 6px;border-radius:6px;text-align:center}
+.an-k{font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px}
+.an-v{font-size:14px;font-weight:800;color:var(--tx);margin-top:2px}
+.an-v.good{color:var(--acc2)}
+.an-v.warn{color:var(--warn)}
+.an-v.err{color:var(--err)}
+.an-section{font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin:14px 0 6px}
+.an-pos{display:grid;grid-template-columns:1fr auto auto;gap:8px;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05);font-variant-numeric:tabular-nums}
+.an-pos:last-child{border:none}
+@media(max-width:380px){.an-grid{grid-template-columns:repeat(2,1fr)}}
 /* Sector-rank table */
 .sec-table{width:100%;font-size:11px;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .sec-table th{text-align:left;color:var(--tx3);font-weight:700;padding:6px 4px;border-bottom:1px solid var(--bg3);font-size:10px;text-transform:uppercase;letter-spacing:.3px}
@@ -270,6 +285,24 @@ canvas{display:block}
 .pattern-name{font-size:16px;font-weight:800;color:var(--tx)}
 .pattern-stats{font-size:11px;color:var(--tx3);margin-top:2px;font-variant-numeric:tabular-nums}
 .pattern-desc{font-size:11px;color:var(--tx2);line-height:1.5;margin-top:6px}
+.shift-banner{margin-top:8px;padding:6px 10px;border-radius:6px;background:var(--bg2);border-left:3px solid var(--tx3);font-size:11px;font-weight:600;line-height:1.4}
+.shift-arrow{font-size:14px;margin-right:4px}
+/* Race-day checklist */
+.checklist-progress{font-size:11px;font-weight:700;color:var(--acc);background:var(--bg2);padding:3px 8px;border-radius:10px;font-variant-numeric:tabular-nums}
+.cl-section{font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin:10px 0 4px}
+.cl-section:first-child{margin-top:0}
+.cl-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.cl-item:last-child{border:none}
+.cl-item:hover{background:rgba(255,255,255,.02)}
+.cl-box{width:18px;height:18px;border-radius:4px;border:1.5px solid var(--bg3);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#000;background:var(--bg)}
+.cl-item.checked .cl-box{background:var(--acc2);border-color:var(--acc2)}
+.cl-item.checked .cl-box:after{content:'✓'}
+.cl-item.auto .cl-box{background:var(--bg3);border-color:var(--bg3);font-size:10px;color:var(--tx3)}
+.cl-item.auto.checked .cl-box{background:var(--acc);border-color:var(--acc);color:#000}
+.cl-label{flex:1;font-size:12px;color:var(--tx)}
+.cl-item.checked .cl-label{color:var(--tx2)}
+.cl-detail{font-size:10px;color:var(--tx3);margin-top:1px}
+.cl-tag{font-size:9px;color:var(--tx3);background:var(--bg3);padding:1px 5px;border-radius:3px;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
 /* Route simulation */
 .sim-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:var(--tx2)}
 .sim-row label{min-width:68px;font-weight:600}
@@ -313,6 +346,13 @@ canvas{display:block}
           <div class="big" id="countdownVal">--</div>
           <div class="sub">until Bol d'Or Mirabaud start — June 6, 2026</div>
         </div>
+      </div>
+      <div class="card" id="checklistCard" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="card-title" style="margin:0">Race-day readiness</div>
+          <div id="checklistProgress" class="checklist-progress">0/0</div>
+        </div>
+        <div id="checklistBody"></div>
       </div>
       <div id="raceSimPanel" style="display:none">
         <div class="race-sim-banner">
@@ -467,6 +507,7 @@ canvas{display:block}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <div class="card-title" style="margin:0"><span id="gpsDot" class="gps-status-dot"></span>GPS Navigation</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+            <button class="refresh-btn" id="gpsExportBtn" onclick="exportTrackCSV()" style="display:none" title="Download recorded GPS track as CSV">CSV</button>
             <button class="refresh-btn" id="gpsCenterBtn" onclick="centerOnBoat()" style="display:none">Center</button>
             <button class="gps-btn" id="nightBtn" onclick="toggleNightMode()" style="display:none">Night</button>
             <button class="gps-btn start" id="gpsBtn" onclick="toggleGPS()">Enable GPS</button>
@@ -581,7 +622,14 @@ canvas{display:block}
       <div class="card">
         <div class="card-title">Primary targets — PRD §4.1</div>
         <div id="rivalTargets"></div>
-        <div style="font-size:10px;color:var(--tx3);margin-top:8px;line-height:1.5">5 boats selected for follow-boat strategy: closest in speed (Leone), class winner (Pertuiset), strategic upset (Monachon), mid-fleet reference (Rottet), 2024 winner (Borter). Rivals identified by KMZ boat-name match.</div>
+        <div style="font-size:10px;color:var(--tx3);margin-top:8px;line-height:1.5">5 boats selected for follow-boat strategy: closest in speed (Leone), class winner (Pertuiset), strategic upset (Monachon), mid-fleet reference (Rottet), 2024 winner (Borter). Rivals identified by KMZ boat-name match. Tap "Analyse" on any row for the detailed performance breakdown.</div>
+      </div>
+      <div class="card" id="analysisCard" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div class="card-title" style="margin:0" id="analysisTitle">Performance analysis</div>
+          <button class="refresh-btn" onclick="closeAnalysis()">Close</button>
+        </div>
+        <div id="analysisBody"><div class="loading">Loading…</div></div>
       </div>
     </div>
 
@@ -653,6 +701,105 @@ function updateCountdown() {
 }
 updateCountdown();
 setInterval(updateCountdown, 60000);
+
+// ===== Race-day readiness checklist (PRD §12.3, dashboard card) =====
+var CHECKLIST_ITEMS = [
+  {key:'sw',          section:'App',              label:'PWA service worker active',                       detail:'Enables offline cache',                       auto:function(){ return ('serviceWorker' in navigator) && !!navigator.serviceWorker.controller; }},
+  {key:'wind',        section:'App',              label:'Wind forecast loaded (4-model ensemble)',         detail:'AROME HD · ICON-CH1 · ICON-CH2 · ICON-D2',    auto:function(){ return !!ensembleData; }},
+  {key:'stations',    section:'App',              label:'MeteoSwiss live stations fresh',                  detail:'Latest station fix < 30 min old',             auto:function(){
+    if(!msStationsData) return false;
+    var now = Date.now();
+    return msStationsData.some(function(s){ return s.ts && (now - s.ts) < 30*60000; });
+  }},
+  {key:'rivals',      section:'App',              label:'Rival KMZ tracks cached',                         detail:'At least one historical year',                auto:function(){ return typeof rivalDataByYear !== 'undefined' && Object.keys(rivalDataByYear).length > 0; }},
+  {key:'gps_perm',    section:'App',              label:'GPS permission granted',                          detail:'navigator.geolocation',                       auto:function(){ return _checklistGpsPerm === 'granted'; }},
+  {key:'mysuivi_inst',  section:'Tracking phone', label:'MySuiviRegate app installed',                     detail:'Separate phone, PRD §12.3'},
+  {key:'mysuivi_reg',   section:'Tracking phone', label:'ACVL/SRS number + PIN + phone number entered'},
+  {key:'mysuivi_test',  section:'Tracking phone', label:'Test run completed before race week'},
+  {key:'radios_off',    section:'Tracking phone', label:'VPN, WiFi, Bluetooth disabled'},
+  {key:'no_saver',      section:'Tracking phone', label:'Battery saver OFF, screen-lock disabled'},
+  {key:'phone_charged', section:'Tracking phone', label:'Battery 100% + external pack aboard'},
+  {key:'tact_device',   section:'Tactical device', label:'Tactical app on a SECOND device',                 detail:'iPad or second phone, PRD §12.3'},
+  {key:'tact_charged',  section:'Tactical device', label:'Tactical device 100% + cable aboard'},
+  {key:'tact_bright',   section:'Tactical device', label:'Screen brightness max, auto-dim off'},
+  {key:'tact_cache',    section:'Tactical device', label:'App loaded once on race-day Wi-Fi for SW cache'},
+  {key:'sails',         section:'Boat + crew',     label:'Sail inventory aboard',                            detail:'Main 27.1 m² · Jib 17.7 m² · Spinnaker 47.2 m²'},
+  {key:'safety',        section:'Boat + crew',     label:'Safety gear check',                                detail:'Lifejackets, flares, nav lights'},
+  {key:'crew_briefed',  section:'Boat + crew',     label:'Crew briefed on tactical plan + bank choice'},
+  {key:'emergency',     section:'Boat + crew',     label:'Emergency contacts logged + race-control frequency known'}
+];
+
+var _checklistGpsPerm = 'unknown';
+function probeGpsPermission() {
+  if(navigator.permissions && navigator.permissions.query) {
+    navigator.permissions.query({name:'geolocation'}).then(function(r){
+      _checklistGpsPerm = r.state;
+      try { r.onchange = function(){ _checklistGpsPerm = r.state; renderChecklist(); }; } catch(e) {}
+      renderChecklist();
+    }).catch(function(){});
+  }
+}
+
+function loadChecklistState() {
+  try { var s = localStorage.getItem('bol_checklist_v1'); return s ? JSON.parse(s) : {}; }
+  catch(e) { return {}; }
+}
+function saveChecklistState(state) {
+  try { localStorage.setItem('bol_checklist_v1', JSON.stringify(state)); } catch(e) {}
+}
+function toggleChecklistItem(key) {
+  var state = loadChecklistState();
+  state[key] = !state[key];
+  saveChecklistState(state);
+  renderChecklist();
+}
+
+function renderChecklist() {
+  var card = document.getElementById('checklistCard');
+  if(!card) return;
+  // Surface only inside the prep window — pre-prep is too noisy, post-race is irrelevant
+  var rs = currentRacePhase();
+  if(rs.diffDays > 14 || raceState() === 'past') { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  var state = loadChecklistState();
+  var checks = 0, total = 0;
+  var sections = {};
+  CHECKLIST_ITEMS.forEach(function(it){
+    var isChecked = it.auto ? it.auto() : !!state[it.key];
+    total++; if(isChecked) checks++;
+    if(!sections[it.section]) sections[it.section] = [];
+    sections[it.section].push({item:it, checked:isChecked});
+  });
+  var prog = document.getElementById('checklistProgress');
+  prog.textContent = checks + '/' + total;
+  var pct = total > 0 ? Math.round(checks/total*100) : 0;
+  prog.style.color = pct >= 80 ? 'var(--acc2)' : (pct >= 50 ? 'var(--warn)' : 'var(--tx2)');
+
+  var html = '';
+  ['App', 'Tracking phone', 'Tactical device', 'Boat + crew'].forEach(function(sec){
+    if(!sections[sec]) return;
+    html += '<div class="cl-section">'+sec+'</div>';
+    sections[sec].forEach(function(row){
+      var it = row.item;
+      var cls = 'cl-item' + (it.auto ? ' auto' : '') + (row.checked ? ' checked' : '');
+      var clickAttr = it.auto ? '' : (' onclick="toggleChecklistItem(\''+it.key+'\')"');
+      html += '<div class="'+cls+'"'+clickAttr+'>';
+      html += '<div class="cl-box"></div>';
+      html += '<div class="cl-label">'+it.label;
+      if(it.detail) html += '<div class="cl-detail">'+it.detail+'</div>';
+      html += '</div>';
+      if(it.auto) html += '<div class="cl-tag">AUTO</div>';
+      html += '</div>';
+    });
+  });
+  document.getElementById('checklistBody').innerHTML = html;
+}
+
+// Kick off GPS probe + first render
+probeGpsPermission();
+renderChecklist();
+setInterval(renderChecklist, 30000);
 
 // ===== POLAR INTERPOLATION =====
 function interpPolar(tws, twa) {
@@ -930,6 +1077,7 @@ function fetchStations() {
       if(p.value != null) byId[f.id].gust = p.value / 1.852;
     });
     msStationsData = ML_STATIONS.map(function(s){ return byId[s.id]; });
+    recordWindSnapshot();
     renderStations();
     renderPattern();
     var t = document.getElementById('stationsUpdated');
@@ -969,6 +1117,47 @@ function renderStations() {
 }
 
 // ===== Pattern classifier (PRD §5.3, §11) =====
+// ===== Wind shift detector (PRD §10.1) =====
+var windHistory = [];
+var WIND_HISTORY_CAP = 24;        // ~4 hours at 10-min cadence
+
+function recordWindSnapshot() {
+  if(!msStationsData) return;
+  var lakeIds = ['GVE','CGI','PUY','VEV'];
+  var lake = msStationsData.filter(function(s){ return lakeIds.indexOf(s.id) !== -1 && s.dir != null && s.speed != null; });
+  if(!lake.length) return;
+  var meanDir = circularMean(lake.map(function(s){ return s.dir; }));
+  var meanSpd = lake.reduce(function(a,s){ return a + s.speed; }, 0) / lake.length;
+  // De-duplicate: avoid pushing identical timestamps if stations didn't refresh
+  var last = windHistory[windHistory.length - 1];
+  if(last && Date.now() - last.ts < 300000) {
+    last.meanDir = meanDir; last.meanSpd = meanSpd; last.ts = Date.now();
+    return;
+  }
+  windHistory.push({ts: Date.now(), meanDir: meanDir, meanSpd: meanSpd});
+  if(windHistory.length > WIND_HISTORY_CAP) windHistory.shift();
+}
+
+// Compare last ~3 samples (recent) vs samples ~4-12 ago (older) → sustained shift if >10°
+function detectWindShift() {
+  if(windHistory.length < 6) return null;
+  var n = windHistory.length;
+  var recent = windHistory.slice(Math.max(0, n - 3));
+  var older = windHistory.slice(Math.max(0, n - 12), Math.max(0, n - 3));
+  if(!older.length || !recent.length) return null;
+  var recentMean = circularMean(recent.map(function(w){ return w.meanDir; }));
+  var olderMean  = circularMean(older.map(function(w){ return w.meanDir; }));
+  var diff = ((recentMean - olderMean + 540) % 360) - 180;
+  if(Math.abs(diff) < 10) return null;
+  return {
+    deltaDeg: diff,
+    direction: diff > 0 ? 'right' : 'left',     // backed (left) / veered (right)
+    sinceMs: Date.now() - recent[0].ts,
+    recentMean: recentMean,
+    olderMean: olderMean
+  };
+}
+
 function circularMean(dirs) {
   var s = 0, c = 0, n = 0;
   dirs.forEach(function(d){
@@ -1057,7 +1246,18 @@ function renderPattern() {
   html += '<div class="pattern-stats">Lake mean '+p.spd.toFixed(1)+' kn @ '+Math.round(p.dir)+'° ('+windDirName(p.dir)+') · '+p.lakeCount+' stations · dir spread '+Math.round(p.spread)+'°</div>';
   html += '<div class="pattern-desc">'+p.desc+'</div>';
   html += '</div>';
-  html += '<div style="font-size:10px;color:var(--tx3);line-height:1.5">Rule-based read from current MeteoSwiss observations. Cross-check against the forecast below and the pattern guide further down — patterns evolve faster than 10-minute polls can show.</div>';
+  // Shift detector
+  var shift = detectWindShift();
+  if(shift) {
+    var arrow = shift.deltaDeg > 0 ? '↻' : '↺';
+    var verb = shift.deltaDeg > 0 ? 'veered right (clockwise)' : 'backed left (counter-clockwise)';
+    var col = Math.abs(shift.deltaDeg) > 25 ? 'var(--err)' : 'var(--warn)';
+    var mins = Math.max(1, Math.round(shift.sinceMs / 60000));
+    html += '<div class="shift-banner" style="border-color:'+col+';color:'+col+'"><span class="shift-arrow">'+arrow+'</span> Wind '+verb+' '+Math.round(Math.abs(shift.deltaDeg))+'° over the last ~'+mins+' min · was '+Math.round(shift.olderMean)+'° → now '+Math.round(shift.recentMean)+'°</div>';
+  } else if(windHistory.length >= 4) {
+    html += '<div class="shift-banner" style="border-color:var(--tx3);color:var(--tx3)">Wind steady — no shift &gt;10° in the last ~30 min</div>';
+  }
+  html += '<div style="font-size:10px;color:var(--tx3);line-height:1.5;margin-top:8px">Rule-based read from current MeteoSwiss observations. Shift detector compares the last 3 samples vs the prior 9; flags ≥10° per PRD §10.1.</div>';
   el.innerHTML = html;
 }
 
@@ -1435,6 +1635,43 @@ function saveFix(fix) {
   } catch(e) { /* silently ignore — race condition during close */ }
 }
 
+// CSV export of every recorded fix in the bol-tactic IndexedDB store
+function exportTrackCSV() {
+  if(!trackDB) { alert('Track DB not open yet — enable GPS first.'); return; }
+  try {
+    var tx = trackDB.transaction('fixes', 'readonly');
+    var req = tx.objectStore('fixes').getAll();
+    req.onsuccess = function(){
+      var rows = req.result || [];
+      if(!rows.length) { alert('No track points recorded yet.'); return; }
+      rows.sort(function(a,b){ return (a.ts||0) - (b.ts||0); });
+      var csv = 'ts_ms,utc_iso,lat,lon,sog_kn,cog_deg,hdg_deg,accuracy_m,session\n';
+      rows.forEach(function(r){
+        csv += [
+          r.ts || '',
+          r.ts ? new Date(r.ts).toISOString() : '',
+          r.lat != null ? r.lat.toFixed(6) : '',
+          r.lon != null ? r.lon.toFixed(6) : '',
+          r.sog != null ? r.sog.toFixed(2) : '',
+          r.cog != null ? Math.round(r.cog) : '',
+          r.hdg != null ? Math.round(r.hdg) : '',
+          r.accuracy != null ? Math.round(r.accuracy) : '',
+          r.session || ''
+        ].join(',') + '\n';
+      });
+      var blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'lj-track-' + new Date().toISOString().slice(0,16).replace(/[T:]/g,'-') + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(url); document.body.removeChild(a); }, 200);
+    };
+    req.onerror = function(){ alert('Track export failed: ' + (req.error && req.error.message)); };
+  } catch(e) { alert('Track export error: ' + e.message); }
+}
+
 // ===== LAKE MAP (Leaflet + OpenSeaMap) =====
 var lakeMap = null;
 var lakeWindLayer = null;
@@ -1660,12 +1897,14 @@ function updateGPSButtons() {
   var btn = document.getElementById('gpsBtn');
   var center = document.getElementById('gpsCenterBtn');
   var night = document.getElementById('nightBtn');
+  var exp = document.getElementById('gpsExportBtn');
   if(btn) {
     btn.textContent = gpsActive ? 'Stop GPS' : 'Enable GPS';
     btn.className = 'gps-btn ' + (gpsActive ? 'active' : 'start');
   }
   if(center) center.style.display = gpsActive ? '' : 'none';
   if(night) night.style.display = gpsActive ? '' : 'none';
+  if(exp) exp.style.display = (trackPointCount > 0 || gpsActive) ? '' : 'none';
 }
 
 function centerOnBoat() {
@@ -2008,6 +2247,16 @@ function renderNavPanel() {
     html += '</div>';
   } else {
     html += '<div class="ppr-box ppr-off">Polar comparison needs wind data and heading — load wind on the Wind or Strategy tab.</div>';
+  }
+
+  // Wind shift indicator (PRD §10.1)
+  var shift = detectWindShift();
+  if(shift) {
+    var arrow = shift.deltaDeg > 0 ? '↻' : '↺';
+    var verb = shift.deltaDeg > 0 ? 'veered right' : 'backed left';
+    var col = Math.abs(shift.deltaDeg) > 25 ? 'var(--err)' : 'var(--warn)';
+    var mins = Math.max(1, Math.round(shift.sinceMs / 60000));
+    html += '<div class="shift-banner" style="border-color:'+col+';color:'+col+';margin-top:10px"><span class="shift-arrow">'+arrow+'</span> Wind '+verb+' '+Math.round(Math.abs(shift.deltaDeg))+'° over ~'+mins+' min ('+Math.round(shift.olderMean)+'° → '+Math.round(shift.recentMean)+'°). Consider tacking if on the wrong side.</div>';
   }
 
   // Next waypoint detail
@@ -2876,10 +3125,264 @@ function renderRivalTargetsList() {
     html += '</div>';
     html += '<div class="rival-target-tcf">TCF '+t.tcf.toFixed(3)+'</div>';
     html += '<div class="rival-target-eye" aria-hidden="true">'+(on?'●':'○')+'</div>';
+    if(hit) {
+      html += '<button class="rival-analyse-btn" onclick="event.stopPropagation();analyseRival(\''+t.key+'\')">Analyse</button>';
+    }
     html += '</div>';
   });
-  html += '<div style="font-size:10px;color:var(--tx3);margin-top:6px;text-align:center">Tap a row to show/hide that rival on the map.</div>';
+  html += '<div style="font-size:10px;color:var(--tx3);margin-top:6px;text-align:center">Tap a row to show/hide on the map · Tap "Analyse" for the deep-dive.</div>';
   el.innerHTML = html;
+}
+
+// ===== Per-rival performance analysis (PRD §10) =====
+function analyseRival(targetKey) {
+  var year = currentRivalYear;
+  if(!year || !rivalDataByYear[year]) { alert('Load a year first.'); return; }
+  var target = null;
+  for(var i = 0; i < RIVAL_TARGETS.length; i++) if(RIVAL_TARGETS[i].key === targetKey) { target = RIVAL_TARGETS[i]; break; }
+  if(!target) return;
+  var boat = null;
+  var boats = rivalDataByYear[year];
+  for(var i = 0; i < boats.length; i++) if(findRivalForName(boats[i].name) === target) { boat = boats[i]; break; }
+  if(!boat) { alert('Target not found in '+RACE_LABELS[year]); return; }
+
+  var card = document.getElementById('analysisCard');
+  var body = document.getElementById('analysisBody');
+  var titleEl = document.getElementById('analysisTitle');
+  titleEl.innerHTML = 'Performance · <span style="color:'+target.color+'">'+target.skipper+'</span> <span style="color:var(--tx3);font-weight:500;font-size:11px">· '+boat.name+' · '+RACE_LABELS[year]+'</span>';
+  card.style.display = '';
+  body.innerHTML = '<div class="loading">Fetching '+RACE_LABELS[year]+' historical wind…</div>';
+  card.scrollIntoView({behavior:'smooth', block:'start'});
+
+  fetchHistoricalWind(year).then(function(windData){
+    body.innerHTML = '<div class="loading">Computing segment-by-segment performance…</div>';
+    setTimeout(function(){
+      var windAt = makeHistoricalWindAdapter(windData);
+      var analysis = computeRivalAnalysis(boat, windAt);
+      renderRivalAnalysis(analysis, target, boat, year);
+    }, 30);
+  }).catch(function(err){
+    body.innerHTML = '<div class="loading" style="color:var(--err)">Wind fetch failed: '+err.message+'</div>';
+  });
+}
+
+function closeAnalysis() {
+  document.getElementById('analysisCard').style.display = 'none';
+}
+
+function computeRivalAnalysis(boat, windAt) {
+  var pts = boat.points;
+  var segments = [];
+  var BVT_LL = [46.391, 6.857];
+  for(var i = 0; i < pts.length - 1; i++) {
+    var p0 = pts[i], p1 = pts[i+1];
+    if(!p0.ts || !p1.ts) continue;
+    var dtH = (p1.ts - p0.ts) / 3600000;
+    if(dtH <= 0 || dtH > 1) continue;                 // skip degenerate / very long gaps
+    var segDist = haversineNM(p0.lat, p0.lon, p1.lat, p1.lon);
+    var sog = segDist / dtH;
+    if(sog < 0.2 || sog > 20) continue;
+    var hdg = bearingDeg(p0.lat, p0.lon, p1.lat, p1.lon);
+    var midLat = (p0.lat + p1.lat) / 2;
+    var midLon = (p0.lon + p1.lon) / 2;
+    var midTs = (p0.ts + p1.ts) / 2;
+    var seg = {ts: midTs, lat: midLat, lon: midLon, sog: sog, hdg: hdg, distSeg: segDist, dtH: dtH};
+    var wind = windAt(midLat, midLon, midTs);
+    if(wind && wind.tws != null) {
+      seg.tws = wind.tws;
+      seg.twd = wind.twd;
+      seg.twa = Math.abs((((hdg - wind.twd) + 540) % 360) - 180);
+      var pol = interpPolar(wind.tws, seg.twa);
+      seg.target = pol.btv;
+      if(pol.btv > 0.3) seg.ppr = sog / pol.btv;
+    }
+    var brgBVT = bearingDeg(midLat, midLon, BVT_LL[0], BVT_LL[1]);
+    seg.distBVT = haversineNM(midLat, midLon, BVT_LL[0], BVT_LL[1]);
+    var dHdg = ((hdg - brgBVT + 540) % 360) - 180;
+    seg.vmc = sog * Math.cos(dHdg * Math.PI / 180);
+    seg.ct = crossTrackNM(midLat, midLon);
+    segments.push(seg);
+  }
+
+  var totalDist = 0, totalTime = 0;
+  segments.forEach(function(s){ totalDist += s.distSeg; totalTime += s.dtH; });
+  var avgSOG = totalTime > 0 ? totalDist / totalTime : 0;
+  var pprSegs = segments.filter(function(s){ return s.ppr != null; });
+  var avgPPR = null;
+  if(pprSegs.length) {
+    var sum = 0;
+    pprSegs.forEach(function(s){ sum += Math.min(1.5, s.ppr); });
+    avgPPR = sum / pprSegs.length;
+  }
+  var avgTWS = null;
+  if(pprSegs.length) {
+    var sumT = 0; pprSegs.forEach(function(s){ sumT += s.tws; });
+    avgTWS = sumT / pprSegs.length;
+  }
+  var avgCT = 0;
+  if(segments.length) { segments.forEach(function(s){ avgCT += s.ct; }); avgCT /= segments.length; }
+  var beatTime = 0, reachTime = 0, runTime = 0;
+  pprSegs.forEach(function(s){
+    if(s.twa < 60) beatTime += s.dtH;
+    else if(s.twa < 130) reachTime += s.dtH;
+    else runTime += s.dtH;
+  });
+  var manoeuvres = detectManoeuvres(boat);
+
+  // VMC stats — average VMC during outbound (distBVT decreasing) vs return
+  var bvtIdx = 0, minBvt = Infinity;
+  segments.forEach(function(s, i){ if(s.distBVT < minBvt){minBvt = s.distBVT; bvtIdx = i;} });
+  var outboundVMC = 0, outboundN = 0, returnVMC = 0, returnN = 0;
+  segments.forEach(function(s, i){
+    if(i < bvtIdx) { outboundVMC += s.vmc; outboundN++; }
+    else { returnVMC += s.vmc; returnN++; }
+  });
+  return {
+    segments: segments,
+    totalDist: totalDist, totalTime: totalTime, avgSOG: avgSOG,
+    avgPPR: avgPPR, avgTWS: avgTWS, avgCT: avgCT,
+    beatTime: beatTime, reachTime: reachTime, runTime: runTime,
+    manoeuvres: manoeuvres,
+    outboundAvgVMC: outboundN > 0 ? outboundVMC / outboundN : 0,
+    returnAvgVMC: returnN > 0 ? returnVMC / returnN : 0,
+    pprSegCount: pprSegs.length
+  };
+}
+
+function renderRivalAnalysis(a, target, boat, year) {
+  var body = document.getElementById('analysisBody');
+  var html = '';
+  // Summary stats
+  var h = Math.floor(a.totalTime);
+  var m = Math.round((a.totalTime - h) * 60);
+  var pprPct = a.avgPPR != null ? Math.round(a.avgPPR * 100) : null;
+  var pprClass = pprPct == null ? '' : (pprPct >= 90 ? ' good' : pprPct >= 75 ? '' : pprPct >= 60 ? ' warn' : ' err');
+  html += '<div class="an-grid">';
+  html += '<div class="an-cell"><div class="an-k">Race time</div><div class="an-v">'+h+'h'+String(m).padStart(2,'0')+'</div></div>';
+  html += '<div class="an-cell"><div class="an-k">Distance</div><div class="an-v">'+a.totalDist.toFixed(1)+'<span style="font-size:10px;color:var(--tx3)"> NM</span></div></div>';
+  html += '<div class="an-cell"><div class="an-k">Avg SOG</div><div class="an-v">'+a.avgSOG.toFixed(2)+'<span style="font-size:10px;color:var(--tx3)"> kn</span></div></div>';
+  html += '<div class="an-cell"><div class="an-k">Avg TWS</div><div class="an-v">'+(a.avgTWS != null ? a.avgTWS.toFixed(1) : '—')+'<span style="font-size:10px;color:var(--tx3)"> kn</span></div></div>';
+  html += '</div>';
+  html += '<div class="an-grid">';
+  html += '<div class="an-cell"><div class="an-k">Avg PPR</div><div class="an-v'+pprClass+'">'+(pprPct != null ? pprPct + '%' : '—')+'</div></div>';
+  html += '<div class="an-cell"><div class="an-k">Manoeuvres</div><div class="an-v">'+a.manoeuvres.length+'</div></div>';
+  var ctSign = a.avgCT > 0 ? '+' : '';
+  var ctClass = Math.abs(a.avgCT) < 0.3 ? '' : (a.avgCT > 0 ? '' : ' warn');
+  html += '<div class="an-cell"><div class="an-k">Bank lean</div><div class="an-v'+ctClass+'">'+ctSign+a.avgCT.toFixed(2)+'<span style="font-size:10px;color:var(--tx3)"> NM</span></div></div>';
+  var domSail = (a.beatTime > a.reachTime && a.beatTime > a.runTime) ? 'Beat' : (a.reachTime > a.runTime ? 'Reach' : 'Run');
+  html += '<div class="an-cell"><div class="an-k">Dominant PoS</div><div class="an-v">'+domSail+'</div></div>';
+  html += '</div>';
+  // Outbound vs return VMC
+  html += '<div class="an-grid">';
+  html += '<div class="an-cell"><div class="an-k">Out VMC</div><div class="an-v" style="color:var(--acc)">'+a.outboundAvgVMC.toFixed(2)+'<span style="font-size:10px;color:var(--tx3)"> kn</span></div></div>';
+  html += '<div class="an-cell"><div class="an-k">Return VMC</div><div class="an-v" style="color:var(--warn)">'+a.returnAvgVMC.toFixed(2)+'<span style="font-size:10px;color:var(--tx3)"> kn</span></div></div>';
+  html += '<div class="an-cell"><div class="an-k">PPR samples</div><div class="an-v">'+a.pprSegCount+'</div></div>';
+  html += '<div class="an-cell"><div class="an-k">TCF</div><div class="an-v">'+target.tcf.toFixed(3)+'</div></div>';
+  html += '</div>';
+  // Point-of-sail bar
+  html += '<div class="an-section">Point of sail (race-time share)</div>';
+  var totalPoS = a.beatTime + a.reachTime + a.runTime;
+  var beatPct = totalPoS > 0 ? (a.beatTime/totalPoS*100) : 0;
+  var reachPct = totalPoS > 0 ? (a.reachTime/totalPoS*100) : 0;
+  var runPct = totalPoS > 0 ? (a.runTime/totalPoS*100) : 0;
+  html += '<div style="display:flex;height:20px;border-radius:4px;overflow:hidden;background:var(--bg2);font-size:10px;font-weight:700">';
+  if(beatPct > 0) html += '<div style="width:'+beatPct+'%;background:#ef4444;color:#fff;display:flex;align-items:center;justify-content:center">'+(beatPct > 10 ? 'Beat '+Math.round(beatPct)+'%' : '')+'</div>';
+  if(reachPct > 0) html += '<div style="width:'+reachPct+'%;background:#fbbf24;color:#000;display:flex;align-items:center;justify-content:center">'+(reachPct > 10 ? 'Reach '+Math.round(reachPct)+'%' : '')+'</div>';
+  if(runPct > 0) html += '<div style="width:'+runPct+'%;background:#2dd4a8;color:#000;display:flex;align-items:center;justify-content:center">'+(runPct > 10 ? 'Run '+Math.round(runPct)+'%' : '')+'</div>';
+  html += '</div>';
+  // PPR chart
+  html += '<div class="an-section">PPR over race time (target = 100% of polar)</div>';
+  html += renderPPRTimeline(a.segments);
+  // Lateral
+  html += '<div class="an-section">Lateral deviation from rhumb (Genève → Bouveret)</div>';
+  html += renderAnalysisLateral(a.segments);
+  // Footer
+  html += '<div style="font-size:10px;color:var(--tx3);margin-top:12px;line-height:1.5">Wind data from ERA5 (Open-Meteo archive, 25 km). PPR computed against the CYD 27 ORC polar with linear TWS/TWA interp. Bank lean is the average signed cross-track distance from the GVA → BVT rhumb line: positive = Swiss/north side, negative = French/south. ' + a.manoeuvres.length + ' manoeuvres detected (heading change &gt;60°).</div>';
+  body.innerHTML = html;
+}
+
+function renderPPRTimeline(segments) {
+  var pprSegs = segments.filter(function(s){ return s.ppr != null; });
+  if(!pprSegs.length) return '<div style="color:var(--tx3);font-size:11px">No PPR data (wind missing)</div>';
+  var minTs = pprSegs[0].ts, maxTs = pprSegs[pprSegs.length-1].ts;
+  var W = 480, H = 160, padL = 30, padR = 10, padT = 14, padB = 24;
+  var plotW = W - padL - padR, plotH = H - padT - padB;
+  function x(ts){ return padL + (ts - minTs)/(maxTs - minTs) * plotW; }
+  function y(p){ return padT + (1 - Math.min(1.5, p)/1.5) * plotH; }
+  var s = '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:160px">';
+  s += '<rect x="'+padL+'" y="'+padT+'" width="'+plotW+'" height="'+plotH+'" fill="rgba(10,22,40,.5)" stroke="rgba(255,255,255,.1)"/>';
+  // Performance bands (subtle backgrounds)
+  s += '<rect x="'+padL+'" y="'+y(1.5)+'" width="'+plotW+'" height="'+(y(1.0)-y(1.5))+'" fill="rgba(45,212,168,.05)"/>';
+  s += '<rect x="'+padL+'" y="'+y(0.9)+'" width="'+plotW+'" height="'+(y(0.6)-y(0.9))+'" fill="rgba(245,158,11,.05)"/>';
+  s += '<rect x="'+padL+'" y="'+y(0.6)+'" width="'+plotW+'" height="'+(y(0)-y(0.6))+'" fill="rgba(239,68,68,.05)"/>';
+  // 100% reference
+  s += '<line x1="'+padL+'" y1="'+y(1.0)+'" x2="'+(W-padR)+'" y2="'+y(1.0)+'" stroke="#fff" stroke-opacity="0.5" stroke-dasharray="3,3" stroke-width="1"/>';
+  s += '<text x="'+(W-padR-3)+'" y="'+(y(1.0)-2)+'" fill="rgba(255,255,255,.55)" font-size="9" text-anchor="end">100% polar</text>';
+  [0.5, 1.0, 1.5].forEach(function(p){
+    var yp = y(p);
+    s += '<text x="'+(padL-4)+'" y="'+yp+'" fill="rgba(255,255,255,.45)" font-size="9" text-anchor="end" dominant-baseline="central">'+(p*100)+'%</text>';
+  });
+  var totalH = (maxTs - minTs) / 3600000;
+  var step = totalH > 24 ? 6 : (totalH > 12 ? 3 : 1);
+  for(var hi = 0; hi <= totalH; hi += step) {
+    var xp = x(minTs + hi*3600000);
+    s += '<line x1="'+xp+'" y1="'+padT+'" x2="'+xp+'" y2="'+(padT+plotH)+'" stroke="rgba(255,255,255,.05)" stroke-width="1"/>';
+    s += '<text x="'+xp+'" y="'+(padT+plotH+12)+'" fill="rgba(255,255,255,.45)" font-size="9" text-anchor="middle">'+hi+'h</text>';
+  }
+  // PPR path
+  var d = '';
+  pprSegs.forEach(function(seg, i){
+    d += (i === 0 ? 'M' : 'L') + x(seg.ts).toFixed(1) + ' ' + y(Math.min(1.5, seg.ppr)).toFixed(1) + ' ';
+  });
+  s += '<path d="'+d+'" stroke="#4a9eff" stroke-width="1.4" fill="none" opacity="0.9"/>';
+  // Rolling mean (1-hour windows)
+  var bucketed = [];
+  var bucketStart = minTs;
+  var bucketAcc = 0, bucketN = 0;
+  pprSegs.forEach(function(seg){
+    if(seg.ts - bucketStart > 3600000) {
+      if(bucketN > 0) bucketed.push({ts: bucketStart + 1800000, ppr: bucketAcc / bucketN});
+      bucketStart = seg.ts; bucketAcc = 0; bucketN = 0;
+    }
+    bucketAcc += Math.min(1.5, seg.ppr); bucketN++;
+  });
+  if(bucketN > 0) bucketed.push({ts: bucketStart + 1800000, ppr: bucketAcc / bucketN});
+  if(bucketed.length > 1) {
+    var d2 = '';
+    bucketed.forEach(function(b, i){ d2 += (i === 0 ? 'M' : 'L') + x(b.ts).toFixed(1) + ' ' + y(b.ppr).toFixed(1) + ' '; });
+    s += '<path d="'+d2+'" stroke="#fbbf24" stroke-width="2.2" fill="none" opacity="0.9"/>';
+    s += '<text x="'+(padL+4)+'" y="'+(padT-3)+'" fill="rgba(255,255,255,.5)" font-size="9">blue = raw · gold = 1-hour rolling mean</text>';
+  }
+  s += '</svg>';
+  return s;
+}
+
+function renderAnalysisLateral(segments) {
+  if(!segments.length) return '<div style="color:var(--tx3);font-size:11px">No data</div>';
+  var minTs = segments[0].ts, maxTs = segments[segments.length-1].ts;
+  var maxAbs = 0.5;
+  segments.forEach(function(s){ var a = Math.abs(s.ct); if(a > maxAbs) maxAbs = a; });
+  maxAbs = Math.ceil(maxAbs * 2) / 2;
+  var W = 480, H = 140, padL = 30, padR = 10, padT = 14, padB = 24;
+  var plotW = W - padL - padR, plotH = H - padT - padB;
+  function x(ts){ return padL + (ts - minTs)/(maxTs - minTs) * plotW; }
+  function y(d){ return padT + (1 - (d + maxAbs)/(2*maxAbs)) * plotH; }
+  var s = '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:140px">';
+  s += '<rect x="'+padL+'" y="'+padT+'" width="'+plotW+'" height="'+(plotH/2)+'" fill="rgba(74,158,255,.05)"/>';
+  s += '<rect x="'+padL+'" y="'+(padT+plotH/2)+'" width="'+plotW+'" height="'+(plotH/2)+'" fill="rgba(245,158,11,.05)"/>';
+  s += '<line x1="'+padL+'" y1="'+y(0)+'" x2="'+(W-padR)+'" y2="'+y(0)+'" stroke="rgba(255,255,255,.4)" stroke-dasharray="2,3" stroke-width="1"/>';
+  [maxAbs, 0, -maxAbs].forEach(function(d){
+    var yp = y(d);
+    var lbl = (d > 0 ? '+' : '') + d.toFixed(1);
+    s += '<text x="'+(padL-4)+'" y="'+yp+'" fill="rgba(255,255,255,.45)" font-size="9" text-anchor="end" dominant-baseline="central">'+lbl+'</text>';
+  });
+  var d = '';
+  segments.forEach(function(seg, i){ d += (i === 0 ? 'M' : 'L') + x(seg.ts).toFixed(1) + ' ' + y(seg.ct).toFixed(1) + ' '; });
+  s += '<path d="'+d+'" stroke="#a78bfa" stroke-width="1.4" fill="none" opacity="0.9"/>';
+  s += '<text x="'+(padL+4)+'" y="'+(padT+10)+'" fill="rgba(74,158,255,.7)" font-size="9" font-weight="700">SWISS / N</text>';
+  s += '<text x="'+(padL+4)+'" y="'+(padT+plotH-3)+'" fill="rgba(245,158,11,.7)" font-size="9" font-weight="700">FRENCH / S</text>';
+  s += '</svg>';
+  return s;
 }
 
 // ===== ROUTE SIMULATION ENGINE (PRD §9.3, §15) =====
