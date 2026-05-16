@@ -702,12 +702,13 @@ function onLJStrategyChange(v) {
         windAt: makeHistoricalWindAdapter(windData),
         strategy: ljStrategy
       });
-      // Polyline + tack dots
+      // LJ polyline: white so it stays distinct from Pertuiset/Darnetal (#fbbf24)
       var coords = ljResult.points.map(function(p){ return [p.lat, p.lon]; });
-      L.polyline(coords, {color:'#fbbf24', weight:2.5, opacity:0.9, smoothFactor:1.5, interactive:false}).addTo(ljLayer);
+      L.polyline(coords, {color:'#ffffff', weight:3, opacity:0.9, smoothFactor:1.5, interactive:false}).addTo(ljLayer);
+      // Tack dots: white-on-gold for extra contrast against the white line
       ljResult.points.forEach(function(p){
         if(p.didTack) {
-          L.circleMarker([p.lat, p.lon], {radius:2.5, color:'#fff', weight:1, opacity:0.7, fillColor:'#fbbf24', fillOpacity:0.9, interactive:false}).addTo(ljLayer);
+          L.circleMarker([p.lat, p.lon], {radius:3, color:'#0a1628', weight:1.2, opacity:0.9, fillColor:'#fbbf24', fillOpacity:1, interactive:false}).addTo(ljLayer);
         }
       });
       var ms = ljResult.points[ljResult.points.length-1].ts - ljResult.points[0].ts;
@@ -720,32 +721,43 @@ function onLJStrategyChange(v) {
   });
 }
 
-// Hook into drawAnimAt to also render LJ ghost dot
+// LJ icon — white chevron with gold border + heading rotation. Visually distinct
+// from the round dots used for the 5 rival ghosts (esp. Pertuiset/gold #fbbf24).
+function ljIconHtml(hdg) {
+  var r = (hdg != null && !isNaN(hdg)) ? hdg : 0;
+  return '<div style="width:28px;height:32px;display:flex;align-items:center;justify-content:center;transform:rotate('+r+'deg);filter:drop-shadow(0 0 6px rgba(255,255,255,.65))">' +
+         '<svg width="22" height="28" viewBox="0 0 22 28">' +
+           '<path d="M11 1 L20 26 L11 22 L2 26 Z" fill="#ffffff" stroke="#fbbf24" stroke-width="2.5" stroke-linejoin="round"/>' +
+           '<circle cx="11" cy="15" r="2" fill="#0a1628"/>' +
+         '</svg></div>';
+}
+
+// Hook into drawAnimAt to also render the LJ ghost
 var __origDrawAnimAt = drawAnimAt;
 drawAnimAt = function(ts) {
   __origDrawAnimAt(ts);
   if(!ljLayer || !ljResult || ts == null) return;
-  // Remove only previous LJ marker (not the polyline/tack dots)
   if(drawAnimAt._ljMarker) { ljLayer.removeLayer(drawAnimAt._ljMarker); drawAnimAt._ljMarker = null; }
   var pts = ljResult.points;
   if(!pts.length || ts < pts[0].ts || ts > pts[pts.length-1].ts) return;
-  // Interpolate LJ position
   var i;
   for(i=0; i<pts.length-1; i++) if(pts[i].ts <= ts && pts[i+1].ts > ts) break;
   if(i >= pts.length-1) return;
   var f = (ts - pts[i].ts) / (pts[i+1].ts - pts[i].ts);
   var lat = pts[i].lat + f*(pts[i+1].lat - pts[i].lat);
   var lon = pts[i].lon + f*(pts[i+1].lon - pts[i].lon);
-  var icon = L.divIcon({className:'', html:'<div style="width:18px;height:18px;border-radius:50%;background:#fbbf24;border:2.5px solid #0a1628;box-shadow:0 0 0 1.5px #fff,0 0 10px #fbbf24cc"></div>', iconSize:[22,22], iconAnchor:[11,11]});
+  // Heading: prefer the stored hdg on the bracketing point, else compute from next segment
+  var hdg = pts[i].hdg != null ? pts[i].hdg : bearingDeg(pts[i].lat, pts[i].lon, pts[i+1].lat, pts[i+1].lon);
+  var icon = L.divIcon({className:'', html: ljIconHtml(hdg), iconSize:[28,32], iconAnchor:[14,16]});
   drawAnimAt._ljMarker = L.marker([lat, lon], {icon:icon, zIndexOffset:2000, interactive:false}).addTo(ljLayer);
 };
 
-// Add LJ entry to legend
+// Add LJ entry to legend (white chevron + gold trim — see ljIconHtml)
 var __origRenderLegend = renderLegend;
 renderLegend = function() {
   __origRenderLegend();
   var el = document.getElementById('legend');
-  if(el) el.innerHTML += '<div class="legend-row"><span class="legend-sw" style="background:#fbbf24"></span>Little Johnka (sim)</div>';
+  if(el) el.innerHTML += '<div class="legend-row"><span class="legend-sw" style="background:#fff;border:1px solid #fbbf24"></span>Little Johnka (sim)</div>';
 };
 
 // Init + auto-load BOL25
