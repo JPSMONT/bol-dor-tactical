@@ -443,14 +443,20 @@ canvas{display:block}
         <div id="windForecast" class="loading">Fetching forecast...</div>
       </div>
       <div class="card">
-        <div class="card-title">Wind pattern guide — Lac Léman</div>
-        <div style="font-size:12px;line-height:1.6;color:var(--tx2)">
-          <div style="margin-bottom:8px"><strong style="color:var(--tx)">Bise (NE)</strong> — Cold, steady, 15-80 km/h. 3/6/9-day cycles. Strongest mid-lake. Favours south bank upwind.</div>
-          <div style="margin-bottom:8px"><strong style="color:var(--tx)">Vent / SW</strong> — Warm, variable 10-70 km/h. Often follows Bise. Gusty near mountains.</div>
-          <div style="margin-bottom:8px"><strong style="color:var(--tx)">Séchard (NE thermal)</strong> — Light "cinematic airs", afternoon. Common in June. Tricky and patchy.</div>
-          <div style="margin-bottom:8px"><strong style="color:var(--tx)">Vaudaire (SE)</strong> — Foehn effect, >50 km/h gusts. Dangerous. Rare in June.</div>
-          <div style="margin-bottom:8px"><strong style="color:var(--tx)">Morget (S thermal)</strong> — Afternoon, near Morges. Reliable 8-15 kn. Favours north bank.</div>
-          <div><strong style="color:var(--tx)">Joran (NW)</strong> — Evening breeze from Jura. Can build quickly. Good for reaching east.</div>
+        <div class="card-title">Wind pattern guide — Lac Léman (ASLeman + PRD §11)</div>
+        <div style="font-size:11px;line-height:1.6;color:var(--tx2)">
+          <div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:6px">Synoptic</div>
+          <div style="margin-bottom:6px"><strong style="color:var(--tx)">Bise (NE)</strong> — Cold, dry, 15–80 km/h. 3/6/9-day cycles. Strongest Petit Lac. Favours south (French) bank upwind.</div>
+          <div style="margin-bottom:6px"><strong style="color:var(--tx)">Vent (SW)</strong> — Warm, variable 10–70 km/h. Often pre-frontal. Gusty near mountains; mid-lake usually steadiest.</div>
+          <div style="margin-bottom:6px"><strong style="color:var(--tx)">Vaudaire (S/SE)</strong> — Dual: (1) foehn via Rhône valley — warm, sustained; (2) thunderstorm outflow — violent gusts &gt;50 km/h. Dominates Haut-Lac.</div>
+          <div style="margin-bottom:10px"><strong style="color:var(--tx)">Joran (NW)</strong> — Katabatic from Jura, often with thunderstorms. Rapid onset, dominates Petit Lac. Can reverse race dynamics.</div>
+          <div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:6px">Thermals (PRD §11.2)</div>
+          <div style="margin-bottom:6px"><strong style="color:var(--tx)">Séchard (NE)</strong> — Light morning thermal, land-to-lake. Most common June morning breeze. Useful for return-leg setup.</div>
+          <div style="margin-bottom:6px"><strong style="color:var(--tx)">Morget (S)</strong> — Afternoon thermal near Morges/Lausanne. Reliable 8–15 kn. Favours north (Swiss) bank in Grand Lac.</div>
+          <div style="margin-bottom:6px"><strong style="color:var(--tx)">Bornan (S)</strong> — Thermal off the Savoyard Alps, French shore. Favours French bank in Grand Lac transit.</div>
+          <div style="margin-bottom:6px"><strong style="color:var(--tx)">Fraidieu (NW)</strong> — Cold thermal from Jura, distinct from Joran: lighter, no thunderstorms. Gentle night breeze in Petit Lac.</div>
+          <div style="margin-bottom:6px"><strong style="color:var(--tx)">Vauderon (variable)</strong> — Complex Vaud-region thermal. Localised, unpredictable, but useful in calm.</div>
+          <div><strong style="color:var(--tx)">Môlan (S/SE)</strong> — Southerly thermal in Haut-Lac. Relevant for Le Bouveret approach and the return leg's first hour.</div>
         </div>
       </div>
     </div>
@@ -609,7 +615,8 @@ var GRID_POINTS = [
 ];
 
 var ZONE_NAMES = ['Geneva','Lausanne','Bouveret'];
-var MODELS = ['meteofrance_arome_france_hd','icon_d2'];
+// PRD §17 P1 #7 — 4-model ensemble: AROME HD 1.3km + ICON-CH1 1km + ICON-CH2 2km + ICON-D2 2km
+var MODELS = ['meteofrance_arome_france_hd','meteoswiss_icon_ch1','meteoswiss_icon_ch2','icon_d2'];
 
 // windData: {modelName: [{name,zone,shore,hours,speed,dir,gust}, ...per point], ...}
 // ensembleData: [{name,zone,shore,hours,speed,dir,gust,spread}, ...per point]
@@ -991,6 +998,11 @@ function classifyWindPattern() {
     if(d > spread) spread = d;
   }
 
+  // Môlan signal: Haut-Lac S/SE breeze without full Vaudaire — AIG/EVI mild S/SE while lake stations are calmer
+  var molanSignal = !vaudaireSignal && rhone.some(function(s){
+    return s.speed >= 4 && s.speed < 10 && s.dir >= 130 && s.dir <= 200;
+  }) && meanSpd < 6;
+
   var hour = new Date().getHours();
   var pattern, css, desc;
   if(vaudaireSignal) {
@@ -1005,12 +1017,19 @@ function classifyWindPattern() {
   } else if(meanDir >= 200 && meanDir <= 250) {
     pattern = 'Vent (SW)'; css = 'vent';
     desc = 'SW flow, often pre-frontal. Highly variable, gusty near the mountains. Mid-lake usually most consistent. Watch for backing/veering as fronts pass.';
-  } else if(meanDir >= 280 && meanDir <= 340) {
+  } else if(meanDir >= 280 && meanDir <= 340 && meanSpd >= 8) {
     pattern = 'Joran (NW)'; css = 'joran';
     desc = 'Katabatic NW from the Jura — can build quickly in the evening and bring thunderstorms. Strong for reaching east; can reverse race dynamics in the Petit Lac.';
+  } else if(meanDir >= 280 && meanDir <= 340 && meanSpd < 8) {
+    // PRD §11.2: Fraidieu is the lighter, storm-free NW cousin of Joran
+    pattern = 'Fraidieu (NW thermal)'; css = 'thermal';
+    desc = 'Cold thermal off the Jura, lighter than Joran (no thunderstorm signal). Gentle night/early-morning breeze in the Petit Lac. Plan for shifts as it strengthens or fades.';
   } else if(meanDir >= 160 && meanDir <= 200 && meanSpd < 12 && hour >= 12 && hour <= 19) {
-    pattern = 'Morget (S thermal)'; css = 'thermal';
-    desc = 'Afternoon S thermal near Morges/Lausanne. Reliable 8–15 kn. Favours the north (Swiss) bank in the Grand Lac transit.';
+    pattern = 'Morget / Bornan (S thermal)'; css = 'thermal';
+    desc = 'Afternoon S thermal — Morget near Morges/Lausanne (favours Swiss bank) and Bornan off the Savoyard Alps (favours French bank) often co-exist. Read PUY vs Rhône stations to pick the dominant side.';
+  } else if(molanSignal) {
+    pattern = 'Môlan (Haut-Lac S/SE)'; css = 'thermal';
+    desc = 'Mild S/SE thermal in the Haut-Lac. Relevant for the Le Bouveret approach and the first hour of the return leg.';
   } else if(meanDir >= 20 && meanDir <= 70 && meanSpd < 4 && hour <= 12) {
     pattern = 'Séchard (NE thermal)'; css = 'thermal';
     desc = 'Light morning NE thermal, common in June. Tricky and patchy — useful for setting up the return leg strategy.';
@@ -1074,7 +1093,7 @@ function renderPhase() {
 }
 
 function fetchWind() {
-  document.getElementById('windForecast').innerHTML = '<div class="loading">Fetching 2 models x 9 points...</div>';
+  document.getElementById('windForecast').innerHTML = '<div class="loading">Fetching ' + MODELS.length + ' models × 9 points…</div>';
   document.getElementById('dashWind').innerHTML = '<div class="loading">Fetching...</div>';
   rawModelData = {};
 
@@ -1192,7 +1211,7 @@ function renderWind() {
 
   // Model info footer
   html += '<div style="font-size:10px;color:var(--tx3);padding:8px 0;text-align:center">';
-  html += 'Ensemble: AROME France HD + ICON D2 | Spread-based confidence';
+  html += 'Ensemble: AROME HD 1.3km · ICON-CH1 1km · ICON-CH2 2km · ICON-D2 2km · spread-based confidence';
   html += '</div>';
 
   document.getElementById('windForecast').innerHTML = html;

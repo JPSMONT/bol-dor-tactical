@@ -102,6 +102,16 @@ a{color:var(--acc)}
       <option value="3600">3600×</option>
     </select>
   </div>
+  <div class="speed-ctl">
+    <label>LJ sim</label>
+    <select id="ljStrategy" onchange="onLJStrategyChange(this.value)">
+      <option value="" selected>Off</option>
+      <option value="auto">Auto VMC</option>
+      <option value="swiss">Swiss bank</option>
+      <option value="mid">Mid lake</option>
+      <option value="french">French bank</option>
+    </select>
+  </div>
 </div>
 
 <script>
@@ -477,6 +487,266 @@ function loadYear(raceCode) {
 document.querySelectorAll('.year-btn').forEach(function(b){
   b.addEventListener('click', function(){ loadYear(b.dataset.race); });
 });
+
+// ===== Little Johnka simulation engine (duplicated from index.html — single-file convention) =====
+// Polar data (CYD 27 ORC, SUI 6116)
+var P = {
+  6:  {twa:[42,52,60,70,75,80,90,110,120,135,150,165,180],btv:[4.74,5.32,5.60,5.78,5.81,5.82,5.77,5.65,5.48,4.92,4.09,3.43,3.22],vmg:[3.52,3.27,2.80,1.98,1.50,1.01,0,1.93,2.74,3.48,3.54,3.31,3.22]},
+  8:  {twa:[40.5,52,60,70,75,80,90,110,120,135,150,165,180],btv:[5.36,6.03,6.26,6.40,6.43,6.45,6.44,6.50,6.41,6.01,5.19,4.46,4.22],vmg:[4.08,3.71,3.13,2.19,1.67,1.12,0,2.22,3.20,4.25,4.49,4.31,4.22]},
+  10: {twa:[39.8,52,60,70,75,80,90,110,120,135,150,165,180],btv:[5.54,6.21,6.42,6.60,6.67,6.73,6.79,6.89,6.89,6.60,6.09,5.38,5.13],vmg:[4.26,3.82,3.21,2.26,1.73,1.17,0,2.36,3.45,4.66,5.28,5.20,5.13]},
+  12: {twa:[40.1,52,60,70,75,80,90,110,120,135,150,165,180],btv:[5.63,6.28,6.49,6.69,6.78,6.87,7.05,7.14,7.36,7.06,6.62,6.17,5.95],vmg:[4.31,3.86,3.24,2.29,1.75,1.19,0,2.44,3.68,4.99,5.74,5.96,5.95]},
+  14: {twa:[40.1,52,60,70,75,80,90,110,120,135,150,165,180],btv:[5.74,6.34,6.53,6.74,6.84,6.95,7.21,7.51,7.68,7.60,7.06,6.65,6.51],vmg:[4.39,3.91,3.27,2.30,1.77,1.21,0,2.57,3.84,5.38,6.11,6.42,6.51]},
+  16: {twa:[40.5,52,60,70,75,80,90,110,120,135,150,165,180],btv:[5.78,6.40,6.61,6.80,6.88,6.99,7.31,7.84,7.97,8.25,7.57,7.07,6.92],vmg:[4.40,3.94,3.31,2.33,1.78,1.21,0,2.68,3.98,5.83,6.55,6.83,6.92]},
+  20: {twa:[42.4,52,60,70,75,80,90,110,120,135,150,165,180],btv:[5.75,6.35,6.60,6.88,7.01,7.16,7.40,8.23,8.65,9.40,8.86,8.10,7.88],vmg:[4.25,3.91,3.30,2.35,1.82,1.24,0,2.81,4.33,6.65,7.67,7.83,7.88]}
+};
+var TWS_KEYS = [6,8,10,12,14,16,20];
+function interpAngle(pd, twa) {
+  if(twa <= pd.twa[0]) return {btv:pd.btv[0], vmg:pd.vmg[0]};
+  if(twa >= pd.twa[pd.twa.length-1]) return {btv:pd.btv[pd.twa.length-1], vmg:pd.vmg[pd.twa.length-1]};
+  for(var i=0;i<pd.twa.length-1;i++){
+    if(twa >= pd.twa[i] && twa <= pd.twa[i+1]){
+      var f = (twa - pd.twa[i])/(pd.twa[i+1]-pd.twa[i]);
+      return {btv:pd.btv[i]+f*(pd.btv[i+1]-pd.btv[i]), vmg:pd.vmg[i]+f*(pd.vmg[i+1]-pd.vmg[i])};
+    }
+  }
+  return {btv:0,vmg:0};
+}
+function interpPolar(tws, twa) {
+  var k = TWS_KEYS;
+  if(tws <= k[0]) return interpAngle(P[k[0]], twa);
+  if(tws >= k[k.length-1]) return interpAngle(P[k[k.length-1]], twa);
+  var lo, hi;
+  for(var i=0;i<k.length-1;i++) if(tws >= k[i] && tws <= k[i+1]) { lo=k[i]; hi=k[i+1]; break; }
+  var f = (tws - lo)/(hi - lo);
+  var a = interpAngle(P[lo], twa), b = interpAngle(P[hi], twa);
+  return {btv: a.btv+f*(b.btv-a.btv), vmg: a.vmg+f*(b.vmg-a.vmg)};
+}
+
+// 9-point grid (mirrors index.html)
+var GRID_POINTS = [
+  {name:'Geneva N',lat:46.28,lon:6.20},{name:'Geneva Mid',lat:46.24,lon:6.17},{name:'Geneva S',lat:46.21,lon:6.16},
+  {name:'Lausanne N',lat:46.50,lon:6.58},{name:'Lausanne Mid',lat:46.44,lon:6.55},{name:'Lausanne S',lat:46.38,lon:6.52},
+  {name:'Bouveret N',lat:46.46,lon:6.82},{name:'Bouveret Mid',lat:46.41,lon:6.85},{name:'Bouveret S',lat:46.39,lon:6.86}
+];
+
+// Rhumb cross-track (signed NM, + = north of Genève → Bouveret line)
+var RHUMB_START_LL = [46.2044, 6.1568], RHUMB_END_LL = [46.391, 6.857];
+var RHUMB_BEARING = bearingDeg(RHUMB_START_LL[0], RHUMB_START_LL[1], RHUMB_END_LL[0], RHUMB_END_LL[1]);
+function crossTrackNM(lat, lon) {
+  var R = 3440.065;
+  var d13 = haversineNM(RHUMB_START_LL[0], RHUMB_START_LL[1], lat, lon);
+  var b13 = bearingDeg(RHUMB_START_LL[0], RHUMB_START_LL[1], lat, lon);
+  var diff = (b13 - RHUMB_BEARING) * Math.PI / 180;
+  while(diff > Math.PI) diff -= 2*Math.PI;
+  while(diff < -Math.PI) diff += 2*Math.PI;
+  return Math.asin(Math.sin(d13/R) * Math.sin(diff)) * R;
+}
+
+// Spherical step
+function movePoint(pos, headingDeg, distNM) {
+  var R = 3440.065, rad = headingDeg * Math.PI/180;
+  var latRad = pos.lat*Math.PI/180, lonRad = pos.lon*Math.PI/180, d = distNM/R;
+  var newLat = Math.asin(Math.sin(latRad)*Math.cos(d) + Math.cos(latRad)*Math.sin(d)*Math.cos(rad));
+  var newLon = lonRad + Math.atan2(Math.sin(rad)*Math.sin(d)*Math.cos(latRad), Math.cos(d) - Math.sin(latRad)*Math.sin(newLat));
+  return {lat: newLat*180/Math.PI, lon: newLon*180/Math.PI};
+}
+function pointInLake(lat, lon) {
+  var inside = false, n = LAKE.length;
+  for(var i=0, j=n-1; i<n; j=i++){
+    var lat_i = LAKE[i][0], lon_i = LAKE[i][1], lat_j = LAKE[j][0], lon_j = LAKE[j][1];
+    var hit = ((lat_i > lat) !== (lat_j > lat)) && (lon < (lon_j - lon_i) * (lat - lat_i) / (lat_j - lat_i) + lon_i);
+    if(hit) inside = !inside;
+  }
+  return inside;
+}
+function chooseHeading(pos, brg, wind, strategy, prevHdg) {
+  var best = null, bestScore = -Infinity;
+  for(var hdg = 0; hdg < 360; hdg += 5) {
+    var twaSigned = (((hdg - wind.twd) + 540) % 360) - 180;
+    var twa = Math.abs(twaSigned);
+    if(twa < 30) continue;
+    var polar = interpPolar(wind.tws, twa);
+    if(!polar.btv || polar.btv < 0.4) continue;
+    var dHdg = ((hdg - brg + 540) % 360) - 180;
+    var vmc = polar.btv * Math.cos(dHdg * Math.PI/180);
+    var score = vmc;
+    if(strategy === 'swiss' || strategy === 'french' || strategy === 'mid') {
+      var future = movePoint(pos, hdg, 1.0);
+      var ct = crossTrackNM(future.lat, future.lon);
+      if(strategy === 'swiss') score += ct * 0.25;
+      else if(strategy === 'french') score += -ct * 0.25;
+      else if(strategy === 'mid') score += -Math.abs(ct) * 0.18;
+    }
+    if(prevHdg != null) {
+      var prevSign = Math.sign((((prevHdg - wind.twd) + 540) % 360) - 180);
+      if(prevSign === Math.sign(twaSigned)) score += 0.04;
+    }
+    if(score > bestScore) { bestScore = score; best = {heading:hdg, btv:polar.btv, twa:twa, vmc:vmc, twaSigned:twaSigned}; }
+  }
+  return best;
+}
+function simulateLJRoute(opts) {
+  opts = opts || {};
+  var startPos = opts.startPos || [46.2044, 6.1568];
+  var startTime = opts.startTime || new Date();
+  var waypoints = opts.waypoints || [[46.391, 6.857], [46.2044, 6.1568]];
+  var strategy = opts.strategy || 'auto';
+  var windAt = opts.windAt;
+  var dtMs = 60000, polarScale = 0.93, tackPenaltySec = 5, maxDurationMs = 30*3600*1000;
+  var arrivalNM = 0.27;
+  var pos = {lat:startPos[0], lon:startPos[1]};
+  var ts = +startTime, endTs = ts + maxDurationMs;
+  var hdg = bearingDeg(pos.lat, pos.lon, waypoints[0][0], waypoints[0][1]);
+  var wpIdx = 0, lastTwaSign = null, tackCount = 0, penaltyMsLeft = 0;
+  var points = [{ts:ts, lat:pos.lat, lon:pos.lon, sog:0, hdg:hdg}];
+  while(ts < endTs && wpIdx < waypoints.length) {
+    var goal = waypoints[wpIdx];
+    if(haversineNM(pos.lat, pos.lon, goal[0], goal[1]) < arrivalNM) { wpIdx++; if(wpIdx >= waypoints.length) break; continue; }
+    var brg = bearingDeg(pos.lat, pos.lon, goal[0], goal[1]);
+    var wind = windAt(pos.lat, pos.lon, ts);
+    var effBtv, newHdg, twaSigned;
+    if(!wind || wind.tws == null || wind.tws < 0.5) { effBtv = 0.8; newHdg = brg; twaSigned = 0; }
+    else {
+      var best = chooseHeading(pos, brg, wind, strategy, hdg);
+      if(!best) { newHdg = brg; effBtv = 1; twaSigned = 0; }
+      else { newHdg = best.heading; effBtv = best.btv * polarScale; twaSigned = best.twaSigned; }
+    }
+    var newSign = Math.sign(twaSigned);
+    var didTack = (lastTwaSign != null && lastTwaSign !== 0 && newSign !== 0 && lastTwaSign !== newSign);
+    if(didTack) { tackCount++; penaltyMsLeft = tackPenaltySec*1000; }
+    lastTwaSign = newSign;
+    if(penaltyMsLeft > 0) { var f = Math.min(1, penaltyMsLeft/Math.max(dtMs,1)); effBtv = effBtv*(1 - 0.6*f); penaltyMsLeft -= dtMs; }
+    var stepNM = effBtv * dtMs / 3600000;
+    var newPos = movePoint(pos, newHdg, stepNM);
+    if(!pointInLake(newPos.lat, newPos.lon) && wind) {
+      var altHdg = (2*wind.twd - newHdg + 540) % 360;
+      newPos = movePoint(pos, altHdg, stepNM*0.5);
+      newHdg = altHdg; tackCount++; penaltyMsLeft = tackPenaltySec*1000;
+    }
+    pos = newPos; hdg = newHdg; ts += dtMs;
+    points.push({ts:ts, lat:pos.lat, lon:pos.lon, sog:effBtv, hdg:hdg, didTack:didTack});
+  }
+  return {points:points, stats:{tacks:tackCount, reachedFinish: wpIdx >= waypoints.length}};
+}
+
+// ===== Historical wind (Open-Meteo archive ERA5) =====
+var RACE_DATES = {BOL25:'2025-06-14', BOPM24:'2024-06-15', BOM23:'2023-06-10', BOM21:'2021-06-12'};
+var RACE_START_LOCAL = {
+  BOL25:'2025-06-14T10:00:00+02:00', BOPM24:'2024-06-15T10:00:00+02:00',
+  BOM23:'2023-06-10T10:00:00+02:00', BOM21:'2021-06-12T10:00:00+02:00'
+};
+var historicalWindCache = {};
+function fetchHistoricalWind(raceCode) {
+  if(historicalWindCache[raceCode]) return Promise.resolve(historicalWindCache[raceCode]);
+  var d0 = RACE_DATES[raceCode];
+  var dt = new Date(d0 + 'T00:00:00Z'); dt.setUTCDate(dt.getUTCDate()+1);
+  var d1 = dt.toISOString().slice(0,10);
+  var lats = GRID_POINTS.map(function(p){return p.lat;}).join(',');
+  var lons = GRID_POINTS.map(function(p){return p.lon;}).join(',');
+  var url = 'https://archive-api.open-meteo.com/v1/archive?latitude='+lats+'&longitude='+lons+
+            '&start_date='+d0+'&end_date='+d1+
+            '&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn&timezone=Europe/Zurich';
+  return fetch(url).then(function(r){ if(!r.ok) throw new Error('archive HTTP '+r.status); return r.json(); })
+    .then(function(data){
+      var arr = Array.isArray(data) ? data : [data];
+      var parsed = arr.map(function(r, i){
+        var hourly = r.hourly || {};
+        return {lat:GRID_POINTS[i].lat, lon:GRID_POINTS[i].lon,
+          hours:(hourly.time||[]).map(function(t){return new Date(t);}),
+          speed:hourly.wind_speed_10m||[], dir:hourly.wind_direction_10m||[]};
+      });
+      historicalWindCache[raceCode] = parsed;
+      return parsed;
+    });
+}
+function makeHistoricalWindAdapter(windData) {
+  return function(lat, lon, ts) {
+    var bestPt = null, bestD = Infinity;
+    windData.forEach(function(pt){ var d = haversineNM(lat, lon, pt.lat, pt.lon); if(d < bestD){bestD=d; bestPt=pt;} });
+    if(!bestPt || !bestPt.hours.length) return null;
+    var target = new Date(ts);
+    var i;
+    for(i=0; i<bestPt.hours.length-1; i++) if(bestPt.hours[i] <= target && bestPt.hours[i+1] > target) break;
+    if(i >= bestPt.hours.length-1) return null;
+    var t0 = bestPt.hours[i].getTime(), t1 = bestPt.hours[i+1].getTime();
+    var f = t1 > t0 ? (target.getTime() - t0)/(t1 - t0) : 0;
+    f = Math.max(0, Math.min(1, f));
+    var spd = bestPt.speed[i] + f*(bestPt.speed[i+1] - bestPt.speed[i]);
+    var d0 = bestPt.dir[i], d1 = bestPt.dir[i+1], diff = d1 - d0;
+    if(diff > 180) diff -= 360; if(diff < -180) diff += 360;
+    var dir = (d0 + f*diff + 360) % 360;
+    return {tws: spd, twd: dir};
+  };
+}
+
+// ===== LJ ghost layers + sim runner =====
+var ljLayer = null;
+var ljResult = null;
+var ljStrategy = '';
+
+function onLJStrategyChange(v) {
+  ljStrategy = v || '';
+  if(!ljLayer) ljLayer = L.layerGroup().addTo(map);
+  ljLayer.clearLayers();
+  ljResult = null;
+  if(!ljStrategy) { drawAnimAt(tsAtSlider(document.getElementById('timeSlider').value)); return; }
+  if(!currentYear) { setStatus('Pick a year first', 'error'); return; }
+  setStatus('Fetching ' + RACE_LABELS[currentYear] + ' historical wind…');
+  fetchHistoricalWind(currentYear).then(function(windData){
+    setStatus('Simulating Little Johnka (' + ljStrategy + ')…');
+    setTimeout(function(){
+      ljResult = simulateLJRoute({
+        startPos: [46.2044, 6.1568],
+        startTime: new Date(RACE_START_LOCAL[currentYear]),
+        waypoints: [[46.391, 6.857], [46.2044, 6.1568]],
+        windAt: makeHistoricalWindAdapter(windData),
+        strategy: ljStrategy
+      });
+      // Polyline + tack dots
+      var coords = ljResult.points.map(function(p){ return [p.lat, p.lon]; });
+      L.polyline(coords, {color:'#fbbf24', weight:2.5, opacity:0.9, smoothFactor:1.5, interactive:false}).addTo(ljLayer);
+      ljResult.points.forEach(function(p){
+        if(p.didTack) {
+          L.circleMarker([p.lat, p.lon], {radius:2.5, color:'#fff', weight:1, opacity:0.7, fillColor:'#fbbf24', fillOpacity:0.9, interactive:false}).addTo(ljLayer);
+        }
+      });
+      var ms = ljResult.points[ljResult.points.length-1].ts - ljResult.points[0].ts;
+      var h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000);
+      setStatus('LJ sim: '+ljStrategy+' · ' + h + 'h' + String(m).padStart(2,'0') + ' · ' + ljResult.stats.tacks + ' tacks', 'success');
+      drawAnimAt(tsAtSlider(document.getElementById('timeSlider').value));
+    }, 30);
+  }).catch(function(err){
+    setStatus('LJ sim failed: '+err.message, 'error');
+  });
+}
+
+// Hook into drawAnimAt to also render LJ ghost dot
+var __origDrawAnimAt = drawAnimAt;
+drawAnimAt = function(ts) {
+  __origDrawAnimAt(ts);
+  if(!ljLayer || !ljResult || ts == null) return;
+  // Remove only previous LJ marker (not the polyline/tack dots)
+  if(drawAnimAt._ljMarker) { ljLayer.removeLayer(drawAnimAt._ljMarker); drawAnimAt._ljMarker = null; }
+  var pts = ljResult.points;
+  if(!pts.length || ts < pts[0].ts || ts > pts[pts.length-1].ts) return;
+  // Interpolate LJ position
+  var i;
+  for(i=0; i<pts.length-1; i++) if(pts[i].ts <= ts && pts[i+1].ts > ts) break;
+  if(i >= pts.length-1) return;
+  var f = (ts - pts[i].ts) / (pts[i+1].ts - pts[i].ts);
+  var lat = pts[i].lat + f*(pts[i+1].lat - pts[i].lat);
+  var lon = pts[i].lon + f*(pts[i+1].lon - pts[i].lon);
+  var icon = L.divIcon({className:'', html:'<div style="width:18px;height:18px;border-radius:50%;background:#fbbf24;border:2.5px solid #0a1628;box-shadow:0 0 0 1.5px #fff,0 0 10px #fbbf24cc"></div>', iconSize:[22,22], iconAnchor:[11,11]});
+  drawAnimAt._ljMarker = L.marker([lat, lon], {icon:icon, zIndexOffset:2000, interactive:false}).addTo(ljLayer);
+};
+
+// Add LJ entry to legend
+var __origRenderLegend = renderLegend;
+renderLegend = function() {
+  __origRenderLegend();
+  var el = document.getElementById('legend');
+  if(el) el.innerHTML += '<div class="legend-row"><span class="legend-sw" style="background:#fbbf24"></span>Little Johnka (sim)</div>';
+};
 
 // Init + auto-load BOL25
 initMap();
