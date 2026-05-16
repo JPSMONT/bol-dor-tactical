@@ -270,6 +270,19 @@ canvas{display:block}
 .pattern-name{font-size:16px;font-weight:800;color:var(--tx)}
 .pattern-stats{font-size:11px;color:var(--tx3);margin-top:2px;font-variant-numeric:tabular-nums}
 .pattern-desc{font-size:11px;color:var(--tx2);line-height:1.5;margin-top:6px}
+/* Route simulation */
+.sim-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:var(--tx2)}
+.sim-row label{min-width:68px;font-weight:600}
+.sim-row select{flex:1;background:var(--bg3);color:var(--tx);border:1px solid var(--bg3);padding:7px 8px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer}
+.sim-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px;font-variant-numeric:tabular-nums}
+.sim-stats .ss-cell{background:var(--bg2);padding:8px 6px;border-radius:6px;text-align:center}
+.sim-stats .ss-k{font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px}
+.sim-stats .ss-v{font-size:15px;font-weight:800;color:var(--tx);margin-top:2px}
+.sim-stats .ss-v.gold{color:#fbbf24}
+.sim-note{font-size:10px;color:var(--tx3);margin-top:8px;line-height:1.5;text-align:center}
+.sim-note.warn{color:var(--warn)}
+.sim-note.ok{color:#a7f3d0}
+@media(max-width:380px){.sim-stats{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -457,6 +470,28 @@ canvas{display:block}
         <div class="card-title">Race course — Lac Léman</div>
         <div id="lakeMap"></div>
         <div style="font-size:10px;color:var(--tx3);margin-top:6px;line-height:1.4">OpenSeaMap nautical overlay · 5-waypoint route · 9-point wind grid</div>
+      </div>
+      <div class="card" id="simCard">
+        <div class="card-title">Route simulation (Little Johnka)</div>
+        <div class="sim-row">
+          <label>Strategy</label>
+          <select id="simStrategy">
+            <option value="auto" selected>Auto — best VMC</option>
+            <option value="swiss">Swiss bank (north)</option>
+            <option value="mid">Mid lake</option>
+            <option value="french">French bank (south)</option>
+          </select>
+        </div>
+        <div class="sim-row">
+          <label>Start</label>
+          <select id="simStart">
+            <option value="now" selected>Now — live forecast</option>
+            <option value="race">Race day (2026-06-06 09:00 CEST)</option>
+          </select>
+        </div>
+        <button class="gps-btn start" style="width:100%" onclick="runSimulation()">Run simulation</button>
+        <div id="simStats" class="sim-stats" style="display:none"></div>
+        <div id="simNote" class="sim-note">Generates a synthetic Little Johnka track by stepping through polars + forecast wind. Auto picks best VMC each minute; bank modes bias toward that shore.</div>
       </div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -2812,6 +2847,270 @@ function renderRivalTargetsList() {
   });
   html += '<div style="font-size:10px;color:var(--tx3);margin-top:6px;text-align:center">Tap a row to show/hide that rival on the map.</div>';
   el.innerHTML = html;
+}
+
+// ===== ROUTE SIMULATION ENGINE (PRD §9.3, §15) =====
+// Synthesises a Little Johnka track by stepping through polars + a wind field.
+var simTrackLayer = null;
+var lastSimResult = null;
+
+// Spherical step: advance from pos along heading by distNM
+function movePoint(pos, headingDeg, distNM) {
+  var R = 3440.065;
+  var rad = headingDeg * Math.PI / 180;
+  var latRad = pos.lat * Math.PI / 180;
+  var lonRad = pos.lon * Math.PI / 180;
+  var d = distNM / R;
+  var newLat = Math.asin(Math.sin(latRad) * Math.cos(d) + Math.cos(latRad) * Math.sin(d) * Math.cos(rad));
+  var newLon = lonRad + Math.atan2(
+    Math.sin(rad) * Math.sin(d) * Math.cos(latRad),
+    Math.cos(d) - Math.sin(latRad) * Math.sin(newLat)
+  );
+  return {lat: newLat * 180 / Math.PI, lon: newLon * 180 / Math.PI};
+}
+
+// Ray-cast point-in-polygon against the LAKE outline
+function pointInLake(lat, lon) {
+  var inside = false;
+  var n = LAKE.length;
+  for(var i = 0, j = n - 1; i < n; j = i++) {
+    var lat_i = LAKE[i][0], lon_i = LAKE[i][1];
+    var lat_j = LAKE[j][0], lon_j = LAKE[j][1];
+    var intersect = ((lat_i > lat) !== (lat_j > lat)) &&
+      (lon < (lon_j - lon_i) * (lat - lat_i) / (lat_j - lat_i) + lon_i);
+    if(intersect) inside = !inside;
+  }
+  return inside;
+}
+
+// Adapter — wind field from the existing ensembleData (Open-Meteo at 9 grid points)
+function windAtFromEnsemble(lat, lon, ts) {
+  if(!ensembleData) return null;
+  var bestPt = null, bestD = Infinity;
+  ensembleData.forEach(function(pt){
+    var gp = GRID_POINTS.filter(function(p){ return p.name === pt.name; })[0];
+    if(!gp) return;
+    var d = haversineNM(lat, lon, gp.lat, gp.lon);
+    if(d < bestD) { bestD = d; bestPt = pt; }
+  });
+  if(!bestPt) return null;
+  var w = getWindAtTime(bestPt, new Date(ts));
+  if(!w) return null;
+  return {tws: w.speed, twd: w.dir};
+}
+
+// Best heading at a given pos+wind+goal under a strategy. Searches 0..355° in 5° steps,
+// avoids the in-irons zone, maximises VMC, with bank bias and small same-tack bonus.
+function chooseHeading(pos, bearingToGoal, wind, strategy, prevHdg) {
+  var best = null;
+  var bestScore = -Infinity;
+  for(var hdg = 0; hdg < 360; hdg += 5) {
+    var twaSigned = (((hdg - wind.twd) + 540) % 360) - 180;
+    var twa = Math.abs(twaSigned);
+    if(twa < 30) continue;                            // skip in-irons
+    var polar = interpPolar(wind.tws, twa);
+    var btv = polar.btv;
+    if(!btv || btv < 0.4) continue;
+    var dHdg = ((hdg - bearingToGoal + 540) % 360) - 180;
+    var vmc = btv * Math.cos(dHdg * Math.PI / 180);
+    var score = vmc;
+    if(strategy === 'swiss' || strategy === 'french' || strategy === 'mid') {
+      var future = movePoint(pos, hdg, 1.0);
+      var ct = crossTrackNM(future.lat, future.lon);     // + = north (Swiss), – = south (French)
+      if(strategy === 'swiss') score += ct * 0.25;
+      else if(strategy === 'french') score += -ct * 0.25;
+      else if(strategy === 'mid') score += -Math.abs(ct) * 0.18;
+    }
+    if(prevHdg != null) {
+      var prevSign = Math.sign((((prevHdg - wind.twd) + 540) % 360) - 180);
+      var newSign  = Math.sign(twaSigned);
+      if(prevSign === newSign) score += 0.04;            // small bonus for staying on same tack
+    }
+    if(score > bestScore) {
+      bestScore = score;
+      best = {heading: hdg, btv: btv, twa: twa, vmc: vmc, twaSigned: twaSigned};
+    }
+  }
+  return best;
+}
+
+function simulateLJRoute(opts) {
+  opts = opts || {};
+  var startPos = opts.startPos || [46.2044, 6.1568];
+  var startTime = opts.startTime || new Date();
+  var waypoints = opts.waypoints || [[46.391, 6.857], [46.2044, 6.1568]];
+  var strategy = opts.strategy || 'auto';
+  var windAt = opts.windAt || windAtFromEnsemble;
+  var dtMs = opts.dtMs || 60000;                        // 1-min timestep
+  var polarScale = opts.polarScale || 0.93;              // 93% of polar — PRD §18 assumption
+  var tackPenaltySec = opts.tackPenaltySec || 5;
+  var maxDurationMs = opts.maxDurationMs || 30 * 3600 * 1000;
+  var arrivalNM = 0.27;
+
+  var pos = {lat: startPos[0], lon: startPos[1]};
+  var ts = +startTime;
+  var endTs = ts + maxDurationMs;
+  var hdg = bearingDeg(pos.lat, pos.lon, waypoints[0][0], waypoints[0][1]);
+  var wpIdx = 0;
+  var lastTwaSign = null;
+  var tackCount = 0;
+  var penaltyMsLeft = 0;
+  var points = [{ts: ts, lat: pos.lat, lon: pos.lon, sog: 0, hdg: hdg, twa: 0, tws: 0, didTack: false}];
+
+  while(ts < endTs && wpIdx < waypoints.length) {
+    var goal = waypoints[wpIdx];
+    if(haversineNM(pos.lat, pos.lon, goal[0], goal[1]) < arrivalNM) {
+      wpIdx++;
+      if(wpIdx >= waypoints.length) break;
+      continue;
+    }
+    var brg = bearingDeg(pos.lat, pos.lon, goal[0], goal[1]);
+    var wind = windAt(pos.lat, pos.lon, ts);
+
+    var effBtv, newHdg, twa, twaSigned;
+    if(!wind || wind.tws == null || wind.tws < 0.5) {
+      // No usable wind — drift toward goal at 0.8 kn
+      effBtv = 0.8;
+      newHdg = brg;
+      twa = 0;
+      twaSigned = 0;
+    } else {
+      var best = chooseHeading(pos, brg, wind, strategy, hdg);
+      if(!best) {
+        // Polar lookup failed → ease angle outward
+        newHdg = brg;
+        effBtv = 1.0;
+        twa = 0;
+        twaSigned = 0;
+      } else {
+        newHdg = best.heading;
+        effBtv = best.btv * polarScale;
+        twa = best.twa;
+        twaSigned = best.twaSigned;
+      }
+    }
+
+    // Tack detection (sign of TWA flipped)
+    var newSign = Math.sign(twaSigned);
+    var didTack = (lastTwaSign != null && lastTwaSign !== 0 && newSign !== 0 && lastTwaSign !== newSign);
+    if(didTack) {
+      tackCount++;
+      penaltyMsLeft = tackPenaltySec * 1000;
+    }
+    lastTwaSign = newSign;
+
+    if(penaltyMsLeft > 0) {
+      var f = Math.min(1, penaltyMsLeft / Math.max(dtMs, 1));
+      effBtv = effBtv * (1 - 0.6 * f);                   // up to 60% speed loss during penalty
+      penaltyMsLeft -= dtMs;
+    }
+
+    var stepNM = effBtv * dtMs / 3600000;
+    var newPos = movePoint(pos, newHdg, stepNM);
+
+    // Lake boundary — if we stepped outside, mirror the heading across the wind (forced tack)
+    if(!pointInLake(newPos.lat, newPos.lon) && wind) {
+      var altHdg = (2 * wind.twd - newHdg + 540) % 360;
+      newPos = movePoint(pos, altHdg, stepNM * 0.5);
+      newHdg = altHdg;
+      tackCount++;
+      penaltyMsLeft = tackPenaltySec * 1000;
+    }
+
+    pos = newPos;
+    hdg = newHdg;
+    ts += dtMs;
+    points.push({ts: ts, lat: pos.lat, lon: pos.lon, sog: effBtv, hdg: hdg, twa: twa, tws: wind ? wind.tws : 0, didTack: didTack});
+  }
+
+  // Stats
+  var totalDist = 0;
+  for(var i = 1; i < points.length; i++) {
+    totalDist += haversineNM(points[i-1].lat, points[i-1].lon, points[i].lat, points[i].lon);
+  }
+  var totalMs = points.length > 1 ? (points[points.length-1].ts - points[0].ts) : 0;
+  var avgSOG = totalMs > 0 ? totalDist / (totalMs / 3600000) : 0;
+  return {
+    points: points,
+    stats: {
+      totalDist: totalDist,
+      durationMs: totalMs,
+      avgSOG: avgSOG,
+      tacks: tackCount,
+      reachedFinish: wpIdx >= waypoints.length,
+      strategy: strategy
+    }
+  };
+}
+
+function runSimulation() {
+  var noteEl = document.getElementById('simNote');
+  if(!ensembleData) {
+    noteEl.textContent = 'No wind data yet — load the Wind tab first, then try again.';
+    noteEl.className = 'sim-note warn';
+    return;
+  }
+  if(!lakeMap) initLakeMap();
+  if(!simTrackLayer) simTrackLayer = L.layerGroup().addTo(lakeMap);
+  simTrackLayer.clearLayers();
+
+  var strategy = document.getElementById('simStrategy').value;
+  var startMode = document.getElementById('simStart').value;
+  var startTime = startMode === 'race' ? new Date(BOL_DOR_START) : new Date();
+
+  noteEl.textContent = 'Running simulation…';
+  noteEl.className = 'sim-note';
+
+  // Defer so the UI updates first
+  setTimeout(function(){
+    var result = simulateLJRoute({
+      startPos: [46.2044, 6.1568],
+      startTime: startTime,
+      waypoints: [[46.391, 6.857], [46.2044, 6.1568]],
+      windAt: windAtFromEnsemble,
+      strategy: strategy
+    });
+    lastSimResult = result;
+
+    // Track polyline
+    var coords = result.points.map(function(p){ return [p.lat, p.lon]; });
+    L.polyline(coords, {
+      color: '#fbbf24', weight: 2.5, opacity: 0.92,
+      smoothFactor: 1.5, interactive: false
+    }).addTo(simTrackLayer);
+
+    // Tack markers
+    result.points.forEach(function(p){
+      if(p.didTack) {
+        L.circleMarker([p.lat, p.lon], {
+          radius: 2.5, color: '#fff', weight: 1, opacity: 0.7,
+          fillColor: '#fbbf24', fillOpacity: 0.9, interactive: false
+        }).addTo(simTrackLayer);
+      }
+    });
+
+    // Stats panel
+    var s = result.stats;
+    var h = Math.floor(s.durationMs / 3600000);
+    var m = Math.floor((s.durationMs % 3600000) / 60000);
+    var html = '';
+    html += '<div class="ss-cell"><div class="ss-k">Duration</div><div class="ss-v gold">'+h+'h'+String(m).padStart(2,'0')+'</div></div>';
+    html += '<div class="ss-cell"><div class="ss-k">Distance</div><div class="ss-v">'+s.totalDist.toFixed(1)+'<span style="font-size:10px;color:var(--tx3)"> NM</span></div></div>';
+    html += '<div class="ss-cell"><div class="ss-k">Avg SOG</div><div class="ss-v">'+s.avgSOG.toFixed(1)+'<span style="font-size:10px;color:var(--tx3)"> kn</span></div></div>';
+    html += '<div class="ss-cell"><div class="ss-k">Tacks</div><div class="ss-v">'+s.tacks+'</div></div>';
+    var stats = document.getElementById('simStats');
+    stats.innerHTML = html;
+    stats.style.display = '';
+
+    if(s.reachedFinish) {
+      var fin = new Date(result.points[result.points.length-1].ts);
+      noteEl.textContent = 'Finish reached at ' + fin.toLocaleTimeString() + ' · ' + strategy + ' strategy · 93% of polar';
+      noteEl.className = 'sim-note ok';
+    } else {
+      noteEl.textContent = 'Did not reach finish within 30h cap — wind too light, polygon constraint blocked, or strategy too constrained.';
+      noteEl.className = 'sim-note warn';
+    }
+  }, 30);
 }
 
 // ===== RACE SIMULATION MODE =====
