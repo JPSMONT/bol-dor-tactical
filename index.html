@@ -3925,13 +3925,16 @@ function windAtFromEnsemble(lat, lon, ts) {
 
 // Best heading at a given pos+wind+goal under a strategy. Searches 0..355° in 5° steps,
 // avoids the in-irons zone, maximises VMC, with bank bias and small same-tack bonus.
-function chooseHeading(pos, bearingToGoal, wind, strategy, prevHdg) {
+// Core heading search. requireTwaSign (-1, 0, +1) constrains the search to one
+// tack side; null/undefined searches both. Returns the highest-scoring heading.
+function _searchHeading(pos, bearingToGoal, wind, strategy, prevHdg, requireTwaSign) {
   var best = null;
   var bestScore = -Infinity;
   for(var hdg = 0; hdg < 360; hdg += 5) {
     var twaSigned = (((hdg - wind.twd) + 540) % 360) - 180;
     var twa = Math.abs(twaSigned);
     if(twa < 30) continue;                            // skip in-irons
+    if(requireTwaSign != null && requireTwaSign !== 0 && Math.sign(twaSigned) !== requireTwaSign) continue;
     var polar = interpPolar(wind.tws, twa);
     var btv = polar.btv;
     if(!btv || btv < 0.4) continue;
@@ -3958,6 +3961,58 @@ function chooseHeading(pos, bearingToGoal, wind, strategy, prevHdg) {
   return best;
 }
 
+// QA round 2 §2.4 (Fix 10b): tack-thrashing hysteresis. When tackPolicy is
+// provided, only honour a tack-side flip if (a) at least minIntervalMs has
+// elapsed since the last tack AND (b) the new heading's VMC is >5% better than
+// the best same-side candidate. Below TWS = holdBelowTws, hold the current
+// heading rather than oscillate on numerical noise. tackPolicy = null/undefined
+// disables the hysteresis (used to A/B-test the fix).
+function chooseHeading(pos, bearingToGoal, wind, strategy, prevHdg, tackPolicy) {
+  var best = _searchHeading(pos, bearingToGoal, wind, strategy, prevHdg, null);
+  if(!best || !tackPolicy) return best;
+
+  var prevSign = tackPolicy.prevTwaSign;
+  if(prevSign == null || prevSign === 0) return best;
+  var newSign = Math.sign(best.twaSigned);
+  var isTack = newSign !== 0 && newSign !== prevSign;
+  if(!isTack) return best;
+
+  // The unconstrained best would be a tack. Compute the best-same-side option.
+  var sameSide = _searchHeading(pos, bearingToGoal, wind, strategy, prevHdg, prevSign);
+  if(!sameSide) return best;   // no viable same-side option (in-irons everywhere)
+
+  // (a) Light air — hold current heading rather than oscillate
+  var holdBelowTws = (tackPolicy.holdBelowTws != null) ? tackPolicy.holdBelowTws : 3;
+  if(wind.tws < holdBelowTws && prevHdg != null) {
+    var twa = Math.abs((((prevHdg - wind.twd) + 540) % 360) - 180);
+    if(twa >= 30) {
+      var pol = interpPolar(wind.tws, twa);
+      if(pol.btv && pol.btv >= 0.3) {
+        return {
+          heading: prevHdg,
+          btv: pol.btv,
+          twa: twa,
+          vmc: pol.btv * Math.cos((((prevHdg - bearingToGoal + 540) % 360) - 180) * Math.PI / 180),
+          twaSigned: (((prevHdg - wind.twd) + 540) % 360) - 180
+        };
+      }
+    }
+    return sameSide;
+  }
+
+  // (b) Minimum interval since last tack
+  var minInterval = (tackPolicy.minIntervalMs != null) ? tackPolicy.minIntervalMs : 5 * 60 * 1000;
+  if(tackPolicy.lastTackTs != null && (tackPolicy.currentTs - tackPolicy.lastTackTs) < minInterval) {
+    return sameSide;
+  }
+
+  // (c) Hysteresis — require meaningful VMC advantage to commit to a tack
+  var ratio = (tackPolicy.vmcAdvantageRatio != null) ? tackPolicy.vmcAdvantageRatio : 1.05;
+  if(best.vmc < sameSide.vmc * ratio) return sameSide;
+
+  return best;
+}
+
 function simulateLJRoute(opts) {
   opts = opts || {};
   var startPos = opts.startPos || [46.2044, 6.1568];
@@ -3981,6 +4036,7 @@ function simulateLJRoute(opts) {
   var wpIdx = 0;
   var lastTwaSign = null;
   var lastSail = null;
+  var lastTackTs = null;                                    // QA round 2 §2.4 — min-interval tracker
   var tackCount = 0;
   var gybeCount = 0;
   var sailChangeCount = 0;
@@ -4000,18 +4056,27 @@ function simulateLJRoute(opts) {
     var wind = windAt(pos.lat, pos.lon, ts);
 
     var newHdg, twa, twaSigned, btv, sail;
+    // QA round 2 §2.4 (Fix 10b): tack-hysteresis policy passed to chooseHeading
+    var tackPolicy = {
+      prevTwaSign: lastTwaSign,
+      lastTackTs: lastTackTs,
+      currentTs: ts,
+      minIntervalMs: 5 * 60 * 1000,
+      vmcAdvantageRatio: 1.05,
+      holdBelowTws: 3
+    };
     if(!wind || wind.tws == null || wind.tws < 0.5) {
-      // No usable wind — drift toward goal at 0.8 kn
-      btv = 0.8 / perfFactor;       // perfFactor applied below — keep equivalent of 0.8 effective
+      // No usable wind — drift toward goal at 0.8 kn (post-perf effective)
+      btv = 0.8 / perfFn(0);
       newHdg = brg;
       twa = 0;
       twaSigned = 0;
       sail = lastSail || 'jib';
     } else {
-      var best = chooseHeading(pos, brg, wind, strategy, hdg);
+      var best = chooseHeading(pos, brg, wind, strategy, hdg, tackPolicy);
       if(!best) {
         newHdg = brg;
-        btv = 1.0 / perfFactor;
+        btv = 1.0 / perfFn(0);
         twa = 0;
         twaSigned = 0;
         sail = lastSail || 'jib';
@@ -4039,10 +4104,12 @@ function simulateLJRoute(opts) {
       if(twa < 90) {
         // Tack (upwind): 45 s at 40% speed
         didTack = true; tackCount++;
+        lastTackTs = ts;                                  // QA round 2 §2.4 hysteresis
         penaltyMsLeft = Math.max(penaltyMsLeft, 45 * 1000);
         penaltySpeedMul = Math.min(penaltySpeedMul, 0.40);
       } else {
         didGybe = true; gybeCount++;
+        lastTackTs = ts;                                  // gybes also block re-tack
         if(sail === 'sym') {
           // Sym gybe: 60 s at 50%
           penaltyMsLeft = Math.max(penaltyMsLeft, 60 * 1000);
@@ -4084,6 +4151,7 @@ function simulateLJRoute(opts) {
       newPos = movePoint(pos, altHdg, stepNM * 0.5);
       newHdg = altHdg;
       tackCount++;
+      lastTackTs = ts;                                    // QA round 2 §2.4 — even forced tacks block re-tacks
       penaltyMsLeft = Math.max(penaltyMsLeft, 45 * 1000);
       penaltySpeedMul = Math.min(penaltySpeedMul, 0.40);
     }
