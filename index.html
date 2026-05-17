@@ -427,13 +427,12 @@ canvas{display:block}
       <div class="card">
         <div class="card-title">Polar diagram</div>
         <div class="polar-controls" id="polarBtns"></div>
-        <canvas id="polarCanvas" width="360" height="360" style="display:block;width:100%;max-width:360px;margin:0 auto"></canvas>
+        <canvas id="polarCanvas" width="560" height="300" style="display:block;width:100%;max-width:560px;height:auto;margin:0 auto"></canvas>
         <div class="polar-legend">
           <span class="pl-sw" style="background:#4a9eff"></span><span class="pl-label">Jib 17.66&nbsp;m²</span>
           <span class="pl-sw" style="background:#2dd4a8;margin-left:14px"></span><span class="pl-label">Spinnaker 47.18&nbsp;m²</span>
-          <span class="pl-sw" style="background:#fbbf24;border-radius:50%;border:1px solid #0a1628;margin-left:14px"></span><span class="pl-label">Sym &gt; Jib crossover</span>
         </div>
-        <div id="polarTouch" style="font-size:11px;color:var(--tx3);text-align:center;margin-top:4px;line-height:1.4">Line thickness + opacity scale with TWS. Toggle wind speeds with the buttons above.</div>
+        <div id="polarTouch" style="font-size:11px;color:var(--tx3);text-align:center;margin-top:4px;line-height:1.4">Left half = AWA (apparent wind angle) · Right half = TWA (true wind angle). Pick a wind speed above.</div>
       </div>
       <div class="card">
         <div class="card-title">VMG targets — all wind speeds</div>
@@ -960,142 +959,206 @@ function calcQuickVMG() {
 }
 
 // ===== POLAR DIAGRAM =====
-var polarActive = {6:false,8:false,10:true,12:true,14:false,16:false,20:false};
+// QA round 2: single-select TWS like the ORC Speed Guide (instead of stacked overlay).
+var polarSelectedTWS = 10;
+
+// Apparent wind angle derived from TWA + TWS + BTV via the velocity triangle.
+// True wind comes FROM TWA off the bow with magnitude TWS; boat moves +x at BTV.
+// Apparent wind "from" direction is (TWS·cos(TWA)+BTV, TWS·sin(TWA)).
+function twaToAwa(twaDeg, tws, btv) {
+  if(tws <= 0) return twaDeg;
+  var r = twaDeg * Math.PI / 180;
+  var fx = tws * Math.cos(r) + btv;
+  var fy = tws * Math.sin(r);
+  var awa = Math.atan2(fy, fx) * 180 / Math.PI;
+  if(awa < 0) awa = -awa;        // mirror across centerline (we draw a symmetric polar)
+  return awa;
+}
 
 function initPolarBtns() {
   var c = document.getElementById('polarBtns');
+  if(!c) return;
+  c.innerHTML = '';
   TWS_KEYS.forEach(function(ws){
     var b = document.createElement('button');
     b.textContent = ws + ' kn';
     b.style.borderColor = PCOL[ws];
-    if(polarActive[ws]){b.classList.add('on');b.style.background=PCOL[ws];b.style.color='#000'}
+    if(ws === polarSelectedTWS) {
+      b.classList.add('on');
+      b.style.background = PCOL[ws];
+      b.style.color = '#000';
+    }
     b.onclick = function(){
-      polarActive[ws] = !polarActive[ws];
-      b.classList.toggle('on');
-      if(polarActive[ws]){b.style.background=PCOL[ws];b.style.color='#000'}
-      else{b.style.background='transparent';b.style.color='var(--tx2)'}
+      polarSelectedTWS = ws;
+      // Update sibling button styles
+      Array.prototype.forEach.call(c.children, function(btn, i){
+        var w = TWS_KEYS[i];
+        var on = (w === polarSelectedTWS);
+        btn.classList.toggle('on', on);
+        btn.style.background = on ? PCOL[w] : 'transparent';
+        btn.style.color = on ? '#000' : 'var(--tx2)';
+      });
       drawPolar();
     };
     c.appendChild(b);
   });
 }
 
+// Dual-polar renderer: TWA polar on the right, AWA polar mirrored on the left.
+// Matches the ORC Speed Guide visual convention (15° major gridlines, 1° ticks,
+// single TWS selected at a time).
 function drawPolar() {
   var cv = document.getElementById('polarCanvas');
   if(!cv) return;
   var ctx = cv.getContext('2d');
   if(!ctx) return;
-  var S = cv.width;
-  var CX = S/2, CY = S/2, MAX = 10, RAD = S/2 - 30;
-  ctx.clearRect(0, 0, S, S);
 
-  function toXY(a, spd){
-    var r = (spd/MAX) * RAD;
+  var W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+
+  var MAX = 10;
+  var CY = H / 2 + 4;                    // small bias so 0° label fits at top
+  // Compute RAD that fits both vertically (with margin for top/bottom labels)
+  // and horizontally (two semicircles + gap + side label margin).
+  var GAP = 36;
+  var sideMargin = 26;                   // room for outer angle labels
+  var radH = (H - 36) / 2;               // height-constrained
+  var radW = (W - GAP) / 2 - sideMargin; // width-constrained per side
+  var RAD = Math.max(60, Math.min(radH, radW));
+  var CX_L = W / 2 - GAP / 2;
+  var CX_R = W / 2 + GAP / 2;
+
+  function toXY(side, a, spd) {
+    var r = (spd / MAX) * RAD;
     var rd = (a - 90) * Math.PI / 180;
-    return [CX + r * Math.cos(rd), CY + r * Math.sin(rd)];
+    var cx = side === 'L' ? CX_L : CX_R;
+    var sx = side === 'L' ? -1 : 1;
+    return [cx + sx * r * Math.cos(rd), CY + r * Math.sin(rd)];
   }
 
-  // ===== Grid: concentric semi-circles (speed rings) =====
-  ctx.strokeStyle = 'rgba(255,255,255,.08)';
-  ctx.lineWidth = 0.5;
-  for(var s = 2; s <= MAX; s += 2) {
-    var cr = (s / MAX) * RAD;
-    ctx.beginPath();
-    ctx.arc(CX, CY, cr, -Math.PI/2, Math.PI/2);
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,.3)';
-    ctx.font = '10px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(s + '', CX, CY - cr - 3);
-  }
-  // Radial lines + TWA labels
-  [0, 45, 60, 75, 90, 120, 135, 150, 180].forEach(function(a){
-    var p = toXY(a, MAX);
-    ctx.beginPath();
-    ctx.moveTo(CX, CY);
-    ctx.lineTo(p[0], p[1]);
-    ctx.strokeStyle = 'rgba(255,255,255,.06)';
-    ctx.stroke();
-    var lp = toXY(a, MAX + 0.5);
-    ctx.fillStyle = 'rgba(255,255,255,.3)';
+  function drawHalf(side) {
+    var cx = side === 'L' ? CX_L : CX_R;
+    // 1) Speed rings — concentric semicircles every 1 kn (faint), every 2 kn (visible)
+    for(var s = 1; s <= MAX; s++) {
+      var cr = (s / MAX) * RAD;
+      ctx.beginPath();
+      if(side === 'R') ctx.arc(cx, CY, cr, -Math.PI/2, Math.PI/2);
+      else             ctx.arc(cx, CY, cr, -Math.PI/2, Math.PI/2, true);
+      ctx.strokeStyle = (s % 2 === 0) ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.06)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+    // Speed labels along the centerline at even rings
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
     ctx.font = '9px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(a + '°', lp[0], lp[1]);
-  });
-  // Centreline
-  ctx.strokeStyle = 'rgba(255,255,255,.15)';
-  ctx.lineWidth = 0.5;
-  ctx.beginPath();
-  ctx.moveTo(CX, CY - RAD);
-  ctx.lineTo(CX, CY + RAD);
-  ctx.stroke();
+    for(var s = 2; s <= MAX; s += 2) {
+      var cr = (s / MAX) * RAD;
+      ctx.fillText(s + '', cx, CY - cr - 2);
+    }
+    // 2) 15° major gridlines + labels
+    for(var a = 0; a <= 180; a += 15) {
+      var pt = toXY(side, a, MAX);
+      ctx.beginPath();
+      ctx.moveTo(cx, CY);
+      ctx.lineTo(pt[0], pt[1]);
+      ctx.strokeStyle = 'rgba(255,255,255,.14)';
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+      if(a > 0 && a < 180) {
+        var lp = toXY(side, a, MAX + 0.65);
+        ctx.fillStyle = 'rgba(255,255,255,.55)';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(a + '°', lp[0], lp[1]);
+      }
+    }
+    // 0° / 180° labels along the centerline
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('0°', cx, CY - RAD - 2);
+    ctx.textBaseline = 'top';
+    ctx.fillText('180°', cx, CY + RAD + 2);
 
-  // ===== Sail curves — Jib (blue) + Sym (green) per active TWS =====
+    // 3) 1° / 5° tick marks on the outer rim
+    ctx.strokeStyle = 'rgba(255,255,255,.22)';
+    for(var a = 1; a < 180; a++) {
+      if(a % 15 === 0) continue;
+      var inner = toXY(side, a, MAX - (a % 5 === 0 ? 0.35 : 0.18));
+      var outer = toXY(side, a, MAX);
+      ctx.beginPath();
+      ctx.moveTo(inner[0], inner[1]);
+      ctx.lineTo(outer[0], outer[1]);
+      ctx.lineWidth = (a % 5 === 0) ? 0.7 : 0.4;
+      ctx.stroke();
+    }
+    // 4) Centerline
+    ctx.strokeStyle = 'rgba(255,255,255,.22)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(cx, CY - RAD);
+    ctx.lineTo(cx, CY + RAD);
+    ctx.stroke();
+  }
+
+  drawHalf('L');
+  drawHalf('R');
+
+  // Side titles (AWA / TWA) near the top centerline of each side
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('AWA', CX_L - 18, CY - RAD - 16);
+  ctx.fillText('TWA', CX_R + 18, CY - RAD - 16);
+
+  // ===== Curves for the selected TWS only =====
+  var ws = polarSelectedTWS;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  TWS_KEYS.forEach(function(ws){
-    if(!polarActive[ws]) return;
-    var twsIdx = TWS_KEYS.indexOf(ws);
-    // Line thickness scales mildly with TWS (1.6 .. 3.1)
-    var lw = 1.6 + twsIdx * 0.25;
-    // Opacity also scales (0.55 .. 0.97) so heavier wind reads stronger
-    var alpha = 0.55 + twsIdx * 0.07;
 
-    // --- Jib (blue) ---
-    var dJ = P_JIB[ws];
-    if(dJ && dJ.twa && dJ.twa.length > 1) {
-      ctx.beginPath();
-      ctx.strokeStyle = 'rgba(74,158,255,' + alpha + ')';
-      ctx.lineWidth = lw;
-      for(var i = 0; i < dJ.twa.length; i++){
-        var pt = toXY(dJ.twa[i], dJ.btv[i]);
-        if(i === 0) ctx.moveTo(pt[0], pt[1]);
-        else ctx.lineTo(pt[0], pt[1]);
-      }
-      ctx.stroke();
+  function drawCurve(table, color, side, isAwa) {
+    var d = table[ws];
+    if(!d || !d.twa || d.twa.length < 2) return;
+    // Smooth path
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.6;
+    for(var i = 0; i < d.twa.length; i++) {
+      var ang = isAwa ? twaToAwa(d.twa[i], ws, d.btv[i]) : d.twa[i];
+      var pt = toXY(side, ang, d.btv[i]);
+      if(i === 0) ctx.moveTo(pt[0], pt[1]);
+      else ctx.lineTo(pt[0], pt[1]);
     }
-
-    // --- Sym (green) ---
-    var dS = P_SYM[ws];
-    if(dS && dS.twa && dS.twa.length > 1) {
+    ctx.stroke();
+    // Data points
+    ctx.fillStyle = color;
+    for(var i = 0; i < d.twa.length; i++) {
+      var ang = isAwa ? twaToAwa(d.twa[i], ws, d.btv[i]) : d.twa[i];
+      var pt = toXY(side, ang, d.btv[i]);
       ctx.beginPath();
-      ctx.strokeStyle = 'rgba(45,212,168,' + alpha + ')';
-      ctx.lineWidth = lw;
-      for(var i = 0; i < dS.twa.length; i++){
-        var pt = toXY(dS.twa[i], dS.btv[i]);
-        if(i === 0) ctx.moveTo(pt[0], pt[1]);
-        else ctx.lineTo(pt[0], pt[1]);
-      }
-      ctx.stroke();
-    }
-
-    // --- Crossover marker (gold dot) ---
-    var cross = findCrossoverTWA(ws);
-    if(cross) {
-      var cp = toXY(cross.twa, cross.btv);
-      ctx.beginPath();
-      ctx.arc(cp[0], cp[1], 3.5, 0, 2 * Math.PI);
-      ctx.fillStyle = '#fbbf24';
-      ctx.strokeStyle = '#0a1628';
-      ctx.lineWidth = 1.2;
+      ctx.arc(pt[0], pt[1], 2.2, 0, 2 * Math.PI);
       ctx.fill();
-      ctx.stroke();
     }
+  }
 
-    // --- TWS label near the curve's outer extent ---
-    var dEnv = P[ws];
-    var peakBtv = 0, peakTwa = 90;
-    for(var k = 0; k < dEnv.twa.length; k++) {
-      if(dEnv.btv[k] > peakBtv) { peakBtv = dEnv.btv[k]; peakTwa = dEnv.twa[k]; }
-    }
-    var lp = toXY(peakTwa, peakBtv);
-    ctx.fillStyle = PCOL[ws];
-    ctx.font = 'bold 10px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(ws + 'kn', lp[0] + 5, lp[1]);
-  });
+  // Right side = TWA
+  drawCurve(P_JIB, '#4a9eff', 'R', false);
+  drawCurve(P_SYM, '#2dd4a8', 'R', false);
+  // Left side = AWA
+  drawCurve(P_JIB, '#4a9eff', 'L', true);
+  drawCurve(P_SYM, '#2dd4a8', 'L', true);
+
+  // Selected TWS badge — centred at the very top of the canvas
+  ctx.fillStyle = PCOL[ws];
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('TWS ' + ws + ' kn', W / 2, 4);
 }
 
 // ===== VMG TABLE =====
