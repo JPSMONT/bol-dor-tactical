@@ -51,6 +51,8 @@ canvas{display:block}
 .polar-legend{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px;font-size:10px;color:var(--tx2);margin-top:8px;line-height:1.5}
 .pl-sw{display:inline-block;width:18px;height:3px;border-radius:1px;vertical-align:middle}
 .pl-label{margin-left:4px}
+#polarCanvas{cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none}
+#polarCanvas:active{cursor:grabbing}
 .vmg-table{width:100%;font-size:11px;border-collapse:collapse}
 .vmg-table th{text-align:left;color:var(--tx3);font-weight:600;padding:6px 4px;border-bottom:1px solid var(--bg3)}
 .vmg-table td{padding:5px 4px;border-bottom:1px solid rgba(255,255,255,.04)}
@@ -961,6 +963,9 @@ function calcQuickVMG() {
 // ===== POLAR DIAGRAM =====
 // QA round 2: single-select TWS like the ORC Speed Guide (instead of stacked overlay).
 var polarSelectedTWS = 10;
+// Zoom / pan state for the polar canvas. Mouse wheel + pinch zoom, drag to pan.
+var polarView = {zoom: 1, panX: 0, panY: 0};
+var _polarGesturesAttached = false;
 
 // Apparent wind angle derived from TWA + TWS + BTV via the velocity triangle.
 // True wind comes FROM TWA off the bow with magnitude TWS; boat moves +x at BTV.
@@ -979,6 +984,8 @@ function initPolarBtns() {
   var c = document.getElementById('polarBtns');
   if(!c) return;
   c.innerHTML = '';
+  // Wire up zoom/pan gestures on the canvas (idempotent)
+  attachPolarGestures(document.getElementById('polarCanvas'));
   TWS_KEYS.forEach(function(ws){
     var b = document.createElement('button');
     b.textContent = ws + ' kn';
@@ -1015,6 +1022,12 @@ function drawPolar() {
 
   var W = cv.width, H = cv.height;
   ctx.clearRect(0, 0, W, H);
+  // Apply current zoom/pan transform. All drawing below uses the original
+  // canvas coordinate space; the user can still pinch / scroll / drag to
+  // explore the diagram without re-thinking the layout math.
+  ctx.save();
+  ctx.translate(polarView.panX, polarView.panY);
+  ctx.scale(polarView.zoom, polarView.zoom);
 
   var MAX = 10;
   var CY = H / 2 + 4;                    // small bias so 0° label fits at top
@@ -1152,6 +1165,118 @@ function drawPolar() {
   // Left side = AWA
   drawCurve(P_JIB, '#4a9eff', 'L', true);
   drawCurve(P_SYM, '#2dd4a8', 'L', true);
+
+  ctx.restore();
+
+  // Zoom-level hint, drawn in screen coordinates outside the transform
+  if(polarView.zoom !== 1 || polarView.panX !== 0 || polarView.panY !== 0) {
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    ctx.fillText(polarView.zoom.toFixed(2) + '× · double-click to reset', W - 6, 4);
+  }
+}
+
+// ===== Polar canvas zoom + pan gestures =====
+function attachPolarGestures(cv) {
+  if(_polarGesturesAttached || !cv) return;
+  _polarGesturesAttached = true;
+
+  function canvasPt(clientX, clientY) {
+    var rect = cv.getBoundingClientRect();
+    return [
+      (clientX - rect.left) * (cv.width / rect.width),
+      (clientY - rect.top)  * (cv.height / rect.height)
+    ];
+  }
+  function clampZoom(z){ return Math.max(0.6, Math.min(8, z)); }
+  function zoomTo(newZoom, focusX, focusY) {
+    var oldZ = polarView.zoom;
+    var nz = clampZoom(newZoom);
+    if(nz === oldZ) return;
+    polarView.panX = focusX - (focusX - polarView.panX) * nz / oldZ;
+    polarView.panY = focusY - (focusY - polarView.panY) * nz / oldZ;
+    polarView.zoom = nz;
+    drawPolar();
+  }
+
+  // Mouse wheel — zoom centred on cursor
+  cv.addEventListener('wheel', function(e){
+    e.preventDefault();
+    var p = canvasPt(e.clientX, e.clientY);
+    var factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    zoomTo(polarView.zoom * factor, p[0], p[1]);
+  }, {passive: false});
+
+  // Mouse drag — pan when zoomed
+  var drag = null;
+  cv.addEventListener('mousedown', function(e){
+    if(polarView.zoom <= 1) return;
+    drag = {x: e.clientX, y: e.clientY, panX: polarView.panX, panY: polarView.panY, rect: cv.getBoundingClientRect()};
+    cv.style.cursor = 'grabbing';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', function(e){
+    if(!drag) return;
+    var sx = cv.width / drag.rect.width, sy = cv.height / drag.rect.height;
+    polarView.panX = drag.panX + (e.clientX - drag.x) * sx;
+    polarView.panY = drag.panY + (e.clientY - drag.y) * sy;
+    drawPolar();
+  });
+  window.addEventListener('mouseup', function(){ drag = null; cv.style.cursor = ''; });
+
+  // Touch — pinch to zoom, one-finger drag to pan when zoomed
+  var touch = null;
+  cv.addEventListener('touchstart', function(e){
+    if(e.touches.length === 2) {
+      var t1 = e.touches[0], t2 = e.touches[1];
+      var rect = cv.getBoundingClientRect();
+      var sx = cv.width / rect.width, sy = cv.height / rect.height;
+      var dx = (t2.clientX - t1.clientX) * sx;
+      var dy = (t2.clientY - t1.clientY) * sy;
+      var cx = ((t1.clientX + t2.clientX) / 2 - rect.left) * sx;
+      var cy = ((t1.clientY + t2.clientY) / 2 - rect.top)  * sy;
+      touch = {type:'pinch', dist: Math.hypot(dx, dy), cx:cx, cy:cy, zoom: polarView.zoom, panX: polarView.panX, panY: polarView.panY};
+      e.preventDefault();
+    } else if(e.touches.length === 1 && polarView.zoom > 1) {
+      var t = e.touches[0];
+      var rect = cv.getBoundingClientRect();
+      touch = {type:'pan', x: t.clientX, y: t.clientY, panX: polarView.panX, panY: polarView.panY, sx: cv.width / rect.width, sy: cv.height / rect.height};
+      e.preventDefault();
+    }
+  }, {passive: false});
+  cv.addEventListener('touchmove', function(e){
+    if(!touch) return;
+    if(touch.type === 'pinch' && e.touches.length === 2) {
+      var t1 = e.touches[0], t2 = e.touches[1];
+      var rect = cv.getBoundingClientRect();
+      var sx = cv.width / rect.width, sy = cv.height / rect.height;
+      var dx = (t2.clientX - t1.clientX) * sx;
+      var dy = (t2.clientY - t1.clientY) * sy;
+      var dist = Math.hypot(dx, dy);
+      var nz = clampZoom(touch.zoom * (dist / touch.dist));
+      polarView.panX = touch.cx - (touch.cx - touch.panX) * nz / touch.zoom;
+      polarView.panY = touch.cy - (touch.cy - touch.panY) * nz / touch.zoom;
+      polarView.zoom = nz;
+      drawPolar();
+      e.preventDefault();
+    } else if(touch.type === 'pan' && e.touches.length === 1) {
+      var t = e.touches[0];
+      polarView.panX = touch.panX + (t.clientX - touch.x) * touch.sx;
+      polarView.panY = touch.panY + (t.clientY - touch.y) * touch.sy;
+      drawPolar();
+      e.preventDefault();
+    }
+  }, {passive: false});
+  cv.addEventListener('touchend',    function(){ touch = null; });
+  cv.addEventListener('touchcancel', function(){ touch = null; });
+
+  // Double-click / double-tap → reset
+  cv.addEventListener('dblclick', function(){
+    polarView.zoom = 1; polarView.panX = 0; polarView.panY = 0;
+    drawPolar();
+  });
 }
 
 // ===== VMG TABLE =====
