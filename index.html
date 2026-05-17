@@ -356,7 +356,7 @@ canvas{display:block}
         <div class="card-title">Race countdown</div>
         <div class="countdown">
           <div class="big" id="countdownVal">--</div>
-          <div class="sub">until Bol d'Or Mirabaud start — June 6, 2026</div>
+          <div class="sub" id="countdownSub">until Bol d'Or Mirabaud start — June 6, 2026 · 10:00 CEST</div>
         </div>
       </div>
       <div class="card" id="checklistCard" style="display:none">
@@ -799,18 +799,57 @@ function showTab(i) {
   if(i===4) showRivals();
 }
 
-// ===== COUNTDOWN =====
+// ===== COUNTDOWN — 4-state race clock (QA round 2 Fix 5c) =====
+// Local fallback for the race-day timestamps so this function works even if
+// it ever runs before the BOL_DOR_* vars get assigned later in the script.
+var _COUNTDOWN_FALLBACK_START = new Date('2026-06-06T10:00:00+02:00').getTime();
+
 function updateCountdown() {
-  var race = new Date('2026-06-06T09:00:00+02:00');
-  var now = new Date();
-  var diff = race - now;
-  if(diff <= 0){document.getElementById('countdownVal').textContent='RACE DAY!';return}
-  var d = Math.floor(diff/86400000);
-  var h = Math.floor((diff%86400000)/3600000);
-  document.getElementById('countdownVal').textContent = d + 'd ' + h + 'h';
+  var el = document.getElementById('countdownVal');
+  var subEl = document.getElementById('countdownSub');
+  if(!el) return;
+  var raceStart = (typeof BOL_DOR_START !== 'undefined' && BOL_DOR_START) ? BOL_DOR_START : _COUNTDOWN_FALLBACK_START;
+  var raceFinish = (typeof BOL_DOR_FINISH !== 'undefined' && BOL_DOR_FINISH) ? BOL_DOR_FINISH : (raceStart + 24 * 3600 * 1000);
+  var now = Date.now();
+  var diff = raceStart - now;
+  // Reset any inline colour from prior state
+  el.style.color = '';
+
+  if(diff > 24 * 3600 * 1000) {
+    // State 1 — pre-D-day: days + hours
+    var days  = Math.floor(diff / 86400000);
+    var hours = Math.floor((diff % 86400000) / 3600000);
+    el.textContent = days + 'd ' + hours + 'h';
+    if(subEl) subEl.textContent = 'until Bol d\'Or Mirabaud start — June 6, 2026 · 10:00 CEST';
+  } else if(diff > 0) {
+    // State 2 — race morning (D-0, before the gun): hours + minutes
+    var h = Math.floor(diff / 3600000);
+    var m = Math.floor((diff % 3600000) / 60000);
+    el.textContent = 'Starts in ' + h + 'h ' + String(m).padStart(2, '0') + 'm';
+    el.style.color = 'var(--warn)';
+    if(subEl) subEl.textContent = 'Bol d\'Or Mirabaud — gun at 10:00 CEST today';
+  } else if(now < raceFinish) {
+    // State 3 — race in progress: elapsed clock T+HH:MM:SS, green
+    var elapsed = now - raceStart;
+    var hh = Math.floor(elapsed / 3600000);
+    var mm = Math.floor((elapsed % 3600000) / 60000);
+    var ss = Math.floor((elapsed % 60000) / 1000);
+    el.textContent = 'T+' + String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0') + ':' + String(ss).padStart(2,'0');
+    el.style.color = 'var(--acc2)';
+    if(subEl) subEl.textContent = 'Bol d\'Or Mirabaud — race in progress';
+  } else {
+    // State 4 — past the T+24h cutover: frozen total
+    var totalMs = raceFinish - raceStart;
+    var hh = Math.floor(totalMs / 3600000);
+    var mm = Math.floor((totalMs % 3600000) / 60000);
+    el.textContent = 'Race complete';
+    el.style.color = 'var(--tx2)';
+    if(subEl) subEl.textContent = 'Total ' + hh + 'h ' + String(mm).padStart(2,'0') + 'm — June 6–7, 2026';
+  }
 }
-updateCountdown();
-setInterval(updateCountdown, 60000);
+// NOTE: the first updateCountdown() call + setInterval live in the bottom
+// INIT block so they run after BOL_DOR_START/_FINISH have been assigned.
+// 1-second cadence so state 3 (T+HH:MM:SS) advances smoothly.
 
 // ===== Race-day readiness checklist (PRD §12.3, dashboard card) =====
 var CHECKLIST_ITEMS = [
@@ -2739,8 +2778,10 @@ function updateOscarLink(raceCode) {
 }
 
 // ===== Race-day banner + live mode stub =====
-var BOL_DOR_START = new Date('2026-06-06T09:00:00+02:00').getTime();
-var BOL_DOR_END   = BOL_DOR_START + 36 * 3600 * 1000;
+// Bol d'Or Mirabaud 2026 — gun at 10:00 CEST on Saturday 6 June.
+var BOL_DOR_START  = new Date('2026-06-06T10:00:00+02:00').getTime();
+var BOL_DOR_FINISH = BOL_DOR_START + 24 * 3600 * 1000;   // T+24h cut-off for countdown state 4
+var BOL_DOR_END    = BOL_DOR_START + 36 * 3600 * 1000;   // existing live-mode window (raceState 'live')
 var liveModePolling = false;
 var liveModeTimer = null;
 
@@ -4801,7 +4842,9 @@ _safe('fetchStations',       function(){ fetchStations(); });
 _safe('renderPhase',         function(){ renderPhase(); });
 _safe('probeGpsPermission',  function(){ probeGpsPermission(); });
 _safe('renderChecklist',     function(){ renderChecklist(); });
+_safe('updateCountdown',     function(){ updateCountdown(); });
 setInterval(function(){ _safe('renderChecklist tick', function(){ renderChecklist(); }); }, 30000);
+setInterval(function(){ _safe('updateCountdown tick', function(){ updateCountdown(); }); }, 1000);
 
 // Auto-refresh wind every 15 minutes, MeteoSwiss every 10, phase every hour
 setInterval(fetchWind, 15 * 60 * 1000);
