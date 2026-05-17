@@ -328,6 +328,21 @@ canvas{display:block}
 .perf-band input{margin-top:2px;background:transparent;color:var(--tx);border:none;outline:none;font-size:13px;font-weight:700;width:100%;padding:0;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
 .perf-band input::-webkit-outer-spin-button,.perf-band input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .perf-reset{flex:0 0 auto;padding:0 8px;align-self:stretch;font-size:14px}
+/* Wind Calibration */
+.cal-status{font-size:11px;color:var(--tx3);padding:6px 8px;background:var(--bg2);border-radius:6px;line-height:1.4}
+.cal-status.active{color:var(--tx);border-left:3px solid var(--acc2)}
+.cal-badge{display:inline-block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;background:var(--acc2);color:#000;padding:2px 6px;border-radius:10px;margin-right:6px;vertical-align:middle}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+.modal-card{background:var(--card);border:1px solid var(--bg3);border-radius:10px;padding:18px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+.modal-title{font-size:14px;font-weight:700;letter-spacing:.3px;color:var(--tx);margin-bottom:6px}
+.modal-hint{font-size:11px;color:var(--tx3);line-height:1.45;margin-bottom:12px}
+.modal-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.modal-row label{flex:0 0 110px;font-size:11px;color:var(--tx2);font-weight:600}
+.modal-row input{flex:1;background:var(--bg2);color:var(--tx);border:1px solid var(--bg3);padding:7px 9px;border-radius:6px;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;outline:none}
+.modal-row input:focus{border-color:var(--acc)}
+.modal-unit{font-size:10px;color:var(--tx3)}
+.modal-error{font-size:11px;color:var(--err);min-height:14px;margin-bottom:6px}
+.modal-buttons{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
 .sim-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px;font-variant-numeric:tabular-nums}
 .sim-stats .ss-cell{background:var(--bg2);padding:8px 6px;border-radius:6px;text-align:center}
 .sim-stats .ss-k{font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px}
@@ -588,6 +603,16 @@ canvas{display:block}
         <div id="simCompare" class="sim-compare" style="display:none"></div>
         <div id="simNote" class="sim-note">Generates a synthetic Little Johnka track by stepping through polars + wind. Auto picks best VMC each minute; bank modes bias toward that shore. Pick a historical year to overlay rival KMZ tracks and compare gate times.</div>
       </div>
+      <div class="card" id="windCalCard">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div class="card-title" style="margin:0">Wind calibration</div>
+          <div style="display:flex;gap:6px">
+            <button class="refresh-btn" id="windCalClearBtn" onclick="clearWindCalibration()" style="display:none">Clear</button>
+            <button class="gps-btn start" id="windCalOpenBtn" onclick="openWindCalibration()">Calibrate wind</button>
+          </div>
+        </div>
+        <div id="windCalStatus" class="cal-status">No calibration active — model wind in use.</div>
+      </div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <div class="card-title" style="margin:0">Bank selection advisor</div>
@@ -667,6 +692,29 @@ canvas{display:block}
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- Wind Calibration modal -->
+<div class="modal-bg" id="windCalModal" style="display:none" onclick="if(event.target===this)closeWindCalibration()">
+  <div class="modal-card">
+    <div class="modal-title">Calibrate wind</div>
+    <div class="modal-hint">Enter what you actually observe on the water. The app will apply that delta to all wind reads for the next 60 minutes, decaying linearly back to the model.</div>
+    <div class="modal-row">
+      <label>True wind speed</label>
+      <input type="number" id="calTws" min="0" max="60" step="0.5" placeholder="e.g. 8" inputmode="decimal">
+      <span class="modal-unit">kn</span>
+    </div>
+    <div class="modal-row">
+      <label>True wind direction</label>
+      <input type="text" id="calTwd" placeholder="e.g. 240 or WSW" inputmode="text">
+      <span class="modal-unit">° or cardinal</span>
+    </div>
+    <div class="modal-error" id="calError"></div>
+    <div class="modal-buttons">
+      <button class="refresh-btn" onclick="closeWindCalibration()">Cancel</button>
+      <button class="gps-btn start" onclick="submitWindCalibration()">Apply</button>
+    </div>
   </div>
 </div>
 
@@ -1725,6 +1773,180 @@ function renderPhase() {
   guide.innerHTML = '<div style="font-size:11px;font-weight:700;color:var(--acc);margin-bottom:4px">' + prefix + ' · ' + st.phase.label + '</div>' + st.phase.guide;
 }
 
+// ===== Wind Calibration Mode (QA round 2 §2.2) =====
+// Crew overrides the model wind with on-water observation. The delta vs the
+// current model is applied to all wind reads for 60 min, decaying linearly to
+// zero. Persisted to localStorage so it survives a reload during the race.
+var WIND_CAL_KEY = 'wind_calibration_v1';
+var WIND_CAL_DECAY_MIN = 60;
+var windCal = (function(){
+  try {
+    var raw = localStorage.getItem(WIND_CAL_KEY);
+    if(!raw) return null;
+    var c = JSON.parse(raw);
+    if(!c || typeof c.applied_at_ms !== 'number') return null;
+    if((Date.now() - c.applied_at_ms) >= (c.decay_minutes || WIND_CAL_DECAY_MIN) * 60000) {
+      localStorage.removeItem(WIND_CAL_KEY);
+      return null;
+    }
+    return c;
+  } catch(e) { return null; }
+})();
+
+function _saveWindCal() {
+  try {
+    if(windCal) localStorage.setItem(WIND_CAL_KEY, JSON.stringify(windCal));
+    else localStorage.removeItem(WIND_CAL_KEY);
+  } catch(e) {}
+}
+
+// Linear decay 1.0 → 0 over decay_minutes. Returns 0 once expired (so the helper
+// becomes a no-op without needing to clear windCal).
+function windCalDecayFactor() {
+  if(!windCal) return 0;
+  var ageMin = (Date.now() - windCal.applied_at_ms) / 60000;
+  var win = windCal.decay_minutes || WIND_CAL_DECAY_MIN;
+  if(ageMin >= win) return 0;
+  return 1 - ageMin / win;
+}
+
+function windCalActive() { return windCalDecayFactor() > 0; }
+
+// Apply the active calibration delta to a (speed, dir) pair. Returns a fresh
+// object {speed, dir}. Safe to call when no calibration is active.
+function calibrateWind(speed, dir) {
+  if(!windCalActive()) return {speed: speed, dir: dir};
+  var f = windCalDecayFactor();
+  var s = (speed != null) ? Math.max(0, speed + windCal.tws_delta * f) : speed;
+  var d = dir;
+  if(d != null) {
+    d = (d + windCal.twd_delta * f) % 360;
+    if(d < 0) d += 360;
+  }
+  return {speed: s, dir: d};
+}
+
+// Parse "240" / "240.0" / "wsw" / "ENE" → degrees 0-359, or NaN
+function parseTwdInput(s) {
+  if(s == null) return NaN;
+  s = String(s).trim().toUpperCase();
+  if(!s) return NaN;
+  var num = parseFloat(s);
+  if(!isNaN(num) && /^[\d.+-]+$/.test(s)) {
+    num = num % 360; if(num < 0) num += 360;
+    return num;
+  }
+  var card = {N:0,NNE:22.5,NE:45,ENE:67.5,E:90,ESE:112.5,SE:135,SSE:157.5,S:180,SSW:202.5,SW:225,WSW:247.5,W:270,WNW:292.5,NW:315,NNW:337.5};
+  return card.hasOwnProperty(s) ? card[s] : NaN;
+}
+
+function openWindCalibration() {
+  if(!ensembleData) {
+    var err = document.getElementById('calError');
+    document.getElementById('windCalModal').style.display = 'flex';
+    if(err) err.textContent = 'No model wind loaded yet — open the Wind tab first, then come back.';
+    return;
+  }
+  // Pre-fill with the current model wind at the boat (or mid-lake fallback).
+  var pos = (typeof gpsPos !== 'undefined' && gpsPos && gpsPos.lat != null) ? [gpsPos.lat, gpsPos.lon] : [46.40, 6.55];
+  var model = _modelWindAt(pos[0], pos[1], Date.now());
+  var twsEl = document.getElementById('calTws');
+  var twdEl = document.getElementById('calTwd');
+  if(model) {
+    if(twsEl) twsEl.value = model.speed != null ? model.speed.toFixed(1) : '';
+    if(twdEl) twdEl.value = model.dir  != null ? Math.round(model.dir) : '';
+  } else {
+    if(twsEl) twsEl.value = '';
+    if(twdEl) twdEl.value = '';
+  }
+  document.getElementById('calError').textContent = '';
+  document.getElementById('windCalModal').style.display = 'flex';
+  setTimeout(function(){ if(twsEl) twsEl.focus(); }, 30);
+}
+
+function closeWindCalibration() {
+  document.getElementById('windCalModal').style.display = 'none';
+}
+
+// Reads the RAW model wind (bypasses calibration). Used as the delta reference.
+function _modelWindAt(lat, lon, ts) {
+  if(!ensembleData) return null;
+  var nearest = null, nearestD = Infinity;
+  for(var i = 0; i < ensembleData.length; i++) {
+    var d = ensembleData[i];
+    var gp = GRID_POINTS.filter(function(p){ return p.name === d.name; })[0];
+    if(!gp) continue;
+    var dd = haversineNM(lat, lon, gp.lat, gp.lon);
+    if(dd < nearestD) { nearestD = dd; nearest = d; }
+  }
+  if(!nearest) return null;
+  var t = new Date(ts);
+  var idx = 0;
+  for(var i = 0; i < nearest.hours.length - 1; i++) {
+    if(nearest.hours[i] <= t && nearest.hours[i+1] > t) { idx = i; break; }
+  }
+  return {speed: nearest.speed[idx], dir: nearest.dir[idx]};
+}
+
+function submitWindCalibration() {
+  var errEl = document.getElementById('calError');
+  errEl.textContent = '';
+  var tws = parseFloat(document.getElementById('calTws').value);
+  var twd = parseTwdInput(document.getElementById('calTwd').value);
+  if(isNaN(tws) || tws < 0 || tws > 60) { errEl.textContent = 'Enter a wind speed in knots (0–60).'; return; }
+  if(isNaN(twd))                         { errEl.textContent = 'Enter a direction in degrees (0–359) or cardinal (e.g. WSW).'; return; }
+  if(!ensembleData) { errEl.textContent = 'Model wind not loaded — open the Wind tab first.'; return; }
+  var pos = (typeof gpsPos !== 'undefined' && gpsPos && gpsPos.lat != null) ? [gpsPos.lat, gpsPos.lon] : [46.40, 6.55];
+  var model = _modelWindAt(pos[0], pos[1], Date.now());
+  if(!model || model.speed == null) { errEl.textContent = 'Could not read model wind at current position.'; return; }
+  var tws_delta = tws - model.speed;
+  var twd_delta = ((twd - model.dir + 540) % 360) - 180;     // shortest signed direction diff
+  windCal = {
+    tws_delta: tws_delta,
+    twd_delta: twd_delta,
+    applied_at_ms: Date.now(),
+    decay_minutes: WIND_CAL_DECAY_MIN
+  };
+  _saveWindCal();
+  closeWindCalibration();
+  renderWindCalStatus();
+  // Push downstream so every consumer rereads with the new offset
+  if(typeof updateStrategy === 'function') updateStrategy();
+  if(typeof renderDashWind  === 'function') renderDashWind();
+  if(typeof renderWind      === 'function') renderWind();
+  if(typeof updateLakeWind  === 'function') updateLakeWind();
+}
+
+function clearWindCalibration() {
+  windCal = null;
+  _saveWindCal();
+  renderWindCalStatus();
+  if(typeof updateStrategy === 'function') updateStrategy();
+  if(typeof renderDashWind  === 'function') renderDashWind();
+  if(typeof renderWind      === 'function') renderWind();
+  if(typeof updateLakeWind  === 'function') updateLakeWind();
+}
+
+function renderWindCalStatus() {
+  var st  = document.getElementById('windCalStatus');
+  var clr = document.getElementById('windCalClearBtn');
+  if(!st) return;
+  if(!windCalActive()) {
+    if(windCal) { windCal = null; _saveWindCal(); }    // auto-expire
+    st.textContent = 'No calibration active — model wind in use.';
+    st.className = 'cal-status';
+    if(clr) clr.style.display = 'none';
+    return;
+  }
+  var f = windCalDecayFactor();
+  var minLeft = Math.max(0, Math.round((windCal.decay_minutes || WIND_CAL_DECAY_MIN) * f));
+  var dts = (windCal.tws_delta >= 0 ? '+' : '') + windCal.tws_delta.toFixed(1);
+  var dtd = (windCal.twd_delta >= 0 ? '+' : '') + Math.round(windCal.twd_delta);
+  st.innerHTML = '<span class="cal-badge">calibrated</span>Δ ' + dts + ' kn, ' + dtd + '° · decays in ~' + minLeft + ' min';
+  st.className = 'cal-status active';
+  if(clr) clr.style.display = '';
+}
+
 function fetchWind() {
   document.getElementById('windForecast').innerHTML = '<div class="loading">Fetching ' + MODELS.length + ' models × 9 points…</div>';
   document.getElementById('dashWind').innerHTML = '<div class="loading">Fetching...</div>';
@@ -1828,9 +2050,11 @@ function renderWind() {
 
     // 3 cells: N (Swiss), Mid, S (French)
     for(var p=0; p<3; p++){
-      var spd = Math.round(pts[p].speed[i]);
+      // QA round 2 §2.2 — apply active wind calibration to forecast grid
+      var _c = calibrateWind(pts[p].speed[i], pts[p].dir[i]);
+      var spd = Math.round(_c.speed);
       var gst = Math.round(pts[p].gust[i]);
-      var dir = Math.round(pts[p].dir[i]);
+      var dir = Math.round(_c.dir);
       var arrow = '<span class="wind-arrow" style="transform:rotate('+dir+'deg);font-size:12px">&#8595;</span>';
       html += '<div class="wind-cell" style="color:'+windColor(spd)+'">';
       html += '<div>'+spd;
@@ -1862,8 +2086,10 @@ function renderDashWind() {
     var d = pts[1]; // Mid-lake point
     var idx = 0;
     for(var i=0;i<d.hours.length-1;i++){if(d.hours[i] <= now && d.hours[i+1] > now){idx=i;break}}
-    var spd = Math.round(d.speed[idx]);
-    var dir = Math.round(d.dir[idx]);
+    // QA round 2 §2.2 — apply active wind calibration to dashboard summary
+    var _c = calibrateWind(d.speed[idx], d.dir[idx]);
+    var spd = Math.round(_c.speed);
+    var dir = Math.round(_c.dir);
     var gst = Math.round(d.gust[idx]);
     var spr = d.spread[idx];
 
@@ -1897,8 +2123,10 @@ function updateStrategy() {
   var banks = ensembleData.map(function(d){
     var idx = 0;
     for(var i=0;i<d.hours.length-1;i++){if(d.hours[i] <= target && d.hours[i+1] > target){idx=i;break}}
-    var spd = d.speed[idx];
-    var dir = d.dir[idx];
+    // QA round 2 §2.2 — apply active wind calibration to bank advisor reads
+    var _c = calibrateWind(d.speed[idx], d.dir[idx]);
+    var spd = _c.speed;
+    var dir = _c.dir;
     var gst = d.gust[idx];
     var spr = d.spread[idx];
 
@@ -2192,8 +2420,10 @@ function updateLakeWind() {
     for(var j=0; j<d.hours.length-1; j++){
       if(d.hours[j] <= now && d.hours[j+1] > now){idx=j;break}
     }
-    var dir = d.dir[idx];
-    var spd = d.speed[idx];
+    // QA round 2 §2.2 — apply active wind calibration to lake-map arrows
+    var _c = calibrateWind(d.speed[idx], d.dir[idx]);
+    var dir = _c.dir;
+    var spd = _c.speed;
     var col = windColor(spd);
     // ↓ arrow points in the direction the wind blows TOWARDS, rotated by met-convention bearing
     var html =
@@ -4756,10 +4986,14 @@ function getWindAtTime(pt, targetTime) {
   if(dir < 0) dir += 360;
   if(dir >= 360) dir -= 360;
 
+  var spd = spd0 + f * (spd1 - spd0);
+  var gst = gst0 + f * (gst1 - gst0);
+  // QA round 2 §2.2: apply active wind calibration delta (decaying)
+  var cal = calibrateWind(spd, dir);
   return {
-    speed: spd0 + f * (spd1 - spd0),
-    gust: gst0 + f * (gst1 - gst0),
-    dir: dir,
+    speed:  cal.speed,
+    gust:   gst,             // gust isn't calibrated separately
+    dir:    cal.dir,
     spread: spr0 + f * (spr1 - spr0)
   };
 }
@@ -4995,6 +5229,8 @@ _safe('probeGpsPermission',  function(){ probeGpsPermission(); });
 _safe('renderChecklist',     function(){ renderChecklist(); });
 _safe('updateCountdown',     function(){ updateCountdown(); });
 _safe('renderPerfProfile',   function(){ renderPerfProfileInputs(); });
+_safe('renderWindCalStatus', function(){ renderWindCalStatus(); });
+setInterval(function(){ _safe('windCal tick', function(){ renderWindCalStatus(); }); }, 30000);
 setInterval(function(){ _safe('renderChecklist tick', function(){ renderChecklist(); }); }, 30000);
 setInterval(function(){ _safe('updateCountdown tick', function(){ updateCountdown(); }); }, 1000);
 
