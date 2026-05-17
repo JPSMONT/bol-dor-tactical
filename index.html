@@ -461,7 +461,7 @@ canvas{display:block}
       <div class="card" id="phaseCard">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
           <div class="card-title" style="margin:0">Race-prep phase</div>
-          <a class="rival-link" href="https://www.meteoswiss.admin.ch/weather/measurement-values.html" target="_blank" rel="noopener" style="flex:0 0 auto;padding:5px 10px">Radar ↗</a>
+          <a class="rival-link" href="https://www.meteoswiss.admin.ch/weather/precipitation/nowcasting.html" target="_blank" rel="noopener" style="flex:0 0 auto;padding:5px 10px">Radar ↗</a>
         </div>
         <div id="phaseTimeline" class="phase-timeline"></div>
         <div id="phaseGuide" class="phase-guide"></div>
@@ -475,7 +475,7 @@ canvas{display:block}
         <div id="msStations" class="loading">Fetching MeteoSwiss observations…</div>
       </div>
       <div class="card" id="patternCard">
-        <div class="card-title">Pattern read</div>
+        <div class="card-title">Current Wind Pattern</div>
         <div id="patternRead" class="loading">Waiting on station data…</div>
       </div>
       <div class="card">
@@ -3279,7 +3279,7 @@ function renderSectorRanks(year) {
       var elapsed = t - r.start;
       var lead = leaders[sIdx];
       var delta = (on && lead && t > lead) ? (t - lead) : 0;
-      var deltaStr = delta > 60000 ? ' <span class="sec-delta">+'+Math.round(delta/60000)+'m</span>' : '';
+      var deltaStr = delta > 60000 ? ' <span class="sec-delta">+'+Math.round(delta/60000)+' min</span>' : '';
       var leadCls = (on && lead && t === lead) ? ' class="sec-leader"' : '';
       html += '<td'+leadCls+'>'+fmtElapsed(elapsed)+deltaStr+'</td>';
     });
