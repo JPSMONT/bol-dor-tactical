@@ -375,6 +375,30 @@ canvas{display:block}
 @media(max-width:380px){.sim-stats{grid-template-columns:repeat(2,1fr)}}
 .sim-compare{margin-top:12px;padding:10px;background:var(--bg2);border-radius:6px}
 .sim-compare-title{font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;font-weight:700;margin-bottom:6px}
+/* Trim Coach panel (QA round 2 Fix 9) — docs/trim-coach-design.md */
+.trim-coach-card{padding:12px 14px}
+.tc-header{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;gap:8px}
+.tc-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--tx3);display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.tc-badge{font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--bg3);color:var(--tx2);letter-spacing:.3px;text-transform:none;white-space:nowrap}
+.tc-badge-live{background:#064e3b;color:#6ee7b7}
+.tc-badge-instruments{background:#1e3a8a;color:#93c5fd}
+.tc-badge-planning{background:var(--bg3);color:var(--tx3)}
+.tc-collapse-arrow{font-size:11px;color:var(--tx3);flex:0 0 auto}
+.tc-body{margin-top:10px}
+.tc-collapsed .tc-body{display:none}
+.tc-grid{display:flex;flex-direction:column;gap:8px;position:relative}
+.tc-row{background:var(--bg2);border-radius:8px;padding:10px 12px}
+.tc-row-planning{opacity:.4}
+.tc-label{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--tx3);margin-bottom:4px}
+.tc-value{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+.tc-target{font-size:12px;font-weight:600;color:var(--tx3)}
+.tc-arrow{font-size:14px;margin-left:2px}
+.tc-sub{font-size:11px;color:var(--tx2);margin-top:3px;line-height:1.4}
+.tc-green{color:#2dd4a8}
+.tc-amber{color:#fbbf24}
+.tc-red{color:#ef4444}
+.tc-planning-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;font-size:12px;font-weight:600;color:var(--acc);background:rgba(10,22,40,.92);padding:10px 14px;border-radius:8px;text-align:center;max-width:88%;border:1px solid var(--bg3)}
+@media(min-width:768px){.tc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}}
 </style>
 </head>
 <body>
@@ -580,6 +604,13 @@ canvas{display:block}
           </div>
         </div>
         <div id="navPanel"><div class="loading">GPS off — tap "Enable GPS" to start live tracking.</div></div>
+      </div>
+      <div class="card trim-coach-card" id="trimCoachCard">
+        <div class="tc-header" onclick="toggleTrimCoach()">
+          <div class="tc-title">Trim Coach <span class="tc-badge tc-badge-planning" id="tcBadge">Planning</span></div>
+          <div class="tc-collapse-arrow" id="tcCollapseArrow">▼</div>
+        </div>
+        <div class="tc-body" id="tcBody"></div>
       </div>
       <div class="card">
         <div class="card-title">Race course — Lac Léman</div>
@@ -2041,6 +2072,7 @@ function submitWindCalibration() {
   if(typeof renderWind      === 'function') renderWind();
   if(typeof updateLakeWind  === 'function') updateLakeWind();
   if(typeof renderPatternTimeline === 'function') renderPatternTimeline();
+  if(typeof tickTrimCoach   === 'function') tickTrimCoach();
 }
 
 function clearWindCalibration() {
@@ -2052,6 +2084,7 @@ function clearWindCalibration() {
   if(typeof renderWind      === 'function') renderWind();
   if(typeof updateLakeWind  === 'function') updateLakeWind();
   if(typeof renderPatternTimeline === 'function') renderPatternTimeline();
+  if(typeof tickTrimCoach   === 'function') tickTrimCoach();
 }
 
 function renderWindCalStatus() {
@@ -2633,6 +2666,10 @@ function stopGPS() {
   setGpsStatus('off', null);
   updateGPSButtons();
   renderNavPanel();
+  // Reset PPR buffer on GPS disable — we don't want stale samples carrying
+  // over into the next session.
+  if(typeof trimCoachBuffers !== 'undefined') trimCoachBuffers.ppr = [];
+  try { tickTrimCoach(); } catch(e) { console.error('[trimCoach] stopGPS:', e); }
 }
 
 function onGPSUpdate(pos) {
@@ -2662,6 +2699,7 @@ function onGPSUpdate(pos) {
   updateBoatOnMap();
   autoAdvanceWaypoint();
   renderNavPanel();
+  try { tickTrimCoach(); } catch(e) { console.error('[trimCoach] onGPSUpdate:', e); }
 }
 
 function onGPSError(err) {
@@ -4239,6 +4277,392 @@ function resetPerfProfile() {
   renderPerfProfileInputs();
 }
 
+// ===== TRIM COACH PANEL (QA round 2 Fix 9 — docs/trim-coach-design.md) =====
+// Four live readouts on the Strategy tab: PPR (with 30s/2min rolling trend),
+// TWA vs max-speed target angle, TWD shift over last 15 min, point-of-sail
+// transition ahead. Three modes (Planning / Live · Model wind / Live ·
+// Calibrated wind), plus a stubbed Live · Instruments hook for YDVR-04 (P2).
+
+var TRIM_COACH_COLLAPSE_KEY = 'trim_coach_collapsed_v1';
+// trimCoachCollapsed is the current collapse state; _trimCoachAutoMode is true
+// while we still derive that state from the panel mode (collapsed in Planning,
+// expanded in Live). Once the crew taps the header, we flip to manual mode and
+// the preference sticks across mode changes and reloads.
+var _trimCoachAutoMode = true;
+var trimCoachCollapsed = (function(){
+  try {
+    var v = localStorage.getItem(TRIM_COACH_COLLAPSE_KEY);
+    if(v === '1') { _trimCoachAutoMode = false; return true; }
+    if(v === '0') { _trimCoachAutoMode = false; return false; }
+    return true; // pending — will be re-derived on first render
+  } catch(e) { return true; }
+})();
+
+var trimCoachBuffers = {
+  ppr: [],       // last 24 samples @ 5s = 2 min
+  twd: []        // last 30 samples @ 30s = 15 min ({ts, twd})
+};
+
+// P2 stub — wired when YDVR-04 lands. Today: always false.
+function isLiveInstrumentsActive() {
+  return false;
+}
+
+function trimCoachMode() {
+  if(isLiveInstrumentsActive()) return 'instruments';
+  if(typeof gpsPos !== 'undefined' && gpsPos && gpsPos.lat != null) return 'live';
+  return 'planning';
+}
+
+function trimCoachBadgeText(mode, calibrated) {
+  if(mode === 'instruments') return 'Live · Instruments';
+  if(mode === 'live') return calibrated ? 'Live · Calibrated wind' : 'Live · Model wind';
+  return 'Planning';
+}
+
+function _tcAvg(arr) {
+  if(!arr || !arr.length) return 0;
+  var s = 0;
+  for(var i = 0; i < arr.length; i++) s += arr[i];
+  return s / arr.length;
+}
+
+function _tcNearestTwsBucket(tws) {
+  var keys = TWS_KEYS;
+  var best = keys[0], bd = Math.abs(tws - keys[0]);
+  for(var i = 1; i < keys.length; i++) {
+    var d = Math.abs(tws - keys[i]);
+    if(d < bd) { bd = d; best = keys[i]; }
+  }
+  return best;
+}
+
+function captureTwdSample() {
+  if(typeof currentWindForBoat !== 'function') return;
+  var wind = currentWindForBoat();
+  if(!wind || wind.dir == null) return;
+  var cal = calibrateWind(wind.speed, wind.dir);
+  if(cal.dir == null) return;
+  trimCoachBuffers.twd.push({ts: Date.now(), twd: cal.dir});
+  // Keep only the last 15 min worth of samples (max 30 @ 30s)
+  var cutoff = Date.now() - 15 * 60 * 1000;
+  while(trimCoachBuffers.twd.length && trimCoachBuffers.twd[0].ts < cutoff) {
+    trimCoachBuffers.twd.shift();
+  }
+  while(trimCoachBuffers.twd.length > 30) trimCoachBuffers.twd.shift();
+}
+
+function tickTrimCoach() {
+  var body = document.getElementById('tcBody');
+  if(!body) return; // panel not in DOM yet
+  applyTrimCoachInitialState();
+
+  var mode = trimCoachMode();
+
+  if(mode === 'planning') {
+    renderTrimCoachPlanning();
+    return;
+  }
+
+  // Live (or Instruments stub) — need wind data
+  if(!ensembleData) {
+    renderTrimCoachWaiting(mode, 'Waiting for wind forecast — open the Wind tab.');
+    return;
+  }
+  var wind = currentWindForBoat();
+  if(!wind || wind.speed == null || wind.dir == null) {
+    renderTrimCoachWaiting(mode, 'Waiting for wind at boat position.');
+    return;
+  }
+  var cal = calibrateWind(wind.speed, wind.dir);
+  var tws = cal.speed, twd = cal.dir;
+
+  // Seed TWD buffer if empty / stale so the shift readout starts collecting now
+  var twdBuf = trimCoachBuffers.twd;
+  if(!twdBuf.length || (Date.now() - twdBuf[twdBuf.length - 1].ts) > 60000) {
+    twdBuf.push({ts: Date.now(), twd: twd});
+    while(twdBuf.length > 30) twdBuf.shift();
+  }
+
+  var fh = (typeof fusedHeading === 'function') ? fusedHeading() : {value: null, source: null};
+  if(fh.value == null) {
+    renderTrimCoachWaiting(mode, 'Waiting for heading — start moving or enable compass.');
+    return;
+  }
+  var heading = fh.value;
+  // Signed TWA in -180..+180: positive = wind from starboard side of boat
+  var twa_signed = ((twd - heading + 540) % 360) - 180;
+  var twa = Math.abs(twa_signed);
+
+  // ------ Readout 1: PPR ------
+  var pprStats = null;
+  if(gpsPos && gpsPos.sog != null) {
+    var pol = interpPolar(tws, twa);
+    var target = pol.btv * perfFactorFor(twa);
+    if(target > 0.1) {
+      var ppr = gpsPos.sog / target;
+      trimCoachBuffers.ppr.push(ppr);
+      while(trimCoachBuffers.ppr.length > 24) trimCoachBuffers.ppr.shift();
+    }
+  }
+  var pprBuf = trimCoachBuffers.ppr;
+  if(pprBuf.length >= 3) {
+    var n30 = Math.min(6, pprBuf.length);
+    var mean30s = _tcAvg(pprBuf.slice(-n30));
+    var mean2m = _tcAvg(pprBuf);
+    var trendPct = mean2m > 0 ? ((mean30s - mean2m) / mean2m) * 100 : 0;
+    pprStats = {mean30s: mean30s, mean2m: mean2m, trendPct: trendPct};
+  }
+
+  // ------ Readout 2: Angle ------
+  var bucket = _tcNearestTwsBucket(tws);
+  var pb = P[bucket];
+  var pos = (twa < 60) ? 'upwind' : (twa < 130 ? 'reach' : 'downwind');
+  var target_twa;
+  if(pos === 'upwind') target_twa = pb.beatA;
+  else if(pos === 'downwind') target_twa = pb.runA;
+  else if(pb.twa && pb.btv && pb.twa.length === pb.btv.length) {
+    var idx = 0;
+    for(var i = 1; i < pb.btv.length; i++) if(pb.btv[i] > pb.btv[idx]) idx = i;
+    target_twa = pb.twa[idx];
+  } else {
+    target_twa = 90;
+  }
+  var angleDelta = twa - target_twa;
+
+  // ------ Readout 3: Wind shift ------
+  var shiftStats = null;
+  if(twdBuf.length >= 2) {
+    var first = twdBuf[0];
+    var last = twdBuf[twdBuf.length - 1];
+    var windowMin = (Date.now() - first.ts) / 60000;
+    if(windowMin >= 2) {
+      var dShift = ((last.twd - first.twd + 540) % 360) - 180;
+      shiftStats = {shift: dShift, windowMin: windowMin};
+    } else {
+      shiftStats = {windowMin: windowMin, gathering: true};
+    }
+  } else {
+    shiftStats = {windowMin: 0, gathering: true};
+  }
+
+  // ------ Readout 4: Point of sail ------
+  var posName;
+  if(twa < 50) posName = 'Close-hauled';
+  else if(twa < 75) posName = 'Close reach';
+  else if(twa < 100) posName = 'Beam reach';
+  else if(twa < 130) posName = 'Hot reach';
+  else if(twa < 155) posName = 'Broad reach';
+  else posName = 'Run';
+
+  var crossover = findCrossoverTWA(bucket);
+  var crossoverTwa = crossover ? crossover.twa : null;
+
+  var thresholds = [];
+  if(twa < 50) thresholds.push({twa: 50, label: 'Close reach'});
+  if(twa < 75) thresholds.push({twa: 75, label: 'Beam reach'});
+  if(crossoverTwa != null && twa < crossoverTwa) thresholds.push({twa: crossoverTwa, label: 'spinnaker faster'});
+  if(twa < 130) thresholds.push({twa: 130, label: 'Hot reach'});
+  if(twa < 155) thresholds.push({twa: 155, label: 'Broad reach'});
+  if(twa < 175) thresholds.push({twa: 175, label: 'Run'});
+  var nextTransition = null;
+  for(var ti = 0; ti < thresholds.length; ti++) {
+    if(thresholds[ti].twa > twa) { nextTransition = thresholds[ti]; break; }
+  }
+
+  renderTrimCoach({
+    mode: mode,
+    calibrated: (typeof windCalActive === 'function') && windCalActive(),
+    twa: twa,
+    twa_signed: twa_signed,
+    tws: tws,
+    twd: twd,
+    pprStats: pprStats,
+    targetTwa: target_twa,
+    angleDelta: angleDelta,
+    pos: pos,
+    posName: posName,
+    shiftStats: shiftStats,
+    nextTransition: nextTransition,
+    crossoverTwa: crossoverTwa
+  });
+}
+
+function _tcPlaceholderRow(label, sub) {
+  return '<div class="tc-row tc-row-planning">'
+       + '<div class="tc-label">' + label + '</div>'
+       + '<div class="tc-value">—</div>'
+       + '<div class="tc-sub">' + sub + '</div></div>';
+}
+
+function _tcPlaceholderGrid() {
+  return _tcPlaceholderRow('PERFORMANCE', 'vs polar target')
+       + _tcPlaceholderRow('ANGLE',       'TWA vs max-speed angle')
+       + _tcPlaceholderRow('WIND SHIFT',  'TWD trend (last 15 min)')
+       + _tcPlaceholderRow('POINT OF SAIL','transition ahead');
+}
+
+function renderTrimCoachPlanning() {
+  var body = document.getElementById('tcBody');
+  var badge = document.getElementById('tcBadge');
+  if(!body || !badge) return;
+  badge.textContent = trimCoachBadgeText('planning', false);
+  badge.className = 'tc-badge tc-badge-planning';
+  body.innerHTML = '<div class="tc-grid">'
+                 + '<div class="tc-planning-overlay">Enable GPS for live trim coaching.</div>'
+                 + _tcPlaceholderGrid()
+                 + '</div>';
+}
+
+function renderTrimCoachWaiting(mode, msg) {
+  var body = document.getElementById('tcBody');
+  var badge = document.getElementById('tcBadge');
+  if(!body || !badge) return;
+  var calibrated = (typeof windCalActive === 'function') && windCalActive();
+  badge.textContent = trimCoachBadgeText(mode, calibrated);
+  badge.className = 'tc-badge tc-badge-' + mode;
+  body.innerHTML = '<div class="tc-grid">'
+                 + '<div class="tc-planning-overlay">' + msg + '</div>'
+                 + _tcPlaceholderGrid()
+                 + '</div>';
+}
+
+function renderTrimCoach(state) {
+  var body = document.getElementById('tcBody');
+  var badge = document.getElementById('tcBadge');
+  if(!body || !badge) return;
+  badge.textContent = trimCoachBadgeText(state.mode, state.calibrated);
+  badge.className = 'tc-badge tc-badge-' + state.mode;
+  body.innerHTML = '<div class="tc-grid">'
+                 + _tcRenderPpr(state.pprStats)
+                 + _tcRenderAngle(state)
+                 + _tcRenderShift(state)
+                 + _tcRenderPos(state)
+                 + '</div>';
+}
+
+function _tcRenderPpr(stats) {
+  if(!stats) {
+    return '<div class="tc-row"><div class="tc-label">PERFORMANCE</div>'
+         + '<div class="tc-value">—</div>'
+         + '<div class="tc-sub">warming up</div></div>';
+  }
+  var ppr = stats.mean30s;
+  var arrow = '▬';
+  if(stats.trendPct > 2) arrow = '▲';
+  else if(stats.trendPct < -2) arrow = '▼';
+  var cls = 'tc-red';
+  if(ppr >= 0.85) cls = 'tc-green';
+  else if(ppr >= 0.70) cls = 'tc-amber';
+  var sub = 'vs polar target';
+  if(Math.abs(stats.trendPct) >= 1) {
+    sub = 'trending ' + (stats.trendPct >= 0 ? '+' : '') + stats.trendPct.toFixed(0) + '% over 2 min';
+  }
+  return '<div class="tc-row"><div class="tc-label">PERFORMANCE</div>'
+       + '<div class="tc-value ' + cls + '">' + ppr.toFixed(2) + ' <span class="tc-arrow">' + arrow + '</span></div>'
+       + '<div class="tc-sub">' + sub + '</div></div>';
+}
+
+function _tcRenderAngle(state) {
+  var twa = state.twa, target = state.targetTwa, delta = state.angleDelta;
+  var absD = Math.abs(delta);
+  var sub;
+  if(absD <= 5) sub = 'in the groove';
+  else if(state.pos === 'upwind') {
+    sub = (delta > 0) ? 'foot away ' + Math.round(absD) + '° for VMG'
+                       : 'pinching — head up ' + Math.round(absD) + '° for groove';
+  } else if(state.pos === 'downwind') {
+    sub = (delta > 0) ? 'by-the-lee — head up ' + Math.round(absD) + '°'
+                       : 'hot angle — bear away ' + Math.round(absD) + '° for VMG';
+  } else {
+    sub = (delta > 0) ? 'bear away ' + Math.round(absD) + '° for more speed'
+                       : 'head up ' + Math.round(absD) + '° for more speed';
+  }
+  var cls = 'tc-red';
+  if(absD <= 5) cls = 'tc-green';
+  else if(absD <= 15) cls = 'tc-amber';
+  return '<div class="tc-row"><div class="tc-label">ANGLE</div>'
+       + '<div class="tc-value ' + cls + '">' + Math.round(twa) + '° <span class="tc-target">/ target ' + Math.round(target) + '°</span></div>'
+       + '<div class="tc-sub">' + sub + '</div></div>';
+}
+
+function _tcRenderShift(state) {
+  var stats = state.shiftStats;
+  if(!stats || stats.gathering) {
+    var winTxt = stats && stats.windowMin > 0 ? (' (' + stats.windowMin.toFixed(1) + ' min so far)') : '';
+    return '<div class="tc-row"><div class="tc-label">WIND SHIFT</div>'
+         + '<div class="tc-value">gathering data</div>'
+         + '<div class="tc-sub">need 2+ min of GPS' + winTxt + '</div></div>';
+  }
+  var shift = stats.shift, win = stats.windowMin;
+  var absS = Math.abs(shift);
+  if(absS < 3) {
+    return '<div class="tc-row"><div class="tc-label">WIND SHIFT</div>'
+         + '<div class="tc-value tc-green">steady</div>'
+         + '<div class="tc-sub">TWD stable over ' + win.toFixed(0) + ' min</div></div>';
+  }
+  var rightShift = shift > 0;
+  var dir = rightShift ? 'right' : 'left';
+  var arrow = rightShift ? '↻' : '↺';
+  var cls = absS < 5 ? 'tc-green' : (absS < 15 ? 'tc-amber' : 'tc-red');
+  var sub;
+  if(state.pos === 'upwind') {
+    // tack from signed TWA: wind from starboard (twa_signed > 0) = starboard tack
+    var tack = (state.twa_signed > 0) ? 'starboard' : 'port';
+    var lifted = (tack === 'starboard' && rightShift) || (tack === 'port' && !rightShift);
+    sub = lifted ? 'lifted — you can head up' : 'headed — prepare to tack';
+  } else {
+    sub = 'wind shifted ' + dir + ' ' + Math.round(absS) + '°';
+  }
+  var sign = rightShift ? '+' : '−';
+  return '<div class="tc-row"><div class="tc-label">WIND SHIFT</div>'
+       + '<div class="tc-value ' + cls + '">' + sign + Math.round(absS) + '° ' + dir + ' <span class="tc-arrow">' + arrow + '</span> <span class="tc-target">/ ' + Math.round(win) + ' min</span></div>'
+       + '<div class="tc-sub">' + sub + '</div></div>';
+}
+
+function _tcRenderPos(state) {
+  var sub, cls = '';
+  var nearXover = state.crossoverTwa != null && Math.abs(state.twa - state.crossoverTwa) <= 5 && state.pos === 'reach';
+  var nearTransition = state.nextTransition && (state.nextTransition.twa - state.twa) < 10;
+  if(nearTransition) {
+    sub = state.nextTransition.label + ' in ' + Math.round(state.nextTransition.twa - state.twa) + '°';
+    cls = 'tc-amber';
+  } else if(nearXover) {
+    sub = 'prepare spinnaker hoist';
+    cls = 'tc-amber';
+  } else {
+    sub = 'steady ' + state.posName.toLowerCase();
+  }
+  return '<div class="tc-row"><div class="tc-label">POINT OF SAIL</div>'
+       + '<div class="tc-value ' + cls + '">' + state.posName + ' <span class="tc-target">(' + Math.round(state.twa) + '°)</span></div>'
+       + '<div class="tc-sub">' + sub + '</div></div>';
+}
+
+function applyTrimCoachInitialState() {
+  // Mode-aware default: collapsed in Planning, expanded in Live — unless the
+  // crew has tapped the header to set an explicit preference.
+  if(_trimCoachAutoMode) {
+    trimCoachCollapsed = (trimCoachMode() === 'planning');
+  }
+  _applyTrimCoachCollapseDom();
+}
+
+function _applyTrimCoachCollapseDom() {
+  var card = document.getElementById('trimCoachCard');
+  var arrow = document.getElementById('tcCollapseArrow');
+  if(!card) return;
+  if(trimCoachCollapsed) card.classList.add('tc-collapsed');
+  else card.classList.remove('tc-collapsed');
+  if(arrow) arrow.textContent = trimCoachCollapsed ? '▶' : '▼';
+}
+
+function toggleTrimCoach() {
+  _trimCoachAutoMode = false;
+  trimCoachCollapsed = !trimCoachCollapsed;
+  try { localStorage.setItem(TRIM_COACH_COLLAPSE_KEY, trimCoachCollapsed ? '1' : '0'); } catch(e) {}
+  _applyTrimCoachCollapseDom();
+}
+
 // Spherical step: advance from pos along heading by distNM
 function movePoint(pos, headingDeg, distNM) {
   var R = 3440.065;
@@ -5358,9 +5782,12 @@ _safe('renderChecklist',     function(){ renderChecklist(); });
 _safe('updateCountdown',     function(){ updateCountdown(); });
 _safe('renderPerfProfile',   function(){ renderPerfProfileInputs(); });
 _safe('renderWindCalStatus', function(){ renderWindCalStatus(); });
+_safe('initTrimCoach',       function(){ tickTrimCoach(); });
 setInterval(function(){ _safe('windCal tick', function(){ renderWindCalStatus(); }); }, 30000);
 setInterval(function(){ _safe('renderChecklist tick', function(){ renderChecklist(); }); }, 30000);
 setInterval(function(){ _safe('updateCountdown tick', function(){ updateCountdown(); }); }, 1000);
+setInterval(function(){ _safe('trimCoach tick',       function(){ tickTrimCoach(); }); }, 5000);
+setInterval(function(){ _safe('trimCoach twd sample', function(){ captureTwdSample(); }); }, 30000);
 
 // Auto-refresh wind every 15 minutes, MeteoSwiss every 10, phase every hour
 setInterval(fetchWind, 15 * 60 * 1000);
