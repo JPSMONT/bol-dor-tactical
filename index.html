@@ -773,7 +773,19 @@ var curZone = 0;
 function showTab(i) {
   document.querySelectorAll('.tabs button').forEach(function(b,j){b.classList.toggle('on',j===i)});
   document.querySelectorAll('.view').forEach(function(v,j){v.classList.toggle('on',j===i)});
-  if(i===1) drawPolar();
+  if(i===1) {
+    // Defensive: ensure polar buttons exist before drawing curves. initPolarBtns
+    // is idempotent because it appends — re-running would duplicate, so guard.
+    try {
+      var btns = document.getElementById('polarBtns');
+      if(btns && btns.children.length === 0 && typeof initPolarBtns === 'function') initPolarBtns();
+    } catch(e) { console.error('initPolarBtns deferred run failed:', e); }
+    try { drawPolar(); } catch(e) {
+      console.error('drawPolar failed:', e);
+      var pb = document.getElementById('polarBtns');
+      if(pb) pb.innerHTML = '<div style="color:var(--err);font-size:11px">drawPolar error: '+e.message+' (see console)</div>';
+    }
+  }
   if(i===2) { renderPhase(); if(msStationsData) renderStations(); }
   if(i===3) drawLake();
   if(i===4) showRivals();
@@ -886,10 +898,10 @@ function renderChecklist() {
   document.getElementById('checklistBody').innerHTML = html;
 }
 
-// Kick off GPS probe + first render
-probeGpsPermission();
-renderChecklist();
-setInterval(renderChecklist, 30000);
+// NOTE: probeGpsPermission + renderChecklist + setInterval moved to the
+// bottom INIT block. They indirectly use RACE_PHASES (declared further down)
+// so calling them here would throw on first load and halt the rest of the
+// script (including the polarActive declaration).
 
 // ===== POLAR INTERPOLATION =====
 function interpPolar(tws, twa) {
@@ -4591,13 +4603,17 @@ function fmtTime(d) {
 }
 
 // ===== INIT =====
-initPolarBtns();
-buildVMGTable();
-showFullTable();
-calcQuickVMG();
-fetchWind();
-fetchStations();
-renderPhase();
+function _safe(label, fn){ try { fn(); } catch(e) { console.error('[init] '+label+':', e); } }
+_safe('initPolarBtns',       function(){ initPolarBtns(); });
+_safe('buildVMGTable',       function(){ buildVMGTable(); });
+_safe('showFullTable',       function(){ showFullTable(); });
+_safe('calcQuickVMG',        function(){ calcQuickVMG(); });
+_safe('fetchWind',           function(){ fetchWind(); });
+_safe('fetchStations',       function(){ fetchStations(); });
+_safe('renderPhase',         function(){ renderPhase(); });
+_safe('probeGpsPermission',  function(){ probeGpsPermission(); });
+_safe('renderChecklist',     function(){ renderChecklist(); });
+setInterval(function(){ _safe('renderChecklist tick', function(){ renderChecklist(); }); }, 30000);
 
 // Auto-refresh wind every 15 minutes, MeteoSwiss every 10, phase every hour
 setInterval(fetchWind, 15 * 60 * 1000);
