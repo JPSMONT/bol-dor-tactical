@@ -48,6 +48,9 @@ canvas{display:block}
 .polar-controls{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .polar-controls button{padding:6px 12px;font-size:12px;font-weight:600;border:1px solid var(--bg3);background:transparent;color:var(--tx2);border-radius:20px;cursor:pointer}
 .polar-controls button.on{background:var(--acc);color:#000;border-color:var(--acc)}
+.polar-legend{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px;font-size:10px;color:var(--tx2);margin-top:8px;line-height:1.5}
+.pl-sw{display:inline-block;width:18px;height:3px;border-radius:1px;vertical-align:middle}
+.pl-label{margin-left:4px}
 .vmg-table{width:100%;font-size:11px;border-collapse:collapse}
 .vmg-table th{text-align:left;color:var(--tx3);font-weight:600;padding:6px 4px;border-bottom:1px solid var(--bg3)}
 .vmg-table td{padding:5px 4px;border-bottom:1px solid rgba(255,255,255,.04)}
@@ -424,8 +427,13 @@ canvas{display:block}
       <div class="card">
         <div class="card-title">Polar diagram</div>
         <div class="polar-controls" id="polarBtns"></div>
-        <canvas id="polarCanvas" width="360" height="360" style="width:100%;max-width:360px;margin:0 auto"></canvas>
-        <div id="polarTouch" style="font-size:12px;color:var(--tx3);text-align:center;margin-top:6px">Tap on diagram for values</div>
+        <canvas id="polarCanvas" width="360" height="360" style="display:block;width:100%;max-width:360px;margin:0 auto"></canvas>
+        <div class="polar-legend">
+          <span class="pl-sw" style="background:#4a9eff"></span><span class="pl-label">Jib 17.66&nbsp;m²</span>
+          <span class="pl-sw" style="background:#2dd4a8;margin-left:14px"></span><span class="pl-label">Spinnaker 47.18&nbsp;m²</span>
+          <span class="pl-sw" style="background:#fbbf24;border-radius:50%;border:1px solid #0a1628;margin-left:14px"></span><span class="pl-label">Sym &gt; Jib crossover</span>
+        </div>
+        <div id="polarTouch" style="font-size:11px;color:var(--tx3);text-align:center;margin-top:4px;line-height:1.4">Line thickness + opacity scale with TWS. Toggle wind speeds with the buttons above.</div>
       </div>
       <div class="card">
         <div class="card-title">VMG targets — all wind speeds</div>
@@ -539,6 +547,11 @@ canvas{display:block}
           </select>
         </div>
         <div class="sim-row">
+          <label>Performance</label>
+          <input type="range" id="simPerf" min="75" max="100" value="90" step="1" oninput="document.getElementById('simPerfVal').textContent=this.value+'%'" style="flex:1;accent-color:var(--acc)">
+          <span id="simPerfVal" style="min-width:40px;text-align:right;font-weight:700;color:var(--acc);font-variant-numeric:tabular-nums">90%</span>
+        </div>
+        <div class="sim-row">
           <label>Scenario</label>
           <select id="simScenario">
             <option value="now" selected>Now — live forecast</option>
@@ -649,6 +662,83 @@ var P = {
 };
 var TWS_KEYS = [6,8,10,12,14,16,20];
 var PCOL = {6:'#97C459',8:'#5DCAA5',10:'#378ADD',12:'#7F77DD',14:'#D4537E',16:'#D85A30',20:'#E24B4A'};
+
+// ===== ORC POLAR DATA — Jib vs Symmetric Spinnaker (PRD §3.1, QA round 1) =====
+// P (above) is the BestPerf envelope — keep for VMG calc + strategy + sim engine compat.
+// P_JIB and P_SYM are the two separate sail curves from the ORC Speed Guide.
+// At a given TWA the boat sails whichever sail is faster; the spinnaker becomes
+// faster from ~100-110° depending on TWS, and is not in the polar at all at the
+// tightest reaching angles in stronger wind (e.g. TWS 14+, jib is faster <110°).
+var P_JIB = {
+  6:  {twa:[42,52,60,70,75,80,90,110,120,135,150,165,180], btv:[4.74,5.32,5.60,5.78,5.81,5.82,5.77,5.21,4.74,3.93,3.38,3.12,3.00]},
+  8:  {twa:[40.5,52,60,70,75,80,90,110,120,135,150,165,180], btv:[5.36,6.03,6.26,6.40,6.43,6.45,6.44,6.11,5.73,4.94,4.39,4.09,3.95]},
+  10: {twa:[39.8,52,60,70,75,80,90,110,120,135,150,165,180], btv:[5.54,6.21,6.42,6.60,6.67,6.73,6.79,6.56,6.35,5.80,5.27,4.96,4.81]},
+  12: {twa:[40.1,52,60,70,75,80,90,110,120,135,150,165,180], btv:[5.63,6.28,6.49,6.69,6.78,6.87,7.05,6.90,6.71,6.37,6.04,5.76,5.60]},
+  14: {twa:[40.1,52,60,70,75,80,90,110,120,135,150,165,180], btv:[5.74,6.34,6.53,6.74,6.84,6.95,7.21,7.27,7.05,6.74,6.52,6.35,6.24]},
+  16: {twa:[40.5,52,60,70,75,80,90,110,120,135,150,165,180], btv:[5.78,6.40,6.61,6.80,6.88,6.99,7.31,7.67,7.45,7.11,6.89,6.74,6.65]},
+  20: {twa:[42.4,52,60,70,75,80,90,110,120,135,150,165,180], btv:[5.75,6.35,6.60,6.88,7.01,7.16,7.40,8.14,8.30,8.01,7.75,7.56,7.44]}
+};
+var P_SYM = {
+  6:  {twa:[60,70,75,80,90,110,120,135,150,165,180], btv:[4.10,4.85,5.13,5.35,5.64,5.65,5.48,4.92,4.09,3.43,3.22]},
+  8:  {twa:[60,70,75,80,90,110,120,135,150,165,180], btv:[5.00,5.67,5.90,6.07,6.34,6.50,6.41,6.01,5.19,4.46,4.22]},
+  10: {twa:[60,70,75,80,90,110,120,135,150,165,180], btv:[5.31,5.94,6.15,6.30,6.55,6.89,6.89,6.60,6.09,5.38,5.13]},
+  12: {twa:[70,75,80,90,110,120,135,150,165,180],    btv:[5.96,6.18,6.35,6.66,7.14,7.36,7.06,6.62,6.17,5.95]},
+  14: {twa:[110,120,135,150,165,180],                  btv:[7.37,7.68,7.60,7.06,6.65,6.51]},
+  16: {twa:[110,120,135,150,165,180],                  btv:[7.47,7.97,8.25,7.57,7.07,6.92]},
+  20: {twa:[120,135,150,165,180],                       btv:[8.16,9.40,8.86,8.10,7.88]}
+};
+
+// Interpolate Jib BTV at a given TWS/TWA (handles inside polar range)
+function interpSailBtv(table, tws, twa) {
+  function angleInterp(d) {
+    if(!d || !d.twa || d.twa.length < 2) return null;
+    if(twa <= d.twa[0]) return d.btv[0];
+    if(twa >= d.twa[d.twa.length-1]) return d.btv[d.twa.length-1];
+    for(var i=0; i<d.twa.length-1; i++){
+      if(twa >= d.twa[i] && twa <= d.twa[i+1]){
+        var f = (twa - d.twa[i]) / (d.twa[i+1] - d.twa[i]);
+        return d.btv[i] + f * (d.btv[i+1] - d.btv[i]);
+      }
+    }
+    return null;
+  }
+  var keys = TWS_KEYS;
+  if(tws <= keys[0]) return angleInterp(table[keys[0]]);
+  if(tws >= keys[keys.length-1]) return angleInterp(table[keys[keys.length-1]]);
+  var lo, hi;
+  for(var i=0; i<keys.length-1; i++) if(tws >= keys[i] && tws <= keys[i+1]) { lo=keys[i]; hi=keys[i+1]; break; }
+  var f = (tws - lo) / (hi - lo);
+  var a = angleInterp(table[lo]);
+  var b = angleInterp(table[hi]);
+  if(a == null) return b;
+  if(b == null) return a;
+  return a + f * (b - a);
+}
+function interpJibBtv(tws, twa) { return interpSailBtv(P_JIB, tws, twa); }
+function interpSymBtv(tws, twa) { return interpSailBtv(P_SYM, tws, twa); }
+
+// Returns 'jib' or 'sym' depending on which is faster at this point of sail.
+// Spinnaker is generally unrigged at TWA < 60° regardless of speed.
+function pickSailForAngle(tws, twa) {
+  if(twa < 60) return 'jib';
+  var j = interpJibBtv(tws, twa);
+  var s = interpSymBtv(tws, twa);
+  if(s == null || j == null) return 'jib';
+  return s > j ? 'sym' : 'jib';
+}
+
+// Find the crossover TWA where Sym first exceeds Jib at this TWS (or null if Sym never wins)
+function findCrossoverTWA(ws) {
+  var dS = P_SYM[ws];
+  if(!dS || !dS.twa.length) return null;
+  for(var i = 0; i < dS.twa.length; i++) {
+    var twa = dS.twa[i];
+    if(twa < 60) continue;
+    var jib = interpJibBtv(ws, twa);
+    if(dS.btv[i] > jib) return {twa: twa, btv: dS.btv[i]};
+  }
+  return null;
+}
 
 // Lake polygon (simplified)
 var LAKE=[[46.207,6.148],[46.215,6.175],[46.240,6.194],[46.265,6.197],[46.281,6.225],[46.304,6.242],[46.352,6.281],[46.366,6.308],[46.370,6.338],[46.340,6.388],[46.360,6.413],[46.366,6.446],[46.375,6.475],[46.405,6.513],[46.396,6.553],[46.401,6.594],[46.405,6.649],[46.408,6.688],[46.408,6.727],[46.399,6.768],[46.394,6.806],[46.388,6.830],[46.386,6.836],[46.395,6.860],[46.396,6.884],[46.396,6.908],[46.394,6.919],[46.397,6.924],[46.415,6.928],[46.436,6.908],[46.451,6.855],[46.459,6.839],[46.468,6.823],[46.474,6.788],[46.486,6.729],[46.491,6.714],[46.497,6.703],[46.504,6.656],[46.511,6.613],[46.507,6.553],[46.515,6.520],[46.503,6.492],[46.491,6.478],[46.476,6.450],[46.465,6.384],[46.453,6.337],[46.433,6.310],[46.406,6.283],[46.388,6.248],[46.369,6.230],[46.345,6.214],[46.336,6.204],[46.308,6.184],[46.282,6.167],[46.263,6.166],[46.252,6.153],[46.235,6.153],[46.228,6.150],[46.210,6.151],[46.207,6.148]];
@@ -880,35 +970,119 @@ function initPolarBtns() {
 
 function drawPolar() {
   var cv = document.getElementById('polarCanvas');
+  if(!cv) return;
   var ctx = cv.getContext('2d');
+  if(!ctx) return;
   var S = cv.width;
   var CX = S/2, CY = S/2, MAX = 10, RAD = S/2 - 30;
-  ctx.clearRect(0,0,S,S);
+  ctx.clearRect(0, 0, S, S);
 
-  function toXY(a, spd){var r=(spd/MAX)*RAD;var rd=(a-90)*Math.PI/180;return [CX+r*Math.cos(rd),CY+r*Math.sin(rd)]}
-
-  // Grid
-  ctx.strokeStyle='rgba(255,255,255,.08)';ctx.lineWidth=0.5;
-  for(var s=2;s<=MAX;s+=2){
-    var cr=(s/MAX)*RAD;
-    ctx.beginPath();ctx.arc(CX,CY,cr,-Math.PI/2,Math.PI/2);ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,.3)';ctx.font='10px sans-serif';ctx.textAlign='center';
-    ctx.fillText(s+'',CX,CY-cr-3);
+  function toXY(a, spd){
+    var r = (spd/MAX) * RAD;
+    var rd = (a - 90) * Math.PI / 180;
+    return [CX + r * Math.cos(rd), CY + r * Math.sin(rd)];
   }
-  [0,45,60,75,90,120,135,150,180].forEach(function(a){
-    var p=toXY(a,MAX);ctx.beginPath();ctx.moveTo(CX,CY);ctx.lineTo(p[0],p[1]);ctx.strokeStyle='rgba(255,255,255,.06)';ctx.stroke();
-    var lp=toXY(a,MAX+0.5);ctx.fillStyle='rgba(255,255,255,.3)';ctx.font='9px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(a+'°',lp[0],lp[1]);
-  });
-  ctx.strokeStyle='rgba(255,255,255,.15)';ctx.lineWidth=0.5;
-  ctx.beginPath();ctx.moveTo(CX,CY-RAD);ctx.lineTo(CX,CY+RAD);ctx.stroke();
 
-  // Curves
+  // ===== Grid: concentric semi-circles (speed rings) =====
+  ctx.strokeStyle = 'rgba(255,255,255,.08)';
+  ctx.lineWidth = 0.5;
+  for(var s = 2; s <= MAX; s += 2) {
+    var cr = (s / MAX) * RAD;
+    ctx.beginPath();
+    ctx.arc(CX, CY, cr, -Math.PI/2, Math.PI/2);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.3)';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(s + '', CX, CY - cr - 3);
+  }
+  // Radial lines + TWA labels
+  [0, 45, 60, 75, 90, 120, 135, 150, 180].forEach(function(a){
+    var p = toXY(a, MAX);
+    ctx.beginPath();
+    ctx.moveTo(CX, CY);
+    ctx.lineTo(p[0], p[1]);
+    ctx.strokeStyle = 'rgba(255,255,255,.06)';
+    ctx.stroke();
+    var lp = toXY(a, MAX + 0.5);
+    ctx.fillStyle = 'rgba(255,255,255,.3)';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(a + '°', lp[0], lp[1]);
+  });
+  // Centreline
+  ctx.strokeStyle = 'rgba(255,255,255,.15)';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(CX, CY - RAD);
+  ctx.lineTo(CX, CY + RAD);
+  ctx.stroke();
+
+  // ===== Sail curves — Jib (blue) + Sym (green) per active TWS =====
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
   TWS_KEYS.forEach(function(ws){
     if(!polarActive[ws]) return;
-    var d=P[ws];
-    ctx.beginPath();ctx.strokeStyle=PCOL[ws];ctx.lineWidth=2.5;
-    for(var i=0;i<d.twa.length;i++){var pt=toXY(d.twa[i],d.btv[i]);if(i===0)ctx.moveTo(pt[0],pt[1]);else ctx.lineTo(pt[0],pt[1])}
-    ctx.stroke();
+    var twsIdx = TWS_KEYS.indexOf(ws);
+    // Line thickness scales mildly with TWS (1.6 .. 3.1)
+    var lw = 1.6 + twsIdx * 0.25;
+    // Opacity also scales (0.55 .. 0.97) so heavier wind reads stronger
+    var alpha = 0.55 + twsIdx * 0.07;
+
+    // --- Jib (blue) ---
+    var dJ = P_JIB[ws];
+    if(dJ && dJ.twa && dJ.twa.length > 1) {
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(74,158,255,' + alpha + ')';
+      ctx.lineWidth = lw;
+      for(var i = 0; i < dJ.twa.length; i++){
+        var pt = toXY(dJ.twa[i], dJ.btv[i]);
+        if(i === 0) ctx.moveTo(pt[0], pt[1]);
+        else ctx.lineTo(pt[0], pt[1]);
+      }
+      ctx.stroke();
+    }
+
+    // --- Sym (green) ---
+    var dS = P_SYM[ws];
+    if(dS && dS.twa && dS.twa.length > 1) {
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(45,212,168,' + alpha + ')';
+      ctx.lineWidth = lw;
+      for(var i = 0; i < dS.twa.length; i++){
+        var pt = toXY(dS.twa[i], dS.btv[i]);
+        if(i === 0) ctx.moveTo(pt[0], pt[1]);
+        else ctx.lineTo(pt[0], pt[1]);
+      }
+      ctx.stroke();
+    }
+
+    // --- Crossover marker (gold dot) ---
+    var cross = findCrossoverTWA(ws);
+    if(cross) {
+      var cp = toXY(cross.twa, cross.btv);
+      ctx.beginPath();
+      ctx.arc(cp[0], cp[1], 3.5, 0, 2 * Math.PI);
+      ctx.fillStyle = '#fbbf24';
+      ctx.strokeStyle = '#0a1628';
+      ctx.lineWidth = 1.2;
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // --- TWS label near the curve's outer extent ---
+    var dEnv = P[ws];
+    var peakBtv = 0, peakTwa = 90;
+    for(var k = 0; k < dEnv.twa.length; k++) {
+      if(dEnv.btv[k] > peakBtv) { peakBtv = dEnv.btv[k]; peakTwa = dEnv.twa[k]; }
+    }
+    var lp = toXY(peakTwa, peakBtv);
+    ctx.fillStyle = PCOL[ws];
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(ws + 'kn', lp[0] + 5, lp[1]);
   });
 }
 
@@ -3477,9 +3651,10 @@ function simulateLJRoute(opts) {
   var waypoints = opts.waypoints || [[46.391, 6.857], [46.2044, 6.1568]];
   var strategy = opts.strategy || 'auto';
   var windAt = opts.windAt || windAtFromEnsemble;
-  var dtMs = opts.dtMs || 60000;                        // 1-min timestep
-  var polarScale = opts.polarScale || 0.93;              // 93% of polar — PRD §18 assumption
-  var tackPenaltySec = opts.tackPenaltySec || 5;
+  var dtMs = opts.dtMs || 60000;                                // 1-min timestep
+  // QA Fix 3a: perfFactor replaces the old hardcoded polarScale. Default 90%
+  // for a good 2-person crew; lower for night sailing / rough conditions.
+  var perfFactor = opts.perfFactor != null ? opts.perfFactor : 0.90;
   var maxDurationMs = opts.maxDurationMs || 30 * 3600 * 1000;
   var arrivalNM = 0.27;
 
@@ -3489,9 +3664,14 @@ function simulateLJRoute(opts) {
   var hdg = bearingDeg(pos.lat, pos.lon, waypoints[0][0], waypoints[0][1]);
   var wpIdx = 0;
   var lastTwaSign = null;
+  var lastSail = null;
   var tackCount = 0;
+  var gybeCount = 0;
+  var sailChangeCount = 0;
+  // Penalty model: a queue of (msLeft, speedMul) where the worst (lowest) mul applies
   var penaltyMsLeft = 0;
-  var points = [{ts: ts, lat: pos.lat, lon: pos.lon, sog: 0, hdg: hdg, twa: 0, tws: 0, didTack: false}];
+  var penaltySpeedMul = 1.0;
+  var points = [{ts: ts, lat: pos.lat, lon: pos.lon, sog: 0, hdg: hdg, twa: 0, tws: 0, sail: 'jib', didTack: false, didGybe: false, didSailChange: false}];
 
   while(ts < endTs && wpIdx < waypoints.length) {
     var goal = waypoints[wpIdx];
@@ -3503,42 +3683,79 @@ function simulateLJRoute(opts) {
     var brg = bearingDeg(pos.lat, pos.lon, goal[0], goal[1]);
     var wind = windAt(pos.lat, pos.lon, ts);
 
-    var effBtv, newHdg, twa, twaSigned;
+    var newHdg, twa, twaSigned, btv, sail;
     if(!wind || wind.tws == null || wind.tws < 0.5) {
       // No usable wind — drift toward goal at 0.8 kn
-      effBtv = 0.8;
+      btv = 0.8 / perfFactor;       // perfFactor applied below — keep equivalent of 0.8 effective
       newHdg = brg;
       twa = 0;
       twaSigned = 0;
+      sail = lastSail || 'jib';
     } else {
       var best = chooseHeading(pos, brg, wind, strategy, hdg);
       if(!best) {
-        // Polar lookup failed → ease angle outward
         newHdg = brg;
-        effBtv = 1.0;
+        btv = 1.0 / perfFactor;
         twa = 0;
         twaSigned = 0;
+        sail = lastSail || 'jib';
       } else {
         newHdg = best.heading;
-        effBtv = best.btv * polarScale;
         twa = best.twa;
         twaSigned = best.twaSigned;
+        // QA Fix 3b: pick the actual sail (jib/sym) for this point of sail
+        sail = pickSailForAngle(wind.tws, twa);
+        // Use sail-specific polar BTV (more accurate than the BestPerf envelope)
+        var sailBtv = (sail === 'sym') ? interpSymBtv(wind.tws, twa) : interpJibBtv(wind.tws, twa);
+        if(sailBtv == null || sailBtv < 0.1) sailBtv = best.btv;   // safety fallback
+        btv = sailBtv;
       }
     }
 
-    // Tack detection (sign of TWA flipped)
+    var effBtv = btv * perfFactor;
+
+    // QA Fix 3c: distinguish tacks (TWA<90) from gybes (TWA≥90) when TWA sign flips
     var newSign = Math.sign(twaSigned);
-    var didTack = (lastTwaSign != null && lastTwaSign !== 0 && newSign !== 0 && lastTwaSign !== newSign);
-    if(didTack) {
-      tackCount++;
-      penaltyMsLeft = tackPenaltySec * 1000;
+    var sideFlipped = (lastTwaSign != null && lastTwaSign !== 0 && newSign !== 0 && lastTwaSign !== newSign);
+    var didTack = false, didGybe = false;
+    if(sideFlipped) {
+      if(twa < 90) {
+        // Tack (upwind): 45 s at 40% speed
+        didTack = true; tackCount++;
+        penaltyMsLeft = Math.max(penaltyMsLeft, 45 * 1000);
+        penaltySpeedMul = Math.min(penaltySpeedMul, 0.40);
+      } else {
+        didGybe = true; gybeCount++;
+        if(sail === 'sym') {
+          // Sym gybe: 60 s at 50%
+          penaltyMsLeft = Math.max(penaltyMsLeft, 60 * 1000);
+          penaltySpeedMul = Math.min(penaltySpeedMul, 0.50);
+        } else {
+          // Jib gybe: 30 s at 60%
+          penaltyMsLeft = Math.max(penaltyMsLeft, 30 * 1000);
+          penaltySpeedMul = Math.min(penaltySpeedMul, 0.60);
+        }
+      }
     }
     lastTwaSign = newSign;
 
+    // QA Fix 3b: sail change penalty (hoist 4 min, drop 3 min, 60% speed during)
+    var didSailChange = (lastSail && lastSail !== sail);
+    if(didSailChange) {
+      sailChangeCount++;
+      var sailPenaltySec = (sail === 'sym') ? 240 : 180;            // hoist vs drop
+      penaltyMsLeft = Math.max(penaltyMsLeft, sailPenaltySec * 1000);
+      penaltySpeedMul = Math.min(penaltySpeedMul, 0.60);
+    }
+    lastSail = sail;
+
+    // Apply pending penalty proportionally to the fraction of this timestep it covers.
+    // We blend penalty-speed × penaltyFraction with full-speed × (1 - penaltyFraction).
     if(penaltyMsLeft > 0) {
-      var f = Math.min(1, penaltyMsLeft / Math.max(dtMs, 1));
-      effBtv = effBtv * (1 - 0.6 * f);                   // up to 60% speed loss during penalty
+      var pf = Math.min(1, penaltyMsLeft / Math.max(dtMs, 1));
+      effBtv = effBtv * (pf * penaltySpeedMul + (1 - pf));
       penaltyMsLeft -= dtMs;
+      if(penaltyMsLeft <= 0) { penaltyMsLeft = 0; penaltySpeedMul = 1.0; }
     }
 
     var stepNM = effBtv * dtMs / 3600000;
@@ -3550,13 +3767,18 @@ function simulateLJRoute(opts) {
       newPos = movePoint(pos, altHdg, stepNM * 0.5);
       newHdg = altHdg;
       tackCount++;
-      penaltyMsLeft = tackPenaltySec * 1000;
+      penaltyMsLeft = Math.max(penaltyMsLeft, 45 * 1000);
+      penaltySpeedMul = Math.min(penaltySpeedMul, 0.40);
     }
 
     pos = newPos;
     hdg = newHdg;
     ts += dtMs;
-    points.push({ts: ts, lat: pos.lat, lon: pos.lon, sog: effBtv, hdg: hdg, twa: twa, tws: wind ? wind.tws : 0, didTack: didTack});
+    points.push({
+      ts: ts, lat: pos.lat, lon: pos.lon,
+      sog: effBtv, hdg: hdg, twa: twa, tws: wind ? wind.tws : 0,
+      sail: sail, didTack: didTack, didGybe: didGybe, didSailChange: didSailChange
+    });
   }
 
   // Stats
@@ -3573,6 +3795,9 @@ function simulateLJRoute(opts) {
       durationMs: totalMs,
       avgSOG: avgSOG,
       tacks: tackCount,
+      gybes: gybeCount,
+      sailChanges: sailChangeCount,
+      perfFactor: perfFactor,
       reachedFinish: wpIdx >= waypoints.length,
       strategy: strategy
     }
@@ -3613,7 +3838,8 @@ function pruneByAngularSector(points, goal, sectors, strategy) {
 function isochroneLeg(startPos, startT, goal, windAt, opts) {
   opts = opts || {};
   var dtMs = opts.dtMs || 600000;              // 10-minute isochrones
-  var polarScale = opts.polarScale || 0.93;
+  // QA Fix 3a: perfFactor replaces polarScale here too
+  var polarScale = opts.perfFactor != null ? opts.perfFactor : (opts.polarScale || 0.90);
   var maxSteps = opts.maxSteps || 200;
   var arrivalNM = opts.arrivalNM || 0.27;
   var sectors = opts.sectors || 36;
@@ -3674,13 +3900,14 @@ function isochroneRoute(opts) {
   var waypoints = opts.waypoints || [[46.391, 6.857], [46.2044, 6.1568]];
   var windAt = opts.windAt || windAtFromEnsemble;
   var strategy = opts.strategy || 'auto';
+  var perfFactor = opts.perfFactor != null ? opts.perfFactor : 0.90;
 
   var all = [];
   var curPos = {lat: startPos[0], lon: startPos[1]};
   var curT = +startTime;
   var success = true;
   for(var w = 0; w < waypoints.length; w++) {
-    var leg = isochroneLeg(curPos, curT, waypoints[w], windAt, {strategy: strategy});
+    var leg = isochroneLeg(curPos, curT, waypoints[w], windAt, {strategy: strategy, perfFactor: perfFactor});
     if(!leg) { success = false; break; }
     var startIdx = (w === 0) ? 0 : 1;            // skip the duplicated handoff point
     for(var j = startIdx; j < leg.length; j++) all.push(leg[j]);
@@ -3689,14 +3916,35 @@ function isochroneRoute(opts) {
     curT = last.t;
   }
 
-  // Heading-change detection → mark tacks (>60° between consecutive segments)
+  // Tag each isochrone point with its sail (TWA from wind at that point/time),
+  // and mark tacks/gybes/sail-changes from heading deltas.
   var formatted = all.map(function(p){
-    return {ts: p.t, lat: p.lat, lon: p.lon, sog: p.btv || 0, hdg: p.hdg || 0, didTack: false};
+    var w = windAt(p.lat, p.lon, p.t);
+    var sail = 'jib';
+    if(w && w.tws != null) {
+      var twa = Math.abs((((p.hdg - w.twd) + 540) % 360) - 180);
+      sail = pickSailForAngle(w.tws, twa);
+    }
+    return {
+      ts: p.t, lat: p.lat, lon: p.lon,
+      sog: p.btv || 0, hdg: p.hdg || 0,
+      sail: sail, didTack: false, didGybe: false, didSailChange: false
+    };
   });
-  var tackCount = 0;
+  var tackCount = 0, gybeCount = 0, sailChangeCount = 0;
   for(var i = 1; i < formatted.length - 1; i++) {
     var d = ((formatted[i+1].hdg - formatted[i-1].hdg + 540) % 360) - 180;
-    if(Math.abs(d) > 60) { formatted[i].didTack = true; tackCount++; }
+    // Use TWA of this point to decide whether the heading flip is a tack or a gybe
+    var w2 = windAt(formatted[i].lat, formatted[i].lon, formatted[i].ts);
+    var twaHere = 0;
+    if(w2 && w2.tws != null) twaHere = Math.abs((((formatted[i].hdg - w2.twd) + 540) % 360) - 180);
+    if(Math.abs(d) > 60) {
+      if(twaHere < 90) { formatted[i].didTack = true; tackCount++; }
+      else { formatted[i].didGybe = true; gybeCount++; }
+    }
+    if(formatted[i].sail !== formatted[i-1].sail) {
+      formatted[i].didSailChange = true; sailChangeCount++;
+    }
   }
 
   var totalDist = 0;
@@ -3713,6 +3961,9 @@ function isochroneRoute(opts) {
       durationMs: totalMs,
       avgSOG: avgSOG,
       tacks: tackCount,
+      gybes: gybeCount,
+      sailChanges: sailChangeCount,
+      perfFactor: perfFactor,
       reachedFinish: success,
       strategy: strategy,
       algorithm: 'isochrone'
@@ -3793,17 +4044,53 @@ function makeHistoricalWindAdapter(windData) {
 }
 
 // ===== Render helpers (LJ track + rival overlay) =====
+// QA Fix 4 / 3d: render LJ track as alternating blue (Jib) / green (Sym) segments
+// so the active sail is readable from the map. A thin white inner line stripes
+// the entire track so it's still unambiguously LJ vs any rival (esp. Pertuiset gold,
+// Borter blue, Monachon teal).
 function renderSimTrack(result) {
-  // LJ sim renders white-with-gold-trim so it stays distinct from Pertuiset/Darnetal
-  // whose canonical rival colour is #fbbf24 (gold).
-  var coords = result.points.map(function(p){ return [p.lat, p.lon]; });
-  L.polyline(coords, {color:'#ffffff', weight:3, opacity:0.92, smoothFactor:1.5, interactive:false}).addTo(simTrackLayer);
-  result.points.forEach(function(p){
-    if(p.didTack) {
+  var pts = result.points;
+  if(pts.length < 2) return;
+  // White "highlight" base so the LJ identity reads against any rival overlay
+  L.polyline(pts.map(function(p){ return [p.lat, p.lon]; }), {
+    color: '#ffffff', weight: 4.5, opacity: 0.65,
+    smoothFactor: 1.5, interactive: false
+  }).addTo(simTrackLayer);
+  // Blue/green segments by sail
+  var seg = [[pts[0].lat, pts[0].lon]];
+  var segSail = pts[0].sail || 'jib';
+  function flushSeg() {
+    if(seg.length < 2) return;
+    var col = segSail === 'sym' ? '#2dd4a8' : '#4a9eff';
+    L.polyline(seg, {color: col, weight: 2.6, opacity: 0.92, smoothFactor: 1.5, interactive: false}).addTo(simTrackLayer);
+  }
+  for(var i = 1; i < pts.length; i++) {
+    seg.push([pts[i].lat, pts[i].lon]);
+    var nextSail = pts[i].sail || segSail;
+    if(nextSail !== segSail) {
+      flushSeg();
+      seg = [[pts[i].lat, pts[i].lon]];
+      segSail = nextSail;
+    }
+  }
+  flushSeg();
+  // Manoeuvre markers (gold = tack/forced; cyan = gybe; magenta = sail change)
+  pts.forEach(function(p){
+    if(p.didSailChange) {
       L.circleMarker([p.lat, p.lon], {
-        radius:3, color:'#0a1628', weight:1.2, opacity:0.9,
-        fillColor:'#fbbf24', fillOpacity:1, interactive:false
-      }).addTo(simTrackLayer);
+        radius: 4, color: '#0a1628', weight: 1.2, opacity: 0.95,
+        fillColor: '#ec4899', fillOpacity: 1, interactive: false
+      }).bindTooltip('Sail change → ' + (p.sail || ''), {className:'lake-tip'}).addTo(simTrackLayer);
+    } else if(p.didTack) {
+      L.circleMarker([p.lat, p.lon], {
+        radius: 3, color: '#0a1628', weight: 1.2, opacity: 0.9,
+        fillColor: '#fbbf24', fillOpacity: 1, interactive: false
+      }).bindTooltip('Tack', {className:'lake-tip'}).addTo(simTrackLayer);
+    } else if(p.didGybe) {
+      L.circleMarker([p.lat, p.lon], {
+        radius: 3, color: '#0a1628', weight: 1.2, opacity: 0.9,
+        fillColor: '#22d3ee', fillOpacity: 1, interactive: false
+      }).bindTooltip('Gybe', {className:'lake-tip'}).addTo(simTrackLayer);
     }
   });
 }
@@ -3852,11 +4139,29 @@ function renderSimStats(result, comparisons, raceCode) {
   var s = result.stats;
   var h = Math.floor(s.durationMs / 3600000);
   var m = Math.floor((s.durationMs % 3600000) / 60000);
+  // Sail-time mix
+  var pts = result.points || [];
+  var jibMs = 0, symMs = 0;
+  for(var i = 1; i < pts.length; i++) {
+    var dt = pts[i].ts - pts[i-1].ts;
+    if(pts[i-1].sail === 'sym') symMs += dt; else jibMs += dt;
+  }
+  var totalSail = jibMs + symMs || 1;
+  var jibPct = Math.round(jibMs / totalSail * 100);
+  var symPct = 100 - jibPct;
+
   var html = '';
+  // Row 1: time, distance, avg SOG, perf
   html += '<div class="ss-cell"><div class="ss-k">Duration</div><div class="ss-v gold">'+h+'h'+String(m).padStart(2,'0')+'</div></div>';
   html += '<div class="ss-cell"><div class="ss-k">Distance</div><div class="ss-v">'+s.totalDist.toFixed(1)+'<span style="font-size:10px;color:var(--tx3)"> NM</span></div></div>';
   html += '<div class="ss-cell"><div class="ss-k">Avg SOG</div><div class="ss-v">'+s.avgSOG.toFixed(1)+'<span style="font-size:10px;color:var(--tx3)"> kn</span></div></div>';
-  html += '<div class="ss-cell"><div class="ss-k">Tacks</div><div class="ss-v">'+s.tacks+'</div></div>';
+  html += '<div class="ss-cell"><div class="ss-k">Perf factor</div><div class="ss-v">'+Math.round((s.perfFactor||0.9)*100)+'%</div></div>';
+  // Row 2: tacks, gybes, sail changes, sail mix
+  html += '</div><div class="sim-stats">';
+  html += '<div class="ss-cell"><div class="ss-k">Tacks</div><div class="ss-v">'+(s.tacks||0)+'</div></div>';
+  html += '<div class="ss-cell"><div class="ss-k">Gybes</div><div class="ss-v">'+(s.gybes||0)+'</div></div>';
+  html += '<div class="ss-cell"><div class="ss-k">Sail changes</div><div class="ss-v">'+(s.sailChanges||0)+'</div></div>';
+  html += '<div class="ss-cell"><div class="ss-k">Jib / Sym</div><div class="ss-v">'+jibPct+'/'+symPct+'<span style="font-size:10px;color:var(--tx3)"> %</span></div></div>';
   var stats = document.getElementById('simStats');
   stats.innerHTML = html;
   stats.style.display = '';
@@ -3897,6 +4202,8 @@ function runSimulation() {
   var strategy = document.getElementById('simStrategy').value;
   var algo = (document.getElementById('simAlgo') || {}).value || 'greedy';
   var scenario = document.getElementById('simScenario').value;
+  var perfPct = parseInt((document.getElementById('simPerf') || {}).value || '90', 10);
+  var perfFactor = Math.max(0.5, Math.min(1.0, perfPct / 100));
   var historicalCode = /^(BOL25|BOPM24|BOM23|BOM21)$/.test(scenario) ? scenario : null;
 
   noteEl.textContent = 'Preparing simulation…';
@@ -3930,7 +4237,8 @@ function runSimulation() {
         startTime: ctx.startTime,
         waypoints: [[46.391, 6.857], [46.2044, 6.1568]],
         windAt: windAt,
-        strategy: strategy
+        strategy: strategy,
+        perfFactor: perfFactor
       };
       var result = (algo === 'isochrone') ? isochroneRoute(simOpts) : simulateLJRoute(simOpts);
       lastSimResult = result;
@@ -3947,7 +4255,7 @@ function runSimulation() {
         var fin = new Date(result.points[result.points.length-1].ts);
         var ctxLabel = ctx.historical ? (RACE_LABELS[historicalCode] + ' historical wind (ERA5 25km)') : 'live forecast';
         var algoLabel = algo === 'isochrone' ? 'isochrone routing' : 'greedy VMC';
-        noteEl.textContent = 'Finish reached at ' + fin.toLocaleTimeString() + ' · ' + strategy + ' · ' + algoLabel + ' · 93% of polar · ' + ctxLabel;
+        noteEl.textContent = 'Finish reached at ' + fin.toLocaleTimeString() + ' · ' + strategy + ' · ' + algoLabel + ' · ' + perfPct + '% perf · ' + ctxLabel;
         noteEl.className = 'sim-note ok';
       } else {
         noteEl.textContent = (algo === 'isochrone'
