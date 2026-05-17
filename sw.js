@@ -1,5 +1,9 @@
-const CACHE = 'bol-tactic-v1';
-const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
+const CACHE = 'bol-tactic-v2';
+const ASSETS = [
+  './index.html', './replay.html', './manifest.json',
+  './icon-192.png', './icon-512.png',
+  './apple-touch-icon.png', './favicon-32.png', './favicon-16.png'
+];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
