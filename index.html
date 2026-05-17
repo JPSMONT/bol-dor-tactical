@@ -3066,6 +3066,9 @@ function parseKmlString(text) {
 // first; on failure we fall back to a public CORS proxy.
 var SUIVIREGATE_BASE = 'https://www.suiviregate.ch/sync/';
 var CORS_PROXIES = [
+  // Self-hosted Cloudflare Worker — primary, no rate limits
+  function(u){ return 'https://corsproxy-bol-dor.jpsmont.workers.dev/?url=' + encodeURIComponent(u); },
+  // Public fallbacks — kept in case the Worker is down
   function(u){ return 'https://corsproxy.io/?' + encodeURIComponent(u); },
   function(u){ return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); }
 ];
