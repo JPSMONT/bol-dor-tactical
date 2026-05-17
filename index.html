@@ -33,6 +33,13 @@ header .race-badge{font-size:11px;background:var(--acc);color:#000;padding:3px 1
 .view.on{display:block}
 .card{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:10px}
 .card-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--tx3);margin-bottom:10px}
+/* details/summary card variant — used for the Boat info collapsed block */
+details.card > summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;margin-bottom:0}
+details.card > summary::-webkit-details-marker{display:none}
+details.card > summary.card-title{margin-bottom:0}
+details.card > summary:after{content:'▸';font-size:11px;color:var(--tx3);transition:transform .2s;margin-left:8px}
+details.card[open] > summary:after{transform:rotate(90deg)}
+.boat-info-sub{color:var(--tx3);font-weight:500;text-transform:none;letter-spacing:0;margin-left:4px;font-size:10px}
 .metric-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
 .metric{background:var(--bg2);border-radius:8px;padding:10px}
 .metric .label{font-size:10px;color:var(--tx3);margin-bottom:2px}
@@ -380,9 +387,9 @@ canvas{display:block}
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">Boat — CYD 27 ORC Ceccarelli</div>
-        <div class="metric-row">
+      <details class="card boat-info-card">
+        <summary class="card-title boat-info-summary">Boat info <span class="boat-info-sub">— CYD 27 ORC Ceccarelli</span></summary>
+        <div class="metric-row" style="margin-top:10px">
           <div class="metric"><div class="label">LOA</div><div class="val">8.25<span class="unit"> m</span></div></div>
           <div class="metric"><div class="label">Displacement</div><div class="val">1,780<span class="unit"> kg</span></div></div>
         </div>
@@ -398,7 +405,7 @@ canvas{display:block}
           <div class="metric"><div class="label">Spinnaker</div><div class="val">47.18<span class="unit"> m²</span></div></div>
           <div class="metric"><div class="label">YS / GPH</div><div class="val">94<span class="unit"> / 660</span></div></div>
         </div>
-      </div>
+      </details>
       <div class="card">
         <div class="card-title">Quick VMG calculator</div>
         <div class="slider-wrap">
