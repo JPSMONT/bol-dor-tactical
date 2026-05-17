@@ -322,6 +322,12 @@ canvas{display:block}
 .sim-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:var(--tx2)}
 .sim-row label{min-width:68px;font-weight:600}
 .sim-row select{flex:1;background:var(--bg3);color:var(--tx);border:1px solid var(--bg3);padding:7px 8px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer}
+.perf-tri{display:flex;flex:1;align-items:stretch;gap:4px;flex-wrap:nowrap}
+.perf-band{flex:1;min-width:0;background:var(--bg3);border:1px solid var(--bg3);border-radius:6px;padding:5px 6px;display:flex;flex-direction:column;justify-content:center}
+.perf-band span{font-size:9px;color:var(--tx3);letter-spacing:.2px;line-height:1.1;text-transform:uppercase;font-weight:600}
+.perf-band input{margin-top:2px;background:transparent;color:var(--tx);border:none;outline:none;font-size:13px;font-weight:700;width:100%;padding:0;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+.perf-band input::-webkit-outer-spin-button,.perf-band input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.perf-reset{flex:0 0 auto;padding:0 8px;align-self:stretch;font-size:14px}
 .sim-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px;font-variant-numeric:tabular-nums}
 .sim-stats .ss-cell{background:var(--bg2);padding:8px 6px;border-radius:6px;text-align:center}
 .sim-stats .ss-k{font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px}
@@ -558,9 +564,13 @@ canvas{display:block}
           </select>
         </div>
         <div class="sim-row">
-          <label>Performance</label>
-          <input type="range" id="simPerf" min="75" max="100" value="90" step="1" oninput="document.getElementById('simPerfVal').textContent=this.value+'%'" style="flex:1;accent-color:var(--acc)">
-          <span id="simPerfVal" style="min-width:40px;text-align:right;font-weight:700;color:var(--acc);font-variant-numeric:tabular-nums">90%</span>
+          <label>Performance %</label>
+          <div class="perf-tri">
+            <div class="perf-band"><span>Beat &lt;60°</span><input type="number" id="perfBeat" min="50" max="100" step="1" oninput="onPerfInput(this, 'beat')"></div>
+            <div class="perf-band"><span>Reach 60–130°</span><input type="number" id="perfReach" min="50" max="100" step="1" oninput="onPerfInput(this, 'reach')"></div>
+            <div class="perf-band"><span>Run &gt;130°</span><input type="number" id="perfRun" min="50" max="100" step="1" oninput="onPerfInput(this, 'run')"></div>
+            <button type="button" class="refresh-btn perf-reset" onclick="resetPerfProfile()" title="Reset to 90 / 75 / 90">↺</button>
+          </div>
         </div>
         <div class="sim-row">
           <label>Scenario</label>
@@ -3808,6 +3818,66 @@ function renderAnalysisLateral(segments) {
 var simTrackLayer = null;
 var lastSimResult = null;
 
+// QA round 2 §2.1 — variable perfFactor by TWA band.
+// Beat (<60°) and Run (>130°) are around 0.90; Reach (60-130°) is structurally
+// weaker for this boat / 2-person crew per the May 2026 performance review
+// (~0.75 vs polar). Values are user-editable on the sim card and persist in
+// localStorage.
+var PERF_PROFILE_DEFAULT = {beat: 0.90, reach: 0.75, run: 0.90};
+var PERF_PROFILE_KEY = 'bol_perf_profile_v1';
+
+function loadPerfProfile() {
+  try {
+    var raw = localStorage.getItem(PERF_PROFILE_KEY);
+    if(!raw) return Object.assign({}, PERF_PROFILE_DEFAULT);
+    var p = JSON.parse(raw);
+    if(p && typeof p.beat === 'number' && typeof p.reach === 'number' && typeof p.run === 'number') {
+      // Clamp to [0.5, 1.0] just in case
+      return {
+        beat:  Math.max(0.5, Math.min(1.0, p.beat)),
+        reach: Math.max(0.5, Math.min(1.0, p.reach)),
+        run:   Math.max(0.5, Math.min(1.0, p.run))
+      };
+    }
+  } catch(e) {}
+  return Object.assign({}, PERF_PROFILE_DEFAULT);
+}
+function savePerfProfile() {
+  try { localStorage.setItem(PERF_PROFILE_KEY, JSON.stringify(perfProfile)); } catch(e) {}
+}
+var perfProfile = loadPerfProfile();
+
+// Returns the performance factor (0.5-1.0) for a given TWA band.
+function perfFactorFor(twa) {
+  var t = Math.abs(twa);
+  if(t < 60)  return perfProfile.beat;
+  if(t < 130) return perfProfile.reach;
+  return perfProfile.run;
+}
+
+// Populate the three editable boxes from perfProfile on first render
+function renderPerfProfileInputs() {
+  var b = document.getElementById('perfBeat');
+  var r = document.getElementById('perfReach');
+  var u = document.getElementById('perfRun');
+  if(b) b.value = Math.round(perfProfile.beat * 100);
+  if(r) r.value = Math.round(perfProfile.reach * 100);
+  if(u) u.value = Math.round(perfProfile.run * 100);
+}
+function onPerfInput(el, key) {
+  var v = parseInt(el.value, 10);
+  if(isNaN(v)) return;
+  v = Math.max(50, Math.min(100, v));
+  el.value = v;
+  perfProfile[key] = v / 100;
+  savePerfProfile();
+}
+function resetPerfProfile() {
+  perfProfile = Object.assign({}, PERF_PROFILE_DEFAULT);
+  savePerfProfile();
+  renderPerfProfileInputs();
+}
+
 // Spherical step: advance from pos along heading by distNM
 function movePoint(pos, headingDeg, distNM) {
   var R = 3440.065;
@@ -3896,9 +3966,11 @@ function simulateLJRoute(opts) {
   var strategy = opts.strategy || 'auto';
   var windAt = opts.windAt || windAtFromEnsemble;
   var dtMs = opts.dtMs || 60000;                                // 1-min timestep
-  // QA Fix 3a: perfFactor replaces the old hardcoded polarScale. Default 90%
-  // for a good 2-person crew; lower for night sailing / rough conditions.
-  var perfFactor = opts.perfFactor != null ? opts.perfFactor : 0.90;
+  // QA round 2 §2.1: perfFactor is now a function of TWA (reach is structurally
+  // weaker than beat/run on this boat per the May 2026 perf review). The scalar
+  // opts.perfFactor used to default 0.90 across all angles. opts.perfFactorFn
+  // can override globally for tests; otherwise we read perfFactorFor(twa).
+  var perfFn = (typeof opts.perfFactorFn === 'function') ? opts.perfFactorFn : perfFactorFor;
   var maxDurationMs = opts.maxDurationMs || 30 * 3600 * 1000;
   var arrivalNM = 0.27;
 
@@ -3956,7 +4028,8 @@ function simulateLJRoute(opts) {
       }
     }
 
-    var effBtv = btv * perfFactor;
+    // QA round 2 §2.1: variable perfFactor by TWA band (beat/reach/run)
+    var effBtv = btv * perfFn(twa);
 
     // QA Fix 3c: distinguish tacks (TWA<90) from gybes (TWA≥90) when TWA sign flips
     var newSign = Math.sign(twaSigned);
@@ -4041,7 +4114,7 @@ function simulateLJRoute(opts) {
       tacks: tackCount,
       gybes: gybeCount,
       sailChanges: sailChangeCount,
-      perfFactor: perfFactor,
+      perfProfile: Object.assign({}, perfProfile),
       reachedFinish: wpIdx >= waypoints.length,
       strategy: strategy
     }
@@ -4082,8 +4155,8 @@ function pruneByAngularSector(points, goal, sectors, strategy) {
 function isochroneLeg(startPos, startT, goal, windAt, opts) {
   opts = opts || {};
   var dtMs = opts.dtMs || 600000;              // 10-minute isochrones
-  // QA Fix 3a: perfFactor replaces polarScale here too
-  var polarScale = opts.perfFactor != null ? opts.perfFactor : (opts.polarScale || 0.90);
+  // QA round 2 §2.1: variable perfFactor by TWA. Override-fn for tests.
+  var perfFn = (typeof opts.perfFactorFn === 'function') ? opts.perfFactorFn : perfFactorFor;
   var maxSteps = opts.maxSteps || 200;
   var arrivalNM = opts.arrivalNM || 0.27;
   var sectors = opts.sectors || 36;
@@ -4112,10 +4185,11 @@ function isochroneLeg(startPos, startT, goal, windAt, opts) {
         if(twa < 30) continue;                  // skip in-irons
         var pol = interpPolar(wind.tws, twa);
         if(!pol.btv || pol.btv < 0.4) continue;
-        var distNM = pol.btv * polarScale * dtMs / 3600000;
+        var pf = perfFn(twa);
+        var distNM = pol.btv * pf * dtMs / 3600000;
         var newPos = movePoint(p, hdg, distNM);
         if(!pointInLake(newPos.lat, newPos.lon)) continue;
-        newIso.push({lat:newPos.lat, lon:newPos.lon, t:p.t + dtMs, parent:p, hdg:hdg, btv:pol.btv * polarScale});
+        newIso.push({lat:newPos.lat, lon:newPos.lon, t:p.t + dtMs, parent:p, hdg:hdg, btv:pol.btv * pf});
       }
     }
     if(!newIso.length) break;
@@ -4144,14 +4218,16 @@ function isochroneRoute(opts) {
   var waypoints = opts.waypoints || [[46.391, 6.857], [46.2044, 6.1568]];
   var windAt = opts.windAt || windAtFromEnsemble;
   var strategy = opts.strategy || 'auto';
-  var perfFactor = opts.perfFactor != null ? opts.perfFactor : 0.90;
+  // perfFactor is now per-TWA (perfFactorFor); engine reads it internally.
+  // opts.perfFactorFn can override for tests.
+  var perfFn = opts.perfFactorFn;
 
   var all = [];
   var curPos = {lat: startPos[0], lon: startPos[1]};
   var curT = +startTime;
   var success = true;
   for(var w = 0; w < waypoints.length; w++) {
-    var leg = isochroneLeg(curPos, curT, waypoints[w], windAt, {strategy: strategy, perfFactor: perfFactor});
+    var leg = isochroneLeg(curPos, curT, waypoints[w], windAt, {strategy: strategy, perfFactorFn: perfFn});
     if(!leg) { success = false; break; }
     var startIdx = (w === 0) ? 0 : 1;            // skip the duplicated handoff point
     for(var j = startIdx; j < leg.length; j++) all.push(leg[j]);
@@ -4207,7 +4283,7 @@ function isochroneRoute(opts) {
       tacks: tackCount,
       gybes: gybeCount,
       sailChanges: sailChangeCount,
-      perfFactor: perfFactor,
+      perfProfile: Object.assign({}, perfProfile),
       reachedFinish: success,
       strategy: strategy,
       algorithm: 'isochrone'
@@ -4399,7 +4475,8 @@ function renderSimStats(result, comparisons, raceCode) {
   html += '<div class="ss-cell"><div class="ss-k">Duration</div><div class="ss-v gold">'+h+'h'+String(m).padStart(2,'0')+'</div></div>';
   html += '<div class="ss-cell"><div class="ss-k">Distance</div><div class="ss-v">'+s.totalDist.toFixed(1)+'<span style="font-size:10px;color:var(--tx3)"> NM</span></div></div>';
   html += '<div class="ss-cell"><div class="ss-k">Avg SOG</div><div class="ss-v">'+s.avgSOG.toFixed(1)+'<span style="font-size:10px;color:var(--tx3)"> kn</span></div></div>';
-  html += '<div class="ss-cell"><div class="ss-k">Perf factor</div><div class="ss-v">'+Math.round((s.perfFactor||0.9)*100)+'%</div></div>';
+  var pp = s.perfProfile || perfProfile;
+  html += '<div class="ss-cell"><div class="ss-k">Perf B/R/D</div><div class="ss-v" style="font-size:12px">'+Math.round(pp.beat*100)+'/'+Math.round(pp.reach*100)+'/'+Math.round(pp.run*100)+'</div></div>';
   // Row 2: tacks, gybes, sail changes, sail mix
   html += '</div><div class="sim-stats">';
   html += '<div class="ss-cell"><div class="ss-k">Tacks</div><div class="ss-v">'+(s.tacks||0)+'</div></div>';
@@ -4446,8 +4523,7 @@ function runSimulation() {
   var strategy = document.getElementById('simStrategy').value;
   var algo = (document.getElementById('simAlgo') || {}).value || 'greedy';
   var scenario = document.getElementById('simScenario').value;
-  var perfPct = parseInt((document.getElementById('simPerf') || {}).value || '90', 10);
-  var perfFactor = Math.max(0.5, Math.min(1.0, perfPct / 100));
+  // Performance now read from perfProfile (per-TWA bands) instead of a scalar slider.
   var historicalCode = /^(BOL25|BOPM24|BOM23|BOM21)$/.test(scenario) ? scenario : null;
 
   noteEl.textContent = 'Preparing simulation…';
@@ -4481,8 +4557,8 @@ function runSimulation() {
         startTime: ctx.startTime,
         waypoints: [[46.391, 6.857], [46.2044, 6.1568]],
         windAt: windAt,
-        strategy: strategy,
-        perfFactor: perfFactor
+        strategy: strategy
+        // perfFactor is now per-TWA via perfFactorFor — see perfProfile
       };
       var result = (algo === 'isochrone') ? isochroneRoute(simOpts) : simulateLJRoute(simOpts);
       lastSimResult = result;
@@ -4499,7 +4575,8 @@ function runSimulation() {
         var fin = new Date(result.points[result.points.length-1].ts);
         var ctxLabel = ctx.historical ? (RACE_LABELS[historicalCode] + ' historical wind (ERA5 25km)') : 'live forecast';
         var algoLabel = algo === 'isochrone' ? 'isochrone routing' : 'greedy VMC';
-        noteEl.textContent = 'Finish reached at ' + fin.toLocaleTimeString() + ' · ' + strategy + ' · ' + algoLabel + ' · ' + perfPct + '% perf · ' + ctxLabel;
+        var perfStr = Math.round(perfProfile.beat*100) + '/' + Math.round(perfProfile.reach*100) + '/' + Math.round(perfProfile.run*100);
+        noteEl.textContent = 'Finish reached at ' + fin.toLocaleTimeString() + ' · ' + strategy + ' · ' + algoLabel + ' · perf ' + perfStr + ' · ' + ctxLabel;
         noteEl.className = 'sim-note ok';
       } else {
         noteEl.textContent = (algo === 'isochrone'
@@ -4846,6 +4923,7 @@ _safe('renderPhase',         function(){ renderPhase(); });
 _safe('probeGpsPermission',  function(){ probeGpsPermission(); });
 _safe('renderChecklist',     function(){ renderChecklist(); });
 _safe('updateCountdown',     function(){ updateCountdown(); });
+_safe('renderPerfProfile',   function(){ renderPerfProfileInputs(); });
 setInterval(function(){ _safe('renderChecklist tick', function(){ renderChecklist(); }); }, 30000);
 setInterval(function(){ _safe('updateCountdown tick', function(){ updateCountdown(); }); }, 1000);
 
