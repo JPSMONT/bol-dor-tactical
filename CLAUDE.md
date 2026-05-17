@@ -166,7 +166,7 @@ const WAYPOINTS = [
 
 - **Repo:** https://github.com/JPSMONT/bol-dor-tactical (Private)
 - **Branch:** main
-- **Push with:** `git -c credential.helper= push -u origin main` (use JPSMONT token)
+- **Push with:** `git push origin main` (credentials come from `gh auth setup-git`; ensure `gh auth status` shows JPSMONT as the active account, switch with `gh auth switch -u JPSMONT` if needed). The older `git -c credential.helper= push -u origin main` form disables the gh helper and only works for interactive token entry, so don't use it from a non-interactive shell.
 
 ## Racing Context
 
