@@ -145,35 +145,40 @@ This document consolidates the active build list after:
 
 ## 3. Build queue with priorities
 
-### P0 — trivial bug fixes (1-2 days total, can start now)
+### P0 — trivial bug fixes — ✅ ALL COMPLETE
 
-| # | Item | Files | Effort | Notes |
-|---|---|---|---|---|
-| 1 | **Fix 7a** — radar link | `index.html` line 464 | 2 min | Replace with `https://www.meteoswiss.admin.ch/weather/precipitation/nowcasting.html` (verify current URL on MeteoSwiss site first) |
-| 2 | **Fix 7b** — "Pattern read" rename | `index.html` line 478 | 2 min | Change to "Current Wind Pattern" |
-| 3 | **Fix 11c** — sector delta units | `index.html` line 3282 | 5 min | Change `+'m</span>'` to `+' min</span>'` (verify other instances) |
-| 4 | **Fix 5a** — collapse boat-specs card | `index.html` ~line 384 | 30 min | Wrap card content in `<details>`/`<summary>` with summary text "Boat info" |
-| 5 | **Fix 5c** — countdown → race clock | `index.html` ~line 800 (`updateCountdown`) | 1-2 hr | States: pre-D-day (current behaviour) / D-0 before gun (minutes precision) / live race (T+HH:MM elapsed, green) / finished (total time) |
-| 6 | **Favicon / home-screen icon** | new `apple-touch-icon` PNG + manifest update | 30 min | Need a square icon (1024×1024). Crashed the last session because of image upload. User to provide PNG, code-side change is minimal. |
+| # | Item | Status | Commit |
+|---|---|---|---|
+| 1 | **Fix 7a** — radar link to nowcasting URL | ✅ Done | `30ad03b` |
+| 2 | **Fix 7b** — "Pattern read" → "Current Wind Pattern" | ✅ Done | `30ad03b` |
+| 3 | **Fix 11c** — sector delta `+Xm` → `+X min` | ✅ Done | `30ad03b` |
+| 4 | **Fix 5a** — collapse boat-specs into `<details>`/`<summary>` | ✅ Done | `dc965b9` |
+| 5 | **Fix 5c** — countdown card with 4 race-clock states | ✅ Done | `9663632` |
+| 6 | **Favicon / home-screen icon** — Little Johnka logo + apple-touch + favicons | ✅ Done | `899e2c5` |
 
-### P1 — high value, no YDVR-04 dependency (4-5 days, this week + next)
+### P1 — high value, no YDVR-04 dependency — 6 of 6 complete
 
-| # | Item | Files | Effort | Notes |
-|---|---|---|---|---|
-| 7 | **Variable `perfFactor(twa)`** (§2.1 above) | `index.html` `simulateLJRoute`, `isochroneRoute` | 0.5 day | Function returning 0.90/0.75/0.90 by TWA band; small UI to tune |
-| 8 | **Wind Calibration Mode** (§2.2 above) | `index.html` Strategy tab + wind read functions | 0.5 day | localStorage persistence, 60-min decay |
-| 9 | **Trim Coach panel** (§2.3 above, Live mode only — no Live Instruments mode yet) | `index.html` Strategy tab | 2 days | Four readouts, refreshing live from GPS + model wind |
-| 10 | **Self-hosted CORS proxy** (§2.5 above) | New Cloudflare Worker + `index.html` `CORS_PROXIES` array | 1 day | Cloudflare Worker code + config + deploy |
-| 11 | **Fix 7d** — pattern timeline in 48h forecast | `index.html` Wind tab | 1 day | Apply current pattern-detection logic to each hour of the forecast; highlight race window |
-| 12 | **Fix 10b** — route sim tack thrashing | `index.html` `simulateLJRoute` greedy-VMC loop | 0.5 day | Min tack interval 5 min; hysteresis requiring >5° VMG advantage; light-air hold-course mode below TWS 3 |
+| # | Item | Status | Commit |
+|---|---|---|---|
+| 7 | **Variable `perfFactor(twa)`** — 0.90 / 0.75 / 0.90 by POS, with localStorage override | ✅ Done | `e19873e` |
+| 8 | **Wind Calibration Mode** — modal form, 60-min decay, "calibrated" badge | ✅ Done | `82ed1c2` |
+| 9 | **Trim Coach panel** — four live readouts (PPR / TWA-vs-optimal / wind shift / POS transition) | ✅ Done | `e719fb9` |
+| 10 | **Self-hosted CORS proxy** — Cloudflare Worker, wired into `index.html` and `replay.html` | ✅ Done | `389636f`, `24fc402` |
+| 11 | **Fix 7d** — pattern timeline in 48 h forecast (3 zones, race-window highlight) | ✅ Done | `75e3724` |
+| 12 | **Fix 10b** — route sim tack thrashing: 5-min interval, >5° VMG hysteresis, light-air hold | ✅ Done | `f266de0` |
 
-### P2 — depends on YDVR-04 install (target: 27 May - 1 June, after yard returns)
+### P2 — depends on YDVR-04 install (target: 27 May – 1 June, after yard returns)
 
-| # | Item | Files | Effort | Notes |
-|---|---|---|---|---|
-| 13 | **Live Instruments mode** (§2.4 above) | New module in `index.html` + Strategy tab toggle | 1-2 days | WiFi NMEA reader, PGN parsers, fallback logic, badges |
-| 14 | **Trim Coach upgrade** to use live data | Existing Trim Coach (#9) | 0.5 day | Switch data source from model wind to instrument wind when Live Instruments active |
-| 15 | **True PPR using BSP** | `index.html` PPR display logic | 0.5 day | When BSP available, use it instead of SOG for performance comparison |
+| # | Item | Status | Commit |
+|---|---|---|---|
+| 13 | **Live Instruments mode** — connects to YDVR-04 WiFi, reads NMEA 2000 PGNs (129025, 129026, 127250, 130306, 128259) | 🔒 Blocked — yard installs week of 22–26 May | — |
+| 14 | **Trim Coach upgrade** — swap data source from model wind to instrument wind when active | 🔒 Blocked — depends on #13 | — |
+| 15 | **True PPR using BSP** — compute PPR vs BSP from DST800 (not GPS SOG) | 🔒 Blocked — depends on #13 | — |
+
+### Also shipped this round (not from the original Round-2 list)
+- **Service worker cache v2 → v3** — forces existing PWAs to refresh and pick up the new icons + features. `d424933`
+- **`workers/corsproxy.js` + `workers/README.md`** — Worker source code and deploy guide for the CORS proxy. Part of `389636f`.
+- **`docs/trim-coach-design.md`** — full UX/algorithm/acceptance spec for Trim Coach. Locked before Batch 4 build.
 
 ### Deferred / Skipped
 

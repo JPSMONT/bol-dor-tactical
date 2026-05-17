@@ -30,72 +30,48 @@ var P = {
 };
 ```
 
-## PRD v4.0 — Feature Scope
+## Current State (updated 17 May 2026)
 
-### Current State (Already Built)
-The PWA currently has these tabs working:
-- **Dashboard** — Wind overview with current conditions card, forecast summary
-- **Polars** — Interactive polar diagram with Little Johnka's ORC data
-- **Wind** — Multi-model forecast (AROME HD 1.3km + ICON D2 2km) via Open-Meteo
-- **Strategy** — Bank selection advisor with leg-by-leg tactical notes (NOW UPGRADED TO LEAFLET MAP)
-- **Race Sim** — Race simulation using live wind data, simulates race starting in 30 min
-- **Replay** (replay.html) — Historical 2024 race replay with wind field overlay and time slider
+The app at `https://jpsmont.github.io/bol-dor-tactical/` is feature-complete against PRD v4 scope, plus most of QA round 2. Authoritative status lives in `docs/QA-fix-round2.md`; this section is a snapshot for fast orientation.
 
-### Build Order (What to Build Next)
+### Shipped features by tab
 
-#### Phase 1: Map & Navigation Foundation
-**1. Leaflet + OpenSeaMap Map** ✅ DONE
-- Replace canvas map with Leaflet + OpenSeaMap nautical tiles
-- Full Lac Léman race course from Genève to Le Bouveret
-- All existing features as Leaflet layers
+- **Dashboard** — race countdown with 4-state transition (pre-race / race-morning / live elapsed clock / post-finish), race-day readiness checklist (5 auto-detect + 14 manual), Race Sim banner, collapsed boat-spec card (`<details>`), Quick VMG calculator, current-wind summary
+- **Polars** — ORC Speed Guide style polar diagram (AWA + TWA halves), single-TWS selector, wheel/pinch zoom + pan, dual Jib (blue) / Spinnaker (green) curves from split P_JIB / P_SYM tables, VMG-targets table, full speed table
+- **Wind** — Race-prep phase card (D-14 → race-day), 6-station MeteoSwiss live observations (GVE/CGI/PUY/VEV/AIG/EVI), Current Wind Pattern classifier (Bise/Vent/Vaudaire/Joran/Séchard/Morget-Bornan/Môlan/Calm/Mixed), wind-shift detector, 48 h forecast at 9 grid points × 4 models (AROME HD + ICON-CH1 + ICON-CH2 + ICON-D2), **pattern timeline strip** colour-coding the predicted pattern per hour across 3 zones with race-window highlight, ASLeman wind reference guide, working MeteoSwiss radar link
+- **Strategy** — GPS Navigation (enable/CSV/center/night), compass-fused heading, PPR bar, 7-waypoint route with 500 m auto-advance, IndexedDB track recording, Leaflet + OpenSeaMap map with lake polygon and 9-point wind grid arrows, **Wind Calibration Mode** (modal form, 60-min decay, "calibrated" badge), Bank selection advisor with forecast-offset slider, Route simulation (Auto/Swiss/Mid/French × Greedy-VMC/Isochrone × Now/Race-day/2025-2021 historical) with **variable `perfFactor(twa)`** 0.90/0.75/0.90 and **tack-thrashing fix** (5-min min interval, 5° VMG hysteresis), tactical notes
+- **Rivals** — SuiviRegate KMZ for 4 archive years (auto-loads BOL25), 5 primary targets colour-highlighted (Leone/Pertuiset/Monachon/Rottet/Borter), tap-to-toggle visibility, sector arrival times table with `+X min` deltas, head-to-head distance-to-Bouveret SVG chart, bank-commitment chart, tack/gybe markers on map, time scrubber with Play/Pause, race-day banner (countdown/live/past), OSCAR link, per-rival "Analyse" deep dive (PPR, manoeuvre count, point-of-sail mix, outbound vs return VMC)
+- **replay.html** — standalone Leaflet replay viewer with year selector, 10×–3600× playback, full fleet + 5 target highlights, LJ ghost (Auto VMC/Swiss/Mid/French/Isochrone), click-for-info on any boat
 
-**2. GPS + Compass Waypoint Navigation**
-- Live GPS position on Leaflet map with boat icon
-- SOG (Speed Over Ground) and COG (Course Over Ground) display
-- Bearing and distance to next waypoint
-- Compass-style heading indicator
-- Waypoints: Genève start → Yvoire → Thonon → Évian → Le Bouveret finish
-- Auto-advance to next waypoint when within proximity
-- Performance vs polar: show target speed for current TWA/TWS vs actual SOG
+### Cross-cutting infrastructure
 
-#### Phase 2: Competitor Intelligence
-**3. Rivals Tab (Competitor Tracking)**
-- New "Rivals" tab showing competitor positions and performance
-- Data source: MySuiviRegate (websocket-based, real-time during race)
-  - Race feed URL pattern: `wss://www.mysuiviregate.com/ws/race/{raceId}`
-  - Fallback: periodic HTTP polling of public race page
-- TCF3 class focus — show competitors in our rating band
-- For each rival: name, position, distance to us, relative gain/loss
-- Pre-race: show registered competitors list with their ratings
-- During race: live position dots on the Leaflet map
-- Competitor data from DeepRegatta API for historical analysis:
-  - `https://oscar.deepregatta.com/?race=BOL25` (2025 Bol d'Or data)
-  - Available races: BOL25, BOPM24, BOM23, BOM22, BOM21, BOM19, etc.
+- **PWA install** — service worker (cache v3) caches shell + Open-Meteo + MeteoSwiss responses; manifest with Little Johnka custom favicon and home-screen icons (192/512/apple-touch)
+- **Self-hosted CORS proxy** — Cloudflare Worker at `https://corsproxy-bol-dor.jpsmont.workers.dev` fronts SuiviRegate KMZ fetches with host-allowlist and 1 h edge cache; replaces public proxy fallbacks (kept as second/third entries in `CORS_PROXIES` arrays in both `index.html` and `replay.html`); source at `workers/corsproxy.js`
+- **Night-vision dark theme** by default; responsive at 600 / 900 px breakpoints
 
-**4. Weather Prep Dashboard**
-- Pre-race weather preparation workflow
-- Multi-model wind comparison: AROME HD vs ICON D2 side by side
-- Station observations overlay on map (real MeteoSwiss data)
-  - Wind speed: `https://data.geo.admin.ch/ch.meteoschweiz.messwerte-windgeschwindigkeit-kmh-10min/...json`
-  - Wind gusts: `https://data.geo.admin.ch/ch.meteoschweiz.messwerte-wind-boeenspitze-kmh-10min/...json`
-  - Format: GeoJSON, coordinates in CH1903+ (EPSG:2056), values in km/h (÷1.852 for knots)
-- Wind pattern identification (Bise, Séchard, thermal, lake breeze)
-- Decision timeline: key go/no-go checkpoints before race
-- AROME HD underestimates mid-lake and Haut-Lac wind by 5-6 kn — flag this
+### What's outstanding
 
-#### Phase 3: Replay & Simulation
-**5. Replay Enhancements**
-- Upgrade replay.html to use Leaflet map (match main app)
-- Add competitor ghost tracks from DeepRegatta historical data
-- Speed slider (0.5x to 10x)
-- Leg-by-leg performance breakdown overlay
-- Wind shift markers on timeline
+- **Trim Coach panel** (P1 Batch 4) — spec at `docs/trim-coach-design.md`, awaiting build
+- **Live Instruments mode** (P2) — depends on YDVR-04 install at the yard, week of 22–26 May 2026
+- **Trim Coach upgrade to live data + True PPR via BSP** (P2) — depend on Live Instruments mode
 
-**6. Race Simulation vs Real Rivals**
-- Extend existing Race Sim mode with competitor ghosts
-- Use DeepRegatta historical data for competitor speed models
-- Show projected positions of key rivals based on their historical performance
-- Time-to-finish estimates for us vs competitors
+See `docs/QA-fix-round2.md` for full status table with commit hashes, `docs/CHANGELOG.md` for chronological commit-level log.
+
+### Documentation conventions
+
+- **`docs/CHANGELOG.md`** — append-only commit-level log. Every functional commit MUST add one entry under today's date.
+- **`docs/QA-fix-round2.md`** — active build brief. Items are marked ✅ Done with commit hash as they ship, or ⏳ Next / 🔒 Blocked.
+- **`docs/PRD-v4.md`** — original feature scope (locked, no edits).
+- **`docs/PRD-v5-addendum.md`** — strategic direction (variable `perfFactor`, Performance Memory, sister-app, YDVR-04, data-source roadmap).
+- **`docs/performance-review-2026-05.md`** — May 2026 analysis of 8 Kwindoo races; source of the 0.75 reach `perfFactor` value.
+- **`docs/trim-coach-design.md`** — full UX/algorithm/acceptance spec for Trim Coach.
+- **`docs/analyze_all.py`** — reusable PPR analysis script. Will become the basis for the in-app Performance Memory feature (post-race).
+- **`workers/`** — Cloudflare Worker source + deploy guide for the CORS proxy.
+
+When making changes, Claude Code MUST:
+1. Update `docs/CHANGELOG.md` with one entry per commit
+2. Update `docs/QA-fix-round2.md` to mark the relevant item ✅ Done with commit hash
+3. Include both doc updates in the same commit as the code change (single commit per feature)
 
 ## API Endpoints
 
