@@ -343,6 +343,27 @@ canvas{display:block}
 .modal-unit{font-size:10px;color:var(--tx3)}
 .modal-error{font-size:11px;color:var(--err);min-height:14px;margin-bottom:6px}
 .modal-buttons{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+/* Forecast pattern timeline (QA round 2 Fix 7d) */
+.ptl-axis{display:flex;gap:1px;margin-left:68px;margin-bottom:3px;height:11px}
+.ptl-tick{flex:1;min-width:0;font-size:8px;color:var(--tx3);text-align:left;line-height:1;font-variant-numeric:tabular-nums}
+.ptl-row{display:flex;align-items:center;margin-bottom:2px}
+.ptl-zone{flex:0 0 64px;font-size:10px;color:var(--tx2);font-weight:600;padding-right:4px}
+.ptl-cells{flex:1;display:flex;gap:1px;height:18px;position:relative}
+.ptl-cell{flex:1;min-width:0;border-radius:1px;cursor:default}
+.ptl-cell.empty{background:transparent}
+.ptl-cell.race{box-shadow:inset 0 0 0 1.5px #fff}
+.ptl-bise{background:#60a5fa}
+.ptl-vent{background:#fb923c}
+.ptl-vaudaire{background:#ef4444}
+.ptl-thermal{background:#34d399}
+.ptl-joran{background:#a78bfa}
+.ptl-sechard{background:#fbbf24}
+.ptl-calm{background:#5a7290}
+.ptl-mixed{background:repeating-linear-gradient(45deg,#5a7290,#5a7290 3px,#4a9eff 3px,#4a9eff 6px)}
+.ptl-legend{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:10px;font-size:9.5px;color:var(--tx2)}
+.ptl-leg{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.ptl-sw{display:inline-block;width:14px;height:9px;border-radius:1px;vertical-align:middle}
+.ptl-sw.ptl-race{background:transparent;border:1.5px solid #fff;box-sizing:border-box}
 .sim-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px;font-variant-numeric:tabular-nums}
 .sim-stats .ss-cell{background:var(--bg2);padding:8px 6px;border-radius:6px;text-align:center}
 .sim-stats .ss-k{font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px}
@@ -521,6 +542,11 @@ canvas{display:block}
           <button onclick="setZone(2)">Bouveret</button>
         </div>
         <div id="windForecast" class="loading">Fetching forecast...</div>
+      </div>
+      <div class="card" id="patternTimelineCard">
+        <div class="card-title">Pattern timeline — next 48 h</div>
+        <div id="patternTimeline" class="loading">Waiting on forecast…</div>
+        <div style="font-size:10px;color:var(--tx3);margin-top:6px;line-height:1.4">Forecast-side pattern read per zone-hour. Race-window cells (Sat 06 Jun 10:00 → Sun 07 Jun 06:00 CEST) outlined in white.</div>
       </div>
       <div class="card">
         <div class="card-title">Wind pattern guide — Lac Léman (ASLeman + PRD §11)</div>
@@ -1773,6 +1799,105 @@ function renderPhase() {
   guide.innerHTML = '<div style="font-size:11px;font-weight:700;color:var(--acc);margin-bottom:4px">' + prefix + ' · ' + st.phase.label + '</div>' + st.phase.guide;
 }
 
+// ===== Forecast pattern timeline (QA round 2 §2.7 / Fix 7d) =====
+// Per-hour pattern classification for each of the three zones (Geneva /
+// Lausanne / Bouveret) across the 48 h forecast. Uses a simplified version of
+// the live classifier — no MeteoSwiss Rhône stations available for the
+// future, so Vaudaire is inferred from the lake-mean direction + speed alone.
+var PATTERN_LABELS = {
+  bise:'Bise', vent:'Vent', vaudaire:'Vaudaire',
+  thermal:'Thermal', joran:'Joran', sechard:'Séchard',
+  calm:'Calm', mixed:'Mixed'
+};
+
+function classifyForecastPattern(meanDir, meanSpd, localHr) {
+  if(meanSpd >= 10 && meanDir >= 130 && meanDir <= 180) return 'vaudaire';
+  if(meanSpd < 3) return 'calm';
+  if(meanDir >= 20  && meanDir <= 70  && meanSpd >= 4)  return 'bise';
+  if(meanDir >= 200 && meanDir <= 250)                  return 'vent';
+  if(meanDir >= 280 && meanDir <= 340 && meanSpd >= 8)  return 'joran';
+  if(meanDir >= 280 && meanDir <= 340)                  return 'thermal';   // Fraidieu
+  if(meanDir >= 160 && meanDir <= 200 && meanSpd < 12 && localHr >= 12 && localHr <= 19) return 'thermal'; // Morget
+  if(meanDir >= 20  && meanDir <= 70  && meanSpd < 4  && localHr >= 5 && localHr <= 12)  return 'sechard';
+  return 'mixed';
+}
+
+function renderPatternTimeline() {
+  var el = document.getElementById('patternTimeline');
+  if(!el) return;
+  if(!ensembleData || !ensembleData.length) {
+    el.innerHTML = '<div class="loading">Waiting on forecast…</div>';
+    return;
+  }
+  var RACE_START_MS = new Date('2026-06-06T10:00:00+02:00').getTime();
+  var RACE_END_MS   = new Date('2026-06-07T06:00:00+02:00').getTime();
+
+  var nHours = ensembleData[0].hours.length;
+  if(nHours > 48) nHours = 48;
+  var firstHours = ensembleData[0].hours;
+
+  var html = '';
+
+  // Top axis — render a tick every 6h labelled with the date / hour
+  html += '<div class="ptl-axis">';
+  for(var i = 0; i < nHours; i++) {
+    var h = firstHours[i];
+    var hr = h.getHours();
+    var label = '';
+    if(hr % 6 === 0) {
+      label = hr === 0 ? (h.getDate() + '/' + (h.getMonth()+1)) : (hr + 'h');
+    }
+    html += '<div class="ptl-tick">' + label + '</div>';
+  }
+  html += '</div>';
+
+  ZONE_NAMES.forEach(function(zoneName){
+    var pts = getZonePoints(zoneName);
+    if(pts.length < 3) return;
+    html += '<div class="ptl-row">';
+    html += '<div class="ptl-zone">' + zoneName + '</div>';
+    html += '<div class="ptl-cells">';
+    for(var h = 0; h < nHours; h++) {
+      // Circular mean direction + mean speed across N/Mid/S at this hour
+      var sSin = 0, sCos = 0, sSum = 0, cnt = 0;
+      pts.forEach(function(pt){
+        if(pt.dir[h] != null && pt.speed[h] != null) {
+          var rad = pt.dir[h] * Math.PI / 180;
+          sSin += Math.sin(rad);
+          sCos += Math.cos(rad);
+          sSum += pt.speed[h];
+          cnt++;
+        }
+      });
+      if(cnt === 0) { html += '<div class="ptl-cell empty"></div>'; continue; }
+      var meanDir = (Math.atan2(sSin/cnt, sCos/cnt) * 180 / Math.PI + 360) % 360;
+      var meanSpd = sSum / cnt;
+      // Apply active wind calibration here too — keeps the timeline coherent
+      // with the rest of the wind reads while calibration is active.
+      var cal = calibrateWind(meanSpd, meanDir);
+      var pattern = classifyForecastPattern(cal.dir, cal.speed, pts[0].hours[h].getHours());
+      var ts = pts[0].hours[h].getTime();
+      var inRace = (ts >= RACE_START_MS && ts < RACE_END_MS) ? ' race' : '';
+      var when = pts[0].hours[h];
+      var tip = zoneName + ' · ' + when.getDate() + '/' + (when.getMonth()+1) + ' ' +
+                String(when.getHours()).padStart(2,'0') + ':00 · ' + PATTERN_LABELS[pattern] +
+                ' · ' + cal.speed.toFixed(1) + ' kn @ ' + Math.round(cal.dir) + '°';
+      html += '<div class="ptl-cell ptl-' + pattern + inRace + '" title="' + tip + '"></div>';
+    }
+    html += '</div></div>';
+  });
+
+  // Legend
+  html += '<div class="ptl-legend">';
+  ['bise','vent','vaudaire','thermal','joran','sechard','calm','mixed'].forEach(function(p){
+    html += '<span class="ptl-leg"><span class="ptl-sw ptl-'+p+'"></span>' + PATTERN_LABELS[p] + '</span>';
+  });
+  html += '<span class="ptl-leg"><span class="ptl-sw ptl-race"></span>Race window 2026</span>';
+  html += '</div>';
+
+  el.innerHTML = html;
+}
+
 // ===== Wind Calibration Mode (QA round 2 §2.2) =====
 // Crew overrides the model wind with on-water observation. The delta vs the
 // current model is applied to all wind reads for 60 min, decaying linearly to
@@ -1915,6 +2040,7 @@ function submitWindCalibration() {
   if(typeof renderDashWind  === 'function') renderDashWind();
   if(typeof renderWind      === 'function') renderWind();
   if(typeof updateLakeWind  === 'function') updateLakeWind();
+  if(typeof renderPatternTimeline === 'function') renderPatternTimeline();
 }
 
 function clearWindCalibration() {
@@ -1925,6 +2051,7 @@ function clearWindCalibration() {
   if(typeof renderDashWind  === 'function') renderDashWind();
   if(typeof renderWind      === 'function') renderWind();
   if(typeof updateLakeWind  === 'function') updateLakeWind();
+  if(typeof renderPatternTimeline === 'function') renderPatternTimeline();
 }
 
 function renderWindCalStatus() {
@@ -1965,6 +2092,7 @@ function fetchWind() {
     renderDashWind();
     updateStrategy();
     updateLakeWind();
+    renderPatternTimeline();
     if(raceSimActive) {
       var ws = document.getElementById('simWindStatus');
       if(ws) { ws.textContent = 'Wind data loaded (' + Object.keys(rawModelData).length + ' models)'; ws.style.color = '#6ee7b7'; }
