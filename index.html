@@ -447,6 +447,10 @@ canvas{display:block}
       <div class="card" id="cockpitCard">
         <div id="cockpitBody" class="loading">Cockpit initialising…</div>
       </div>
+      <div class="card" id="debriefCard" style="display:none">
+        <div class="card-title">Debrief — last race</div>
+        <div id="debriefBody"></div>
+      </div>
       <div class="card">
         <div class="card-title">Race countdown</div>
         <div class="countdown">
@@ -2433,6 +2437,7 @@ function renderCockpit(){
      '<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--tx3);vertical-align:middle;margin-right:4px"></span>needs YDVR / fleet</span>'+
      '</div>';
   body.innerHTML=h;
+  try { renderDebrief(); } catch(e) { console.error('renderDebrief:', e); }
 }
 
 // ===== RACE LOG (PRD v6 Phase 1.5) — in-race maneuver-loss + polar-% tracker =====
@@ -2554,6 +2559,62 @@ function maneuverTileHtml(){
   if(last && rs.avgLoss!=null) lastColor=(last.lossBL<=rs.avgLoss)?'var(--acc2)':'var(--warn)';
   var sub=rs?('avg '+(rs.avgLoss!=null?rs.avgLoss+' BL':'—')+' · '+rs.count+' man · polar '+(rs.avgPct!=null?rs.avgPct+'%':'—')):'';
   return '<div class="ckpt-tile"><div class="tl">Maneuver loss (race)</div><div class="tv" style="font-size:17px;color:'+lastColor+'">'+lastTxt+'</div><div class="ts">'+sub+'</div><div class="ckpt-tag model">GPS · relative</div></div>';
+}
+
+// ===== DEBRIEF (PRD v6 Phase 2 v1) — post-race summary from the app's own logs =====
+function debriefPolarBars(){
+  var s=raceWin.startMs, f=raceWin.finishMs; if(!s||!f) return '';
+  var span=f-s; if(span<=0) return '';
+  var N=Math.min(16, Math.max(4, Math.round(span/600000)));
+  var chunk=span/N, vals=[], k, i;
+  for(i=0;i<N;i++){
+    var c0=s+i*chunk, c1=s+(i+1)*chunk, sum=0, n=0;
+    for(k in perfBuckets){ var ms=(+k)*60000; if(ms>=c0 && ms<c1){ sum+=perfBuckets[k].s; n+=perfBuckets[k].n; } }
+    vals.push(n?sum/n*100:null);
+  }
+  var html='<div style="display:flex;align-items:flex-end;gap:2px;height:40px">';
+  vals.forEach(function(v){
+    if(v==null){ html+='<div style="flex:1;height:8%;background:var(--bg3);border-radius:2px"></div>'; return; }
+    var hgt=Math.max(4, Math.min(100, (v-70)/40*100));
+    var col=v>=97?'var(--acc2)':(v>=90?'var(--warn)':'var(--err)');
+    html+='<div title="'+Math.round(v)+'%" style="flex:1;height:'+hgt+'%;background:'+col+';border-radius:2px"></div>';
+  });
+  return html+'</div>';
+}
+function renderDebrief(){
+  var card=document.getElementById('debriefCard'), body=document.getElementById('debriefBody');
+  if(!card||!body) return;
+  if(!raceWin.startMs || !raceWin.finishMs){ card.style.display='none'; return; }
+  card.style.display='';
+  var rs=raceStats(), dur=raceWin.finishMs-raceWin.startMs;
+  var man=maneuverLog.filter(function(m){ return m.t>=raceWin.startMs && m.t<=raceWin.finishMs; });
+  var best=null, worst=null;
+  man.forEach(function(m){ if(!best||m.lossBL<best.lossBL)best=m; if(!worst||m.lossBL>worst.lossBL)worst=m; });
+  var h='<div class="metric-row">'+
+    '<div class="metric"><div class="label">Duration</div><div class="val">'+fmtDur(dur)+'</div></div>'+
+    '<div class="metric"><div class="label">Maneuvers</div><div class="val">'+man.length+'</div></div>'+
+    '<div class="metric"><div class="label">Avg loss</div><div class="val">'+((rs&&rs.avgLoss!=null)?rs.avgLoss:'—')+'<span class="unit"> BL</span></div></div>'+
+    '<div class="metric"><div class="label">Avg polar</div><div class="val">'+((rs&&rs.avgPct!=null)?rs.avgPct:'—')+'<span class="unit">%</span></div></div>'+
+    '</div>';
+  if(best&&worst&&man.length>1){
+    h+='<div style="font-size:11px;color:var(--tx2);margin:6px 0">Best: '+best.type+' '+best.lossBL+' BL · Worst: '+worst.type+' '+worst.lossBL+' BL</div>';
+  }
+  var bars=debriefPolarBars();
+  if(bars) h+='<div style="margin:8px 0"><div style="font-size:10px;color:var(--tx3);margin-bottom:3px">Polar % through the race (scale 70–110%)</div>'+bars+'</div>';
+  if(man.length){
+    h+='<div style="font-size:10px;color:var(--tx3);margin:8px 0 3px">Maneuvers</div>';
+    h+='<div style="max-height:180px;overflow:auto"><table style="width:100%;font-size:12px;border-collapse:collapse">';
+    h+='<tr style="color:var(--tx3);text-align:left"><th style="padding:2px 4px">#</th><th>T+</th><th>Type</th><th style="text-align:right">Loss BL</th><th style="text-align:right">TWS</th></tr>';
+    man.forEach(function(m,i){
+      var col=(rs&&rs.avgLoss!=null)?(m.lossBL<=rs.avgLoss?'var(--acc2)':'var(--warn)'):'var(--tx)';
+      h+='<tr><td style="padding:2px 4px;color:var(--tx3)">'+(i+1)+'</td><td>'+fmtDur(m.t-raceWin.startMs)+'</td><td>'+m.type+'</td><td style="text-align:right;color:'+col+'">'+m.lossBL+'</td><td style="text-align:right;color:var(--tx2)">'+m.tws+'</td></tr>';
+    });
+    h+='</table></div>';
+  } else {
+    h+='<div style="font-size:12px;color:var(--tx2)">No maneuvers logged in the race window.</div>';
+  }
+  h+='<div style="font-size:10px;color:var(--tx3);margin-top:8px">From the app\'s own GPS + maneuver log (relative/trend). Import YDVR-04 SD recordings for instrument-grade analysis (planned).</div>';
+  body.innerHTML=h;
 }
 
 // ===== STRATEGY / BANK SELECTION — 9-way =====

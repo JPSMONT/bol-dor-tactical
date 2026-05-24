@@ -15,7 +15,7 @@
 
 **The gap is the data layer, not the UI.** ~70% of the vision's intelligence (polar efficiency, maneuver cost, measured wind state, performance delta, tactical bias) cannot be made *true* until two things exist that don't today:
 
-1. **Live boat instruments** via the YDVR-04 bridge (measured TWS/TWA/AWA/BSP/heel/VMG from the Garmin ecosystem).
+1. **Live boat instruments** on the WiFi (measured TWS/TWA/AWA/BSP/heel/VMG). **Correction (24 May 2026):** the YDVR-04 is a *recorder*, not a live bridge — live data comes from a Wi-Fi gateway's WebSocket feed (read the **YDWG-02 gateway directly** via its Web Gauges, cheapest; or via **Signal K**). A browser can't use the gateway's raw TCP/UDP ports. See `PRD-v6-live-instruments-spec.md`.
 2. **Logged race/training data** — the only fuel for the ML and maneuver-cost ambitions.
 
 Everything below is sequenced so the UI we build now *upgrades gracefully* from model-wind approximations to instrument truth the moment those land. The `isLiveInstrumentsActive()` stub already exists for this switch.
@@ -36,7 +36,7 @@ Everything below is sequenced so the UI we build now *upgrades gracefully* from 
 
 | Enabler | What it unlocks | Status / blocker |
 |---|---|---|
-| **YDVR-04 live instruments (Layer 1)** | Real polar efficiency, measured wind state, maneuver detection, instrument-grade Trim Coach | **Linchpin.** Yard install pending. Reads NMEA 2000 over WiFi — PGNs 129025 (GPS), 129026 (COG/SOG), 127250 (heading), 130306 (wind TWS/TWD/AWA), 128259 (boat speed through water) |
+| **Live instruments (Layer 1)** | Real polar efficiency, measured wind state, maneuver detection, instrument-grade Trim Coach | **Linchpin.** Read a WebSocket feed — **YDWG-02 gateway-direct** (its Web Gauges, cheapest) or **Signal K** (robust); the gateway's raw TCP/UDP ports aren't browser-readable. **YDVR-04 is the Debrief source** (SD), not live. See `PRD-v6-live-instruments-spec.md` |
 | **Telemetry logging from day one** | The maneuver-cost database + all ML; Debrief mode | GPS track logging exists; extend to full telemetry once YDVR is in. Log every race *and* training session |
 | **Live competitor positions** | Tactical-risk (lane / dirty air / compression), competitor modeling | Only TracTrac/manage2sail link-out today; real feed needs integration + the regatta actually being tracked |
 
@@ -69,15 +69,15 @@ Design note: the cockpit must be glanceable in <1s — big type, high contrast, 
 **Dependencies:** none (model wind + GPS + polars).
 **Exit criteria:** glanceability + readability validated on the water at the Goldschäkel (30 May); no regression to the bulletproof offline cockpit.
 
-### Phase 1 — Live instruments (YDVR install → ~6 June Bol d'Or)
+### Phase 1 — Live instruments (Signal K / gateway — hardware decision)
 **Goal:** turn approximations into instrument truth.
 **Deliverables:** Layer-1 NMEA ingestion (the PGNs above); real polar efficiency %, measured wind state, instrument-backed Trim Coach; the cockpit tiles flip from "model" (amber) to "live" (green).
-**Dependencies:** YDVR-04 installed + bench-tested (SSID, stream).
+**Dependencies:** Signal K server (or YDWG-02 gateway) + WebSocket — see `PRD-v6-live-instruments-spec.md`. (YDVR-04 is the Debrief source, not live.)
 **Exit criteria:** instrument data stable on the water. *Assumption/risk: may not fully land before 6 June — fallback is the current model path (no regression), and the YDVR still logs to SD for post-race regardless.*
 
 ### Phase 2 — Debrief + maneuver intelligence (post-race)
 **Goal:** learn from logged data.
-**Deliverables:** Debrief mode (race replay, wind-evolution overlay, positioning review) built **offline first** (extend `docs/analyze_all.py`); maneuver detection (rate-of-turn + speed) and a maneuver-cost database by wind strength (the vision's §9 table).
+**Deliverables:** Debrief mode — **v1 shipped in-app 24 May** (post-race summary, polar-% trend, maneuver table from the app's own logs). Next: YDVR-04 SD-card import (`.DAT`→CSV) for instrument-grade data + a maneuver-cost database by wind strength (vision §9).
 **Dependencies:** logged telemetry from Phases 0–1.
 **Exit criteria:** a real per-crew maneuver-cost profile that the Race-mode Maneuver-value tile can consume.
 

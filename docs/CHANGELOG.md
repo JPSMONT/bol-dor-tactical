@@ -6,6 +6,17 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-24 — Debrief (Phase 2 v1) + live-instruments architecture spec
+
+### Added
+- **In-app Debrief card** (Dashboard, shown when a race is finished): summary (duration, maneuver count, avg loss BL, avg polar %), best/worst maneuver, a polar-% trend bar chart across the race, and a maneuver table (time-into-race / type / loss / TWS). Built from the app's own GPS + maneuver logs (relative/trend); YDVR-04 SD-card import is the planned instrument-grade enhancement. **SW cache v9 → v10.**
+- **`docs/PRD-v6-live-instruments-spec.md`** — live-instrument architecture decision after verifying the hardware: the **YDVR-04 is a recorder, not a live source**. A browser can't use a gateway's raw TCP/UDP ports, **but the YDWG-02's own Web Gauges prove a browser-readable WebSocket feed exists** — so a PWA can read the gateway directly (cheapest, no Pi) or via **Signal K** (robust). Includes the NMEA→tile mapping, hardware options, integration plan, and the YDVR-04's role (Debrief / SD import).
+
+### Changed
+- `docs/PRD-v6-ai-tactician-roadmap.md` Phase 1 corrected — YDVR-04 = Debrief source; live needs Signal K/gateway + WebSocket; Phase 2 marked v1-shipped in-app.
+
+---
+
 ## 2026-05-24 — In-race maneuver-loss tracker (PRD v6 Phase 1.5)
 
 ### Added
