@@ -6,6 +6,15 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-24 — Race cockpit (PRD v6 Phase 0)
+
+### Added
+- **Mode-aware Race cockpit on the Dashboard** — a glanceable skipper display at the top of the home page. Mode pill (Planning / Race / Debrief from race-state) + venue label; tiles for Big nav (heading / SOG / next mark + DTW / VMG-to-mark from GPS), Polar efficiency (SOG vs polar target at model wind — reuses `computePerf`), Wind state (`classifyWindPattern`), and Tactical bias (model pressure gradient across the venue zones, with a confidence read), plus honest placeholders for Maneuver value (needs maneuver log) and Tactical risk (needs live fleet). Every tile tags its data source (live / model / future). Venue-aware (Bol d'Or + Zugersee), defensive (no-GPS / no-data states), refreshes on a 2 s tick and on tab switch. Existing Dashboard cards remain below it.
+- Implements **Phase 0** of `docs/PRD-v6-ai-tactician-roadmap.md`; designed to upgrade to instrument truth when the YDVR-04 is live (polar-efficiency + wind-state tiles flip model → measured).
+- **Service worker cache v7 → v8.**
+
+---
+
 ## 2026-05-24 — Docs: AI tactician phased roadmap
 
 ### Added

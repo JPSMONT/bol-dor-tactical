@@ -101,6 +101,29 @@ canvas{display:block}
 .race-sim-banner .sim-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#2dd4a8;margin-bottom:4px}
 .race-sim-banner .sim-countdown{font-size:28px;font-weight:800;color:#fff}
 .race-sim-banner .sim-sub{font-size:11px;color:#6ee7b7;margin-top:4px}
+#cockpitCard{border:1px solid var(--bg3)}
+.ckpt-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:11px}
+.ckpt-mode{font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#06121f;background:var(--acc);border-radius:10px;padding:2px 10px}
+.ckpt-mode.race{background:var(--acc2)}
+.ckpt-mode.debrief{background:var(--tx3)}
+.ckpt-venue{color:var(--tx3)}
+.ckpt-nav{display:flex;gap:8px;justify-content:space-between;background:var(--bg3);border-radius:var(--r);padding:10px 8px;margin-bottom:8px}
+.ckpt-nav .nv{flex:1;text-align:center;min-width:0}
+.ckpt-nav .nv .l{font-size:10px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ckpt-nav .nv .v{font-size:20px;font-weight:800;color:var(--tx);line-height:1.2}
+.ckpt-hero{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.ckpt-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.ckpt-tile{background:var(--bg3);border-radius:var(--r);padding:12px}
+.ckpt-tile .tl{font-size:11px;color:var(--tx3);margin-bottom:4px}
+.ckpt-tile .tv{font-size:30px;font-weight:800;color:var(--tx);line-height:1.05}
+.ckpt-tile .ts{font-size:11px;color:var(--tx2);margin-top:5px;line-height:1.35}
+.ckpt-tag{display:inline-block;margin-top:8px;font-size:10px;border-radius:5px;padding:1px 6px;font-weight:700}
+.ckpt-tag.live{color:#04342c;background:var(--acc2)}
+.ckpt-tag.model{color:#412402;background:#EF9F27}
+.ckpt-tag.future{color:#0a1628;background:var(--tx3)}
+.ckpt-future{opacity:.55}
+.ckpt-legend{display:flex;gap:14px;margin-top:10px;font-size:10px;color:var(--tx3);flex-wrap:wrap}
+@media(max-width:520px){.ckpt-grid3{grid-template-columns:1fr}.ckpt-tile .tv{font-size:26px}}
 .sim-toggle{background:var(--acc2);color:#000;border:none;font-size:11px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;letter-spacing:0.5px}
 .sim-toggle.active{background:#ef4444;color:#fff}
 .leg-card{background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:8px;border-left:3px solid var(--acc)}
@@ -421,6 +444,9 @@ canvas{display:block}
 
     <!-- ===== DASHBOARD ===== -->
     <div class="view on" id="v0">
+      <div class="card" id="cockpitCard">
+        <div id="cockpitBody" class="loading">Cockpit initialising…</div>
+      </div>
       <div class="card">
         <div class="card-title">Race countdown</div>
         <div class="countdown">
@@ -949,6 +975,7 @@ function showTab(i) {
       if(pb) pb.innerHTML = '<div style="color:var(--err);font-size:11px">drawPolar error: '+e.message+' (see console)</div>';
     }
   }
+  if(i===0) { try { renderCockpit(); } catch(e) { console.error('renderCockpit:', e); } }
   if(i===2) { renderPhase(); if(msStationsData) renderStations(); }
   if(i===3) drawLake();
   if(i===4) showRivals();
@@ -2313,6 +2340,98 @@ function renderDashWind() {
   });
   html += '</div>';
   document.getElementById('dashWind').innerHTML = html;
+}
+
+// ===== RACE COCKPIT (PRD v6 Phase 0) — mode-aware glanceable skipper display =====
+// Reuses existing machinery (computePerf, fusedHeading, classifyWindPattern,
+// getZonePoints, haversineNM, bearingDeg, computeVMC). Every tile declares its
+// data source; tiles that need the YDVR or a live fleet are honest placeholders.
+function ckptNextMark(){
+  if(!gpsPos || typeof WAYPOINTS === 'undefined' || !WAYPOINTS.length) return null;
+  var best=null, bd=Infinity;
+  for(var i=0;i<WAYPOINTS.length;i++){
+    var w=WAYPOINTS[i];
+    var d=haversineNM(gpsPos.lat, gpsPos.lon, w.lat, w.lon);
+    if(d<bd){ bd=d; best=w; }
+  }
+  if(!best) return null;
+  var brg=bearingDeg(gpsPos.lat, gpsPos.lon, best.lat, best.lon);
+  return {wp:best, dist:bd, brg:brg, vmc:computeVMC(brg)};
+}
+function ckptBias(){
+  if(!ensembleData || typeof ZONE_NAMES === 'undefined') return null;
+  var now=new Date(), zones=[];
+  ZONE_NAMES.forEach(function(z){
+    var pts=getZonePoints(z); if(!pts.length) return;
+    var sumS=0, cnt=0, sumSpread=0;
+    pts.forEach(function(p){
+      var idx=0; for(var i=0;i<p.hours.length-1;i++){ if(p.hours[i]<=now && p.hours[i+1]>now){ idx=i; break; } }
+      var c=calibrateWind(p.speed[idx], p.dir[idx]);
+      if(c.speed!=null){ sumS+=c.speed; cnt++; }
+      if(p.spread && p.spread[idx]!=null) sumSpread+=p.spread[idx];
+    });
+    if(cnt) zones.push({zone:z, spd:sumS/cnt, spread:sumSpread/cnt});
+  });
+  if(zones.length<2) return null;
+  zones.sort(function(a,b){ return b.spd-a.spd; });
+  var gap=zones[0].spd - zones[zones.length-1].spd;
+  var avgSpread=zones.reduce(function(a,z){ return a+z.spread; },0)/zones.length;
+  var conf=Math.max(10, Math.min(95, Math.round(45 + gap*12 - avgSpread*5)));
+  return {zone:zones[0].zone, spd:zones[0].spd, gap:gap, conf:conf};
+}
+function renderCockpit(){
+  var body=document.getElementById('cockpitBody'); if(!body) return;
+  var st=(typeof raceState==='function')?raceState():'pre';
+  var modeLabel=st==='live'?'Race':(st==='past'?'Debrief':'Planning');
+  var modeCls=st==='live'?'race':(st==='past'?'debrief':'');
+  var venue=(typeof IS_ZUG!=='undefined' && IS_ZUG) ? "Goldschäkel · Zugersee" : "Bol d'Or · Lac Léman";
+  var h='<div class="ckpt-head"><span class="ckpt-mode '+modeCls+'">'+modeLabel+'</span><span class="ckpt-venue">'+venue+'</span></div>';
+
+  var fh=fusedHeading(), nm=ckptNextMark(), perf=computePerf();
+  if(gpsPos){
+    var hdg=(fh.value!=null)?Math.round(fh.value)+'°':'—';
+    var sog=(gpsPos.sog!=null)?gpsPos.sog.toFixed(1):'—';
+    var mark=nm?nm.wp.name:'—', dtw=nm?nm.dist.toFixed(2)+' NM':'—';
+    var vmc=(nm&&nm.vmc!=null)?nm.vmc.toFixed(1):'—';
+    h+='<div class="ckpt-nav">'+
+       '<div class="nv"><div class="l">heading</div><div class="v">'+hdg+'</div></div>'+
+       '<div class="nv"><div class="l">SOG</div><div class="v">'+sog+'</div></div>'+
+       '<div class="nv"><div class="l">next: '+mark+'</div><div class="v">'+dtw+'</div></div>'+
+       '<div class="nv"><div class="l">VMG to mark</div><div class="v">'+vmc+'</div></div>'+
+       '</div>';
+  } else {
+    h+='<div class="ckpt-nav" style="justify-content:center"><div style="text-align:center">'+
+       '<div style="color:var(--tx2);font-size:12px;margin-bottom:6px">GPS off — the cockpit goes live once GPS is on.</div>'+
+       '<button class="refresh-btn" onclick="startGPS()">Enable GPS</button></div></div>';
+  }
+
+  var bias=ckptBias();
+  var biasV=bias?('More pressure: '+bias.zone):'—';
+  var biasS=bias?('Δ'+bias.gap.toFixed(1)+' kn across the lake · confidence '+bias.conf+'%'):'Waiting on forecast';
+  var polar=perf?Math.round(perf.ratio*100):null;
+  var polarV=(polar!=null)?polar+'%':'—';
+  var polarColor=(polar==null)?'var(--tx)':((polar>=97&&polar<=112)?'var(--acc2)':(polar>=90?'var(--warn)':'var(--err)'));
+  var polarS=perf?(gpsPos.sog.toFixed(1)+' kn vs target '+perf.target.toFixed(1)+' kn · TWA '+Math.round(perf.twa)+'°'):(gpsPos?'Needs wind + motion':'Needs GPS');
+  h+='<div class="ckpt-hero">'+
+     '<div class="ckpt-tile"><div class="tl">Tactical bias</div><div class="tv" style="color:var(--acc);font-size:19px">'+biasV+'</div><div class="ts">'+biasS+'</div><div class="ckpt-tag model">model + stations</div></div>'+
+     '<div class="ckpt-tile"><div class="tl">Polar efficiency</div><div class="tv" style="color:'+polarColor+'">'+polarV+'</div><div class="ts">'+polarS+'</div><div class="ckpt-tag model">model wind · true % needs YDVR</div></div>'+
+     '</div>';
+
+  var wpat=(typeof classifyWindPattern==='function')?classifyWindPattern():null;
+  var windV=wpat?wpat.pattern:'—';
+  var windS=wpat?(wpat.spd.toFixed(0)+' kn '+windDirName(wpat.dir)+' ('+Math.round(wpat.dir)+'°)'):'Waiting on stations';
+  h+='<div class="ckpt-grid3">'+
+     '<div class="ckpt-tile"><div class="tl">Wind state</div><div class="tv" style="font-size:17px">'+windV+'</div><div class="ts">'+windS+'</div><div class="ckpt-tag model">model / calibrated</div></div>'+
+     '<div class="ckpt-tile ckpt-future"><div class="tl">Maneuver value</div><div class="tv" style="font-size:17px;color:var(--tx2)">Hold</div><div class="ts">tack gain vs loss</div><div class="ckpt-tag future">needs maneuver log</div></div>'+
+     '<div class="ckpt-tile ckpt-future"><div class="tl">Tactical risk · lane</div><div class="tv" style="font-size:17px;color:var(--tx2)">Clear</div><div class="ts">dirty-air / compression</div><div class="ckpt-tag future">needs live fleet</div></div>'+
+     '</div>';
+
+  h+='<div class="ckpt-legend">'+
+     '<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--acc2);vertical-align:middle;margin-right:4px"></span>live</span>'+
+     '<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#EF9F27;vertical-align:middle;margin-right:4px"></span>model-derived</span>'+
+     '<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--tx3);vertical-align:middle;margin-right:4px"></span>needs YDVR / fleet</span>'+
+     '</div>';
+  body.innerHTML=h;
 }
 
 // ===== STRATEGY / BANK SELECTION — 9-way =====
@@ -5995,10 +6114,12 @@ _safe('updateCountdown',     function(){ updateCountdown(); });
 _safe('renderPerfProfile',   function(){ renderPerfProfileInputs(); });
 _safe('renderWindCalStatus', function(){ renderWindCalStatus(); });
 _safe('initTrimCoach',       function(){ tickTrimCoach(); });
+_safe('renderCockpit',       function(){ renderCockpit(); });
 setInterval(function(){ _safe('windCal tick', function(){ renderWindCalStatus(); }); }, 30000);
 setInterval(function(){ _safe('renderChecklist tick', function(){ renderChecklist(); }); }, 30000);
 setInterval(function(){ _safe('updateCountdown tick', function(){ updateCountdown(); }); }, 1000);
 setInterval(function(){ _safe('trimCoach tick',       function(){ tickTrimCoach(); }); }, 5000);
+setInterval(function(){ _safe('cockpit tick',         function(){ renderCockpit(); }); }, 2000);
 setInterval(function(){ _safe('trimCoach twd sample', function(){ captureTwdSample(); }); }, 30000);
 
 // Auto-refresh wind every 15 minutes, MeteoSwiss every 10, phase every hour
