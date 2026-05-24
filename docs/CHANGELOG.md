@@ -6,6 +6,16 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-24 — Docs refresh + QA review
+
+### Changed
+- **CLAUDE.md current-state snapshot corrected** to match shipped reality (per `SESSION-HANDOFF-2026-05-23` §6): service-worker cache `v3 → v4`; repo visibility `Private → Public`; "What's outstanding" rewritten (Trim Coach is DONE `e719fb9`; outstanding is now Live SuiviRegate race-day polling, Live Instruments mode, Trim Coach live-data upgrade, on-water field test); snapshot date bumped to 24 May 2026.
+
+### Notes
+- QA review pass completed (no code changes): all inline JS / `sw.js` / `workers/corsproxy.js` syntax-valid, `manifest.json` valid, race countdown `2026-06-06T10:00:00+02:00` correct, and all live data endpoints (Open-Meteo, MeteoSwiss, Cloudflare CORS proxy → SuiviRegate KMZ) reachable. Open issues logged in `docs/QA-review-2026-05-24.md`.
+
+---
+
 ## 2026-05-17 — QA Round 2 build day
 
 A single afternoon's worth of work that closes most of QA round 2. P0 fully complete; P1 6 of 6 done. Waiting on YDVR-04 install (week of 22-26 May) before P2 begins.

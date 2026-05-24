@@ -30,7 +30,7 @@ var P = {
 };
 ```
 
-## Current State (updated 17 May 2026)
+## Current State (updated 24 May 2026)
 
 The app at `https://jpsmont.github.io/bol-dor-tactical/` is feature-complete against PRD v4 scope, plus most of QA round 2. Authoritative status lives in `docs/QA-fix-round2.md`; this section is a snapshot for fast orientation.
 
@@ -45,15 +45,16 @@ The app at `https://jpsmont.github.io/bol-dor-tactical/` is feature-complete aga
 
 ### Cross-cutting infrastructure
 
-- **PWA install** — service worker (cache v3) caches shell + Open-Meteo + MeteoSwiss responses; manifest with Little Johnka custom favicon and home-screen icons (192/512/apple-touch)
+- **PWA install** — service worker (cache v4) caches shell + Open-Meteo + MeteoSwiss responses; manifest with Little Johnka custom favicon and home-screen icons (192/512/apple-touch)
 - **Self-hosted CORS proxy** — Cloudflare Worker at `https://corsproxy-bol-dor.jpsmont.workers.dev` fronts SuiviRegate KMZ fetches with host-allowlist and 1 h edge cache; replaces public proxy fallbacks (kept as second/third entries in `CORS_PROXIES` arrays in both `index.html` and `replay.html`); source at `workers/corsproxy.js`
 - **Night-vision dark theme** by default; responsive at 600 / 900 px breakpoints
 
 ### What's outstanding
 
-- **Trim Coach panel** (P1 Batch 4) — spec at `docs/trim-coach-design.md`, awaiting build
-- **Live Instruments mode** (P2) — depends on YDVR-04 install at the yard, week of 22–26 May 2026
-- **Trim Coach upgrade to live data + True PPR via BSP** (P2) — depend on Live Instruments mode
+- **Live SuiviRegate race-day polling** — hourly KMZ fetch during race to show competitor positions. Parser and CORS proxy exist; needs polling loop and race-day display integration.
+- **Live Instruments mode** (P2) — depends on YDVR-04 install at the yard (scheduled week of 22–26 May 2026). Reads NMEA 2000 over WiFi.
+- **Trim Coach upgrade to live data + True PPR via BSP** (P2) — depend on Live Instruments mode. Stub hook `isLiveInstrumentsActive()` already in Trim Coach code.
+- **On-water field test** — target T5 dry run 30 May on Lac Léman.
 
 See `docs/QA-fix-round2.md` for full status table with commit hashes, `docs/CHANGELOG.md` for chronological commit-level log.
 
@@ -140,7 +141,7 @@ const WAYPOINTS = [
 
 ## GitHub Repository
 
-- **Repo:** https://github.com/JPSMONT/bol-dor-tactical (Private)
+- **Repo:** https://github.com/JPSMONT/bol-dor-tactical (Public)
 - **Branch:** main
 - **Push with:** `git push origin main` (credentials come from `gh auth setup-git`; ensure `gh auth status` shows JPSMONT as the active account, switch with `gh auth switch -u JPSMONT` if needed). The older `git -c credential.helper= push -u origin main` form disables the gh helper and only works for interactive token entry, so don't use it from a non-interactive shell.
 
