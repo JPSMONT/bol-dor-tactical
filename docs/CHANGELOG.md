@@ -6,6 +6,17 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-24 — Zugersee venue fixes (round 3): real geometry + tactical advisor
+
+### Changed
+- **Real Zugersee geometry** — lake shoreline now from OSM (rel 540344, simplified ~250 m) for the point-in-lake logic; the 9 wind-grid points are placed on the actual water and organised by the real basins **Untersee / Chiemen / Obersee** (was Geneva/Lausanne/Bouveret). Fixes markers sitting on land.
+- **Bank-selection advisor rewritten for Zugersee** — classifies Bise / Föhn / Westwind / Thermal and gives lake-specific advice (Chiemen-narrows acceleration, Rigi wind-shadow on the Obersee W shore, Föhn in the south, evening Obersee fill) instead of Swiss/French-bank Léman logic. Beat-VMG ranking uses the lake long axis (~343°) since the RC sets the marks. Bank cards show real place names.
+- **Zugersee forecast/dashboard tactical notes + map title** venue-aware ('Race course — Zugersee', Zugersee tactical notes).
+- Grounded in research: see `docs/Zugersee-wind-brief-2026-05-24.md` (windfinder climatology ~3 kt WSW; ESYS Revier; Swiss Wind Atlas).
+- **Service worker cache v6 → v7.**
+
+---
+
 ## 2026-05-24 — Zugersee venue fixes (round 2)
 
 ### Changed

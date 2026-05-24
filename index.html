@@ -594,7 +594,7 @@ canvas{display:block}
         <div class="tc-body" id="tcBody"></div>
       </div>
       <div class="card">
-        <div class="card-title">Race course — Lac Léman</div>
+        <div class="card-title" id="raceCourseTitle">Race course — Lac Léman</div>
         <div id="lakeMap"></div>
         <div style="font-size:10px;color:var(--tx3);margin-top:6px;line-height:1.4">OpenSeaMap nautical overlay · 5-waypoint route · 9-point wind grid</div>
       </div>
@@ -864,23 +864,24 @@ var ZG = {
   name:'Zugersee', eventName:'Goldschäkel Regatta', eventShort:'Goldschäkel',
   title:'Goldschäkel · Little Johnka',
   startMs:new Date('2026-05-30T10:00:00+02:00').getTime(), startProvisional:true,
-  bounds:[[47.055,8.440],[47.175,8.525]],
+  bounds:[[47.060,8.450],[47.185,8.530]],
+  courseBearing:343,
   tracTracUrl:'https://www.manage2sail.com/en-US/event/a2195470-e42f-4270-bbf7-311397ab5957',
-  // Approximate Zugersee outline (incl. the Immensee/Küssnacht arm) — coarse,
-  // used for the lake overlay + point-in-lake test; OpenSeaMap tiles show the real shore.
-  lake:[[47.172,8.486],[47.165,8.505],[47.140,8.516],[47.110,8.520],[47.085,8.515],[47.062,8.505],[47.057,8.488],[47.073,8.476],[47.090,8.470],[47.090,8.456],[47.080,8.442],[47.095,8.452],[47.115,8.464],[47.140,8.470],[47.160,8.476],[47.172,8.486]],
+  // Real Zugersee shoreline (OSM rel 540344, simplified ~250 m) — used for the
+  // point-in-lake logic; the map shows the live base-map shoreline.
+  lake:[[47.106,8.5082],[47.1036,8.5092],[47.1014,8.511],[47.0994,8.5128],[47.0975,8.5149],[47.0956,8.5167],[47.094,8.5193],[47.0917,8.5208],[47.0895,8.5233],[47.0868,8.5233],[47.0842,8.5231],[47.0817,8.5233],[47.0793,8.5246],[47.0767,8.5257],[47.074,8.5278],[47.0717,8.5281],[47.0695,8.5273],[47.0676,8.5251],[47.0652,8.5229],[47.0631,8.5212],[47.0616,8.5187],[47.0616,8.5153],[47.0633,8.513],[47.0652,8.5112],[47.0674,8.5097],[47.0687,8.5063],[47.0705,8.5036],[47.0716,8.5006],[47.0728,8.4973],[47.0745,8.4943],[47.0757,8.4915],[47.0775,8.4895],[47.0789,8.4869],[47.0805,8.484],[47.0824,8.4821],[47.0841,8.4794],[47.0858,8.4772],[47.0868,8.4731],[47.0884,8.4696],[47.0906,8.4679],[47.0926,8.4661],[47.095,8.4647],[47.0975,8.4644],[47.0988,8.4674],[47.1003,8.4701],[47.1016,8.4729],[47.1034,8.475],[47.1056,8.4759],[47.1068,8.4789],[47.1078,8.4821],[47.1089,8.485],[47.1109,8.487],[47.1131,8.4877],[47.115,8.4853],[47.1146,8.4816],[47.1144,8.4781],[47.1144,8.4747],[47.1157,8.4719],[47.1168,8.4689],[47.1188,8.4673],[47.1211,8.4648],[47.1236,8.4651],[47.126,8.4644],[47.1286,8.4642],[47.1308,8.4644],[47.1326,8.4668],[47.135,8.4683],[47.1377,8.4718],[47.1399,8.4728],[47.1406,8.4696],[47.1391,8.467],[47.1396,8.4632],[47.1404,8.4599],[47.1425,8.4583],[47.1449,8.4583],[47.1474,8.4576],[47.1495,8.4594],[47.1511,8.4618],[47.1536,8.4618],[47.1559,8.4628],[47.1574,8.4604],[47.1597,8.4608],[47.162,8.4596],[47.1644,8.4585],[47.1666,8.4574],[47.1683,8.4544],[47.1712,8.4529],[47.1743,8.4545],[47.1762,8.4571],[47.1772,8.4601],[47.1791,8.462],[47.178,8.4651],[47.179,8.4683],[47.1809,8.4703],[47.1811,8.4752],[47.1823,8.478],[47.1777,8.478],[47.1777,8.4815],[47.1775,8.4853],[47.1779,8.4887],[47.1776,8.492],[47.1769,8.4952],[47.1752,8.4975],[47.1751,8.5009],[47.1735,8.5032],[47.1722,8.5061],[47.1717,8.5095],[47.1704,8.5126],[47.1682,8.5143],[47.1659,8.5139],[47.1632,8.5129],[47.1609,8.5124],[47.1581,8.5117],[47.1562,8.5097],[47.1539,8.5108],[47.1521,8.5087],[47.1501,8.5069],[47.1477,8.5064],[47.1455,8.5054],[47.1429,8.5056],[47.1399,8.5047],[47.1372,8.506],[47.1349,8.505],[47.1328,8.5033],[47.1309,8.5012],[47.1289,8.4988],[47.1264,8.498],[47.1237,8.4948],[47.1212,8.496],[47.1186,8.4968],[47.117,8.4992],[47.1145,8.5002],[47.1124,8.5014],[47.1099,8.5025],[47.1078,8.5039],[47.1063,8.5065],[47.106,8.5082]],
   gridPoints:[
-    {name:'Zug NW',lat:47.155,lon:8.478,zone:'Zug',shore:'N'},
-    {name:'Zug Mid',lat:47.148,lon:8.492,zone:'Zug',shore:'Mid'},
-    {name:'Zug SE',lat:47.140,lon:8.505,zone:'Zug',shore:'S'},
-    {name:'Walchwil NW',lat:47.110,lon:8.482,zone:'Walchwil',shore:'N'},
-    {name:'Mid-lake',lat:47.105,lon:8.497,zone:'Walchwil',shore:'Mid'},
-    {name:'Walchwil',lat:47.100,lon:8.512,zone:'Walchwil',shore:'S'},
-    {name:'Arth NW',lat:47.078,lon:8.487,zone:'Arth',shore:'N'},
-    {name:'Arth Mid',lat:47.072,lon:8.498,zone:'Arth',shore:'Mid'},
-    {name:'Arth SE',lat:47.067,lon:8.508,zone:'Arth',shore:'S'}
+    {name:'Cham NW',lat:47.165,lon:8.472,zone:'Untersee',shore:'N'},
+    {name:'Untersee mid',lat:47.150,lon:8.487,zone:'Untersee',shore:'Mid'},
+    {name:'Zug bay NE',lat:47.150,lon:8.505,zone:'Untersee',shore:'S'},
+    {name:'Narrows N',lat:47.122,lon:8.487,zone:'Chiemen',shore:'N'},
+    {name:'Chiemen narrows',lat:47.110,lon:8.492,zone:'Chiemen',shore:'Mid'},
+    {name:'Obersee entry',lat:47.100,lon:8.500,zone:'Chiemen',shore:'S'},
+    {name:'Immensee W',lat:47.090,lon:8.487,zone:'Obersee',shore:'N'},
+    {name:'Obersee mid',lat:47.082,lon:8.502,zone:'Obersee',shore:'Mid'},
+    {name:'Arth S',lat:47.073,lon:8.512,zone:'Obersee',shore:'S'}
   ],
-  zoneNames:['Zug','Walchwil','Arth'],
+  zoneNames:['Untersee','Chiemen','Obersee'],
   stations:[
     {id:'CHZ',name:'Cham',lat:47.1883,lon:8.4646,role:'Zugersee NW shore — primary'},
     {id:'LUZ',name:'Luzern',lat:47.0352,lon:8.3000,role:'Vierwaldstättersee SW — regional'},
@@ -889,11 +890,11 @@ var ZG = {
     {id:'PIL',name:'Pilatus',lat:46.9792,lon:8.2563,role:'Gradient wind (2106 m)'}
   ],
   waypoints:[
-    {name:'Start (Immensee)',short:'IMM',lat:47.0955,lon:8.4655,note:'YCI start area — RC sets course'},
-    {name:'Mid-lake',short:'MID',lat:47.105,lon:8.497,note:'Open-lake reference'},
-    {name:'Finish (Immensee)',short:'FIN',lat:47.0955,lon:8.4655,note:'YCI finish area'}
+    {name:'Start (Immensee)',short:'IMM',lat:47.0955,lon:8.474,note:'YCI start area — RC sets course'},
+    {name:'Chiemen narrows',short:'CHM',lat:47.110,lon:8.492,note:'Lake pinch — wind acceleration'},
+    {name:'Finish (Immensee)',short:'FIN',lat:47.0955,lon:8.474,note:'YCI finish area'}
   ]
-};
+}
 ZG.finishMs = ZG.startMs + 8*3600*1000;
 ZG.endMs    = ZG.startMs + 10*3600*1000;
 // Countdown / clock labels — boldor values reproduce the original strings exactly.
@@ -2338,7 +2339,7 @@ function updateStrategy() {
     var spr = d.spread[idx];
 
     // Course Geneva to Bouveret is ~65 deg true bearing
-    var courseBearing = 65;
+    var courseBearing = IS_ZUG ? (ZG.courseBearing||343) : 65;
     var twa = Math.abs(dir - courseBearing);
     if(twa > 180) twa = 360 - twa;
 
@@ -2347,11 +2348,18 @@ function updateStrategy() {
 
     // Identify wind pattern
     var pattern = 'Variable';
-    if(dir >= 20 && dir <= 70) pattern = 'Bise (NE)';
-    else if(dir >= 200 && dir <= 250) pattern = 'Vent (SW)';
-    else if(dir >= 160 && dir <= 200) pattern = 'Morget/S thermal';
-    else if(dir >= 280 && dir <= 340) pattern = 'Joran (NW)';
-    else if(dir >= 100 && dir <= 160) pattern = 'Vaudaire (SE)';
+    if(IS_ZUG){
+      if(dir >= 20 && dir <= 80) pattern = 'Bise (NE)';
+      else if(dir >= 120 && dir <= 200 && spd >= 8) pattern = 'Föhn (S)';
+      else if(dir >= 200 && dir <= 260) pattern = 'Westwind (SW/W)';
+      else if(spd < 8) pattern = 'Thermal / light';
+    } else {
+      if(dir >= 20 && dir <= 70) pattern = 'Bise (NE)';
+      else if(dir >= 200 && dir <= 250) pattern = 'Vent (SW)';
+      else if(dir >= 160 && dir <= 200) pattern = 'Morget/S thermal';
+      else if(dir >= 280 && dir <= 340) pattern = 'Joran (NW)';
+      else if(dir >= 100 && dir <= 160) pattern = 'Vaudaire (SE)';
+    }
 
     return {
       name: d.name,
@@ -2395,7 +2403,7 @@ function updateStrategy() {
 
     html += '<div class="'+cls+'">';
     html += '<div class="bank-rank" style="color:'+(i===0?'var(--acc2)':'var(--tx3)')+'">'+rank+'</div>';
-    html += '<div class="bank-info"><div class="bank-name">'+b.zone+' '+shoreLabel+' '+pill+confHtml+'</div>';
+    html += '<div class="bank-info"><div class="bank-name">'+(IS_ZUG ? b.name : (b.zone+' '+shoreLabel))+' '+pill+confHtml+'</div>';
     html += '<div class="bank-detail">'+b.spd+'kn '+b.dirName+' ('+b.dir+'°) — '+b.pattern+'</div>';
     html += '<div class="bank-detail">TWA '+b.twa+'° | Beat VMG '+b.beatVMG.toFixed(2)+'kn</div></div>';
     html += '<div class="bank-vmg"><div class="val" style="color:'+vmgColor+'">'+Math.abs(b.vmg).toFixed(1)+'</div><div class="label">VMG kn</div></div>';
@@ -2405,6 +2413,22 @@ function updateStrategy() {
   // Add recommendation
   var best = banks[0];
   var note = '';
+  if(IS_ZUG){
+    var area = best.name;
+    if(best.spd < 5){
+      note = 'Very light air at '+area+'. Zugersee is hole-prone — sail the pressure lines, minimise tacks, and watch the Chiemen narrows where the breeze squeezes through. Evenings often fill from the Obersee (south).';
+    } else if(best.pattern.indexOf('Bise')>=0){
+      note = 'Bise (NE) runs down the long axis and accelerates through the Chiemen narrows — best pressure at '+area+' ('+best.spd+'kn). The broad Untersee (north) holds the cleanest Bise; stay in the corridor.';
+    } else if(best.pattern.indexOf('Föhn')>=0){
+      note = 'Föhn (S) hits the Obersee (south — Arth/Immensee) first and hardest: strong, gusty, shifty off the Rossberg/Rigi. Best breeze at '+area+' ('+best.spd+'kn). Reef early; the Untersee (north) is usually lighter.';
+    } else if(best.pattern.indexOf('West')>=0){
+      note = 'West/WSW (the prevailing wind). Cleanest over the open NW (Cham/Untersee); in the Obersee the Rigi shadows the west shore (Immensee side), so favour mid-lake / the east side for pressure. Best at '+area+' ('+best.spd+'kn).';
+    } else {
+      note = 'Thermal / light: follow the developing breeze (often mid-lake, building through the afternoon). Best VMG now at '+area+' ('+best.spd+'kn). The Chiemen area is "good for surprises".';
+    }
+    document.getElementById('bankCards').innerHTML = html + '<div class="strat-note" style="margin-top:12px">' + note + '</div>';
+    return;
+  }
   var shoreDesc = best.shore === 'N' ? 'Swiss (north) shore' : (best.shore === 'S' ? 'French (south) shore' : 'mid-lake');
   if(best.spd < 6){
     note = 'Light air conditions at '+best.zone+' '+shoreDesc+'. Keep the boat moving — minimise manoeuvres, sail for VMG not speed. In sub-6 kn, every tack costs. Stay patient and look for pressure lines.';
@@ -2571,7 +2595,7 @@ function initLakeMap() {
 
   // 9-point bank selection grid
   lakeGridLayer = L.layerGroup().addTo(lakeMap);
-  var pointColors = {'Geneva':'#97C459','Lausanne':'#378ADD','Bouveret':'#D85A30','Zug':'#97C459','Walchwil':'#378ADD','Arth':'#D85A30'};
+  var pointColors = {'Geneva':'#97C459','Lausanne':'#378ADD','Bouveret':'#D85A30','Untersee':'#97C459','Chiemen':'#e0b13a','Obersee':'#D85A30'};
   GRID_POINTS.forEach(function(gp){
     var col = pointColors[gp.zone] || '#fff';
     var r = gp.shore === 'Mid' ? 6 : 4;
@@ -5925,6 +5949,12 @@ function applyVenueChrome(){
     var dwt = document.getElementById('dashWindTitle');  if(dwt) dwt.textContent = 'Current wind — Zugersee';
     var zt = document.getElementById('zoneTabs');
     if(zt){ var zb = zt.querySelectorAll('button'); for(var i=0; i<zb.length && i<ZONE_NAMES.length; i++){ zb[i].textContent = ZONE_NAMES[i]; } }
+    var rct = document.getElementById('raceCourseTitle'); if(rct) rct.textContent = 'Race course — Zugersee';
+    var sn = document.getElementById('stratNotes');
+    if(sn) sn.innerHTML =
+      '<div class="strat-note" style="margin-top:0"><strong>Goldsch\u00e4kel / Zugersee:</strong> RC-set course off Immensee (NW Obersee, by the Chiemen narrows). No fixed long course \u2014 sail the marks the committee lays.</div>' +
+      '<div class="strat-note"><strong>Where the wind is:</strong> Bise (NE) runs down the long axis and accelerates through the Chiemen narrows \u2014 cleanest in the broad Untersee (north). West/WSW (prevailing) is clean over the open NW, but the Rigi shadows the Obersee west shore (Immensee side). F\u00f6hn (S) hits the Obersee hardest \u2014 strong &amp; gusty. Light days are thermal: follow the building breeze; evenings fill from the Obersee.</div>' +
+      '<div class="strat-note"><strong>Little Johnka edge:</strong> CYD 27 excels in 8\u201314 kn with VMG &gt;4 kn upwind. Zugersee averages only ~3 kn \u2014 keep the boat moving, minimise manoeuvres, hunt pressure lines.</div>';
   } catch(e){ console.error('venue labels', e); }
   var g = document.getElementById('windGuideCard');
   if(g){
