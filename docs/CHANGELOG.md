@@ -6,6 +6,13 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-24 — Docs: AI tactician phased roadmap
+
+### Added
+- **`docs/PRD-v6-ai-tactician-roadmap.md`** — phased roadmap turning the AI Tactical Navigator vision into a buildable sequence. Core points: the Dashboard becomes one mode-aware screen (Planning → Race cockpit → Debrief); the critical path is the data layer (YDVR-04 live instruments + telemetry logging), not the UI; 5-tile Race cockpit with per-tile feasibility; Phase 0 (mode-aware cockpit, model/GPS) → Phase 1 (YDVR live) → Phase 2 (Debrief + maneuver cost) → Phase 3 (tactical bias + training) → Phase 4 (voice + ML). Docs only, no code.
+
+---
+
 ## 2026-05-24 — Zugersee venue fixes (round 3): real geometry + tactical advisor
 
 ### Changed
