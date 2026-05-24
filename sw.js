@@ -1,4 +1,4 @@
-const CACHE = 'bol-tactic-v4';
+const CACHE = 'bol-tactic-v5';
 const ASSETS = [
   './index.html', './replay.html', './manifest.json',
   './icon-192.png', './icon-512.png',

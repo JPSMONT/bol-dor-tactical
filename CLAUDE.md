@@ -45,7 +45,7 @@ The app at `https://jpsmont.github.io/bol-dor-tactical/` is feature-complete aga
 
 ### Cross-cutting infrastructure
 
-- **PWA install** — service worker (cache v4) caches shell + Open-Meteo + MeteoSwiss responses; manifest with Little Johnka custom favicon and home-screen icons (192/512/apple-touch)
+- **PWA install** — service worker (cache v5) caches shell + Open-Meteo + MeteoSwiss responses; manifest with Little Johnka custom favicon and home-screen icons (192/512/apple-touch)
 - **Self-hosted CORS proxy** — Cloudflare Worker at `https://corsproxy-bol-dor.jpsmont.workers.dev` fronts SuiviRegate KMZ fetches with host-allowlist and 1 h edge cache; replaces public proxy fallbacks (kept as second/third entries in `CORS_PROXIES` arrays in both `index.html` and `replay.html`); source at `workers/corsproxy.js`
 - **Night-vision dark theme** by default; responsive at 600 / 900 px breakpoints
 
@@ -55,6 +55,14 @@ The app at `https://jpsmont.github.io/bol-dor-tactical/` is feature-complete aga
 - **Live Instruments mode** (P2) — depends on YDVR-04 install at the yard (scheduled week of 22–26 May 2026). Reads NMEA 2000 over WiFi.
 - **Trim Coach upgrade to live data + True PPR via BSP** (P2) — depend on Live Instruments mode. Stub hook `isLiveInstrumentsActive()` already in Trim Coach code.
 - **On-water field test** — target T5 dry run 30 May on Lac Léman.
+
+### Venues (multi-lake)
+
+The app supports two venues behind a flag — the Bol d'Or default is unchanged; a Zugersee profile drives the dry run.
+
+- **Activate Zugersee:** `?venue=zugersee` or the venue pill (bottom-right). Persists in `localStorage` (`venue_v1`). Default is `boldor`.
+- **Architecture:** `ACTIVE_VENUE` / `IS_ZUG` + a `ZG` config object near the top of the inline JS. Lac Léman globals (`LAKE`, `GRID_POINTS`, `ZONE_NAMES`, `ML_STATIONS`, `WAYPOINTS`, `BOL_DOR_*`, map bounds) are left intact and only conditionally overridden when `IS_ZUG`. Venue-coupled functions (`classifyWindPattern`, `updateCountdown` labels via `VLAB`, `updateRaceDayBanner`, `toggleLiveMode`) branch to Zugersee variants. `applyVenueChrome()` swaps the title, wind-pattern guide and injects the toggle.
+- **Zugersee dry run:** Goldschäkel Regatta (YC Immensee), Sat 30 May 2026 (start time provisional, SI pending). Wind obs: MeteoSwiss **Cham (CHZ)** on the NW shore (primary) + LUZ/WAE/AEG/PIL; forecast via Open-Meteo at Zugersee grid points. Live fleet tracking is **TracTrac via manage2sail** (link-out only — a small club regatta may not be tracked). Lake polygon is approximate. The Zugersee path needs an on-device smoke test.
 
 See `docs/QA-fix-round2.md` for full status table with commit hashes, `docs/CHANGELOG.md` for chronological commit-level log.
 

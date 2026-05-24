@@ -572,7 +572,7 @@ canvas{display:block}
         <div id="patternTimeline" class="loading">Waiting on forecast…</div>
         <div style="font-size:10px;color:var(--tx3);margin-top:6px;line-height:1.4">Forecast-side pattern read per zone-hour. Race-window cells (Sat 06 Jun 10:00 → Sun 07 Jun 06:00 CEST) outlined in white.</div>
       </div>
-      <div class="card">
+      <div class="card" id="windGuideCard">
         <div class="card-title">Wind pattern guide — Lac Léman (ASLeman + PRD §11)</div>
         <div style="font-size:11px;line-height:1.6;color:var(--tx2)">
           <div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:6px">Synoptic</div>
@@ -866,6 +866,60 @@ function findCrossoverTWA(ws) {
   return null;
 }
 
+// ===== VENUE PROFILES — Bol d'Or (default) + Zugersee dry-run (?venue=zugersee) =====
+// The Lac Léman globals below stay byte-identical when ACTIVE_VENUE === 'boldor'.
+// The Zugersee profile is applied ONLY as conditional overrides (guarded by
+// IS_ZUG), so the Bol d'Or race-day path is never altered.
+var ACTIVE_VENUE = (function(){
+  try {
+    var q = new URLSearchParams(location.search).get('venue');
+    if(q === 'zugersee' || q === 'boldor'){ try { localStorage.setItem('venue_v1', q); } catch(e){} return q; }
+    var s = localStorage.getItem('venue_v1');
+    return (s === 'zugersee') ? 'zugersee' : 'boldor';
+  } catch(e){ return 'boldor'; }
+})();
+var IS_ZUG = (ACTIVE_VENUE === 'zugersee');
+var ZG = {
+  name:'Zugersee', eventName:'Goldschäkel Regatta', eventShort:'Goldschäkel',
+  title:'Goldschäkel · Little Johnka',
+  startMs:new Date('2026-05-30T10:00:00+02:00').getTime(), startProvisional:true,
+  bounds:[[47.055,8.440],[47.175,8.525]],
+  tracTracUrl:'https://www.manage2sail.com/en-US/event/a2195470-e42f-4270-bbf7-311397ab5957',
+  // Approximate Zugersee outline (incl. the Immensee/Küssnacht arm) — coarse,
+  // used for the lake overlay + point-in-lake test; OpenSeaMap tiles show the real shore.
+  lake:[[47.172,8.486],[47.165,8.505],[47.140,8.516],[47.110,8.520],[47.085,8.515],[47.062,8.505],[47.057,8.488],[47.073,8.476],[47.090,8.470],[47.090,8.456],[47.080,8.442],[47.095,8.452],[47.115,8.464],[47.140,8.470],[47.160,8.476],[47.172,8.486]],
+  gridPoints:[
+    {name:'Zug NW',lat:47.155,lon:8.478,zone:'Zug',shore:'N'},
+    {name:'Zug Mid',lat:47.148,lon:8.492,zone:'Zug',shore:'Mid'},
+    {name:'Zug SE',lat:47.140,lon:8.505,zone:'Zug',shore:'S'},
+    {name:'Walchwil NW',lat:47.110,lon:8.482,zone:'Walchwil',shore:'N'},
+    {name:'Mid-lake',lat:47.105,lon:8.497,zone:'Walchwil',shore:'Mid'},
+    {name:'Walchwil',lat:47.100,lon:8.512,zone:'Walchwil',shore:'S'},
+    {name:'Arth NW',lat:47.078,lon:8.487,zone:'Arth',shore:'N'},
+    {name:'Arth Mid',lat:47.072,lon:8.498,zone:'Arth',shore:'Mid'},
+    {name:'Arth SE',lat:47.067,lon:8.508,zone:'Arth',shore:'S'}
+  ],
+  zoneNames:['Zug','Walchwil','Arth'],
+  stations:[
+    {id:'CHZ',name:'Cham',lat:47.1883,lon:8.4646,role:'Zugersee NW shore — primary'},
+    {id:'LUZ',name:'Luzern',lat:47.0352,lon:8.3000,role:'Vierwaldstättersee SW — regional'},
+    {id:'WAE',name:'Wädenswil',lat:47.2218,lon:8.6770,role:'Zürichsee N — regional'},
+    {id:'AEG',name:'Oberägeri',lat:47.1336,lon:8.6082,role:'Ägerisee E — elevated thermal'},
+    {id:'PIL',name:'Pilatus',lat:46.9792,lon:8.2563,role:'Gradient wind (2106 m)'}
+  ],
+  waypoints:[
+    {name:'Start (Immensee)',short:'IMM',lat:47.0955,lon:8.4655,note:'YCI start area — RC sets course'},
+    {name:'Mid-lake',short:'MID',lat:47.105,lon:8.497,note:'Open-lake reference'},
+    {name:'Finish (Immensee)',short:'FIN',lat:47.0955,lon:8.4655,note:'YCI finish area'}
+  ]
+};
+ZG.finishMs = ZG.startMs + 8*3600*1000;
+ZG.endMs    = ZG.startMs + 10*3600*1000;
+// Countdown / clock labels — boldor values reproduce the original strings exactly.
+var VLAB = IS_ZUG
+  ? { ev:'Goldschäkel Regatta', gun:'10:00 (provisional)', long:'May 30, 2026 · 10:00 (provisional)', range:'May 30, 2026' }
+  : { ev:'Bol d\'Or Mirabaud',       gun:'10:00 CEST',          long:'June 6, 2026 · 10:00 CEST',          range:'June 6–7, 2026' };
+
 // Lake polygon (simplified)
 var LAKE=[[46.207,6.148],[46.215,6.175],[46.240,6.194],[46.265,6.197],[46.281,6.225],[46.304,6.242],[46.352,6.281],[46.366,6.308],[46.370,6.338],[46.340,6.388],[46.360,6.413],[46.366,6.446],[46.375,6.475],[46.405,6.513],[46.396,6.553],[46.401,6.594],[46.405,6.649],[46.408,6.688],[46.408,6.727],[46.399,6.768],[46.394,6.806],[46.388,6.830],[46.386,6.836],[46.395,6.860],[46.396,6.884],[46.396,6.908],[46.394,6.919],[46.397,6.924],[46.415,6.928],[46.436,6.908],[46.451,6.855],[46.459,6.839],[46.468,6.823],[46.474,6.788],[46.486,6.729],[46.491,6.714],[46.497,6.703],[46.504,6.656],[46.511,6.613],[46.507,6.553],[46.515,6.520],[46.503,6.492],[46.491,6.478],[46.476,6.450],[46.465,6.384],[46.453,6.337],[46.433,6.310],[46.406,6.283],[46.388,6.248],[46.369,6.230],[46.345,6.214],[46.336,6.204],[46.308,6.184],[46.282,6.167],[46.263,6.166],[46.252,6.153],[46.235,6.153],[46.228,6.150],[46.210,6.151],[46.207,6.148]];
 
@@ -886,6 +940,7 @@ var GRID_POINTS = [
 ];
 
 var ZONE_NAMES = ['Geneva','Lausanne','Bouveret'];
+if(IS_ZUG){ LAKE = ZG.lake; GRID_POINTS = ZG.gridPoints; ZONE_NAMES = ZG.zoneNames; }
 // PRD §17 P1 #7 — 4-model ensemble: AROME HD 1.3km + ICON-CH1 1km + ICON-CH2 2km + ICON-D2 2km
 var MODELS = ['meteofrance_arome_france_hd','meteoswiss_icon_ch1','meteoswiss_icon_ch2','icon_d2'];
 
@@ -920,7 +975,7 @@ function showTab(i) {
 // ===== COUNTDOWN — 4-state race clock (QA round 2 Fix 5c) =====
 // Local fallback for the race-day timestamps so this function works even if
 // it ever runs before the BOL_DOR_* vars get assigned later in the script.
-var _COUNTDOWN_FALLBACK_START = new Date('2026-06-06T10:00:00+02:00').getTime();
+var _COUNTDOWN_FALLBACK_START = IS_ZUG ? ZG.startMs : new Date('2026-06-06T10:00:00+02:00').getTime();
 
 function updateCountdown() {
   var el = document.getElementById('countdownVal');
@@ -938,14 +993,14 @@ function updateCountdown() {
     var days  = Math.floor(diff / 86400000);
     var hours = Math.floor((diff % 86400000) / 3600000);
     el.textContent = days + 'd ' + hours + 'h';
-    if(subEl) subEl.textContent = 'until Bol d\'Or Mirabaud start — June 6, 2026 · 10:00 CEST';
+    if(subEl) subEl.textContent = 'until ' + VLAB.ev + ' start — ' + VLAB.long;
   } else if(diff > 0) {
     // State 2 — race morning (D-0, before the gun): hours + minutes
     var h = Math.floor(diff / 3600000);
     var m = Math.floor((diff % 3600000) / 60000);
     el.textContent = 'Starts in ' + h + 'h ' + String(m).padStart(2, '0') + 'm';
     el.style.color = 'var(--warn)';
-    if(subEl) subEl.textContent = 'Bol d\'Or Mirabaud — gun at 10:00 CEST today';
+    if(subEl) subEl.textContent = VLAB.ev + ' — gun at ' + VLAB.gun + ' today';
   } else if(now < raceFinish) {
     // State 3 — race in progress: elapsed clock T+HH:MM:SS, green
     var elapsed = now - raceStart;
@@ -954,7 +1009,7 @@ function updateCountdown() {
     var ss = Math.floor((elapsed % 60000) / 1000);
     el.textContent = 'T+' + String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0') + ':' + String(ss).padStart(2,'0');
     el.style.color = 'var(--acc2)';
-    if(subEl) subEl.textContent = 'Bol d\'Or Mirabaud — race in progress';
+    if(subEl) subEl.textContent = VLAB.ev + ' — race in progress';
   } else {
     // State 4 — past the T+24h cutover: frozen total
     var totalMs = raceFinish - raceStart;
@@ -962,7 +1017,7 @@ function updateCountdown() {
     var mm = Math.floor((totalMs % 3600000) / 60000);
     el.textContent = 'Race complete';
     el.style.color = 'var(--tx2)';
-    if(subEl) subEl.textContent = 'Total ' + hh + 'h ' + String(mm).padStart(2,'0') + 'm — June 6–7, 2026';
+    if(subEl) subEl.textContent = 'Total ' + hh + 'h ' + String(mm).padStart(2,'0') + 'm — ' + VLAB.range;
   }
 }
 // NOTE: the first updateCountdown() call + setInterval live in the bottom
@@ -1578,6 +1633,7 @@ var ML_STATIONS = [
   {id:'AIG', name:'Aigle',             lat:46.327, lon:6.924, role:'Haut-Lac SE (Vaudaire)'},
   {id:'EVI', name:'Evionnaz',          lat:46.176, lon:7.035, role:'Rhône valley (Vaudaire)'}
 ];
+if(IS_ZUG) ML_STATIONS = ZG.stations;
 var msStationsData = null;
 var msStationsTimer = null;
 var MS_SPEED_URL = 'https://data.geo.admin.ch/ch.meteoschweiz.messwerte-windgeschwindigkeit-kmh-10min/ch.meteoschweiz.messwerte-windgeschwindigkeit-kmh-10min_en.json';
@@ -1703,6 +1759,7 @@ function circularMean(dirs) {
 
 function classifyWindPattern() {
   if(!msStationsData) return null;
+  if(IS_ZUG) return classifyWindPatternZ();
   var lakeIds = ['GVE','CGI','PUY','VEV'];
   var rhoneIds = ['AIG','EVI'];
   var lake = msStationsData.filter(function(s){ return lakeIds.indexOf(s.id) !== -1 && s.dir != null && s.speed != null; });
@@ -1860,8 +1917,8 @@ function renderPatternTimeline() {
     el.innerHTML = '<div class="loading">Waiting on forecast…</div>';
     return;
   }
-  var RACE_START_MS = new Date('2026-06-06T10:00:00+02:00').getTime();
-  var RACE_END_MS   = new Date('2026-06-07T06:00:00+02:00').getTime();
+  var RACE_START_MS = IS_ZUG ? ZG.startMs : new Date('2026-06-06T10:00:00+02:00').getTime();
+  var RACE_END_MS   = IS_ZUG ? ZG.endMs   : new Date('2026-06-07T06:00:00+02:00').getTime();
 
   var nHours = ensembleData[0].hours.length;
   if(nHours > 48) nHours = 48;
@@ -1923,7 +1980,7 @@ function renderPatternTimeline() {
   ['bise','vent','vaudaire','thermal','joran','sechard','calm','mixed'].forEach(function(p){
     html += '<span class="ptl-leg"><span class="ptl-sw ptl-'+p+'"></span>' + PATTERN_LABELS[p] + '</span>';
   });
-  html += '<span class="ptl-leg"><span class="ptl-sw ptl-race"></span>Race window 2026</span>';
+  html += '<span class="ptl-leg"><span class="ptl-sw ptl-race"></span>' + (IS_ZUG ? 'Goldschäkel window' : 'Race window 2026') + '</span>';
   html += '</div>';
 
   el.innerHTML = html;
@@ -2397,6 +2454,7 @@ var WAYPOINTS = [
   {name:'Return: Lausanne',    short:'LAU↩', lat:46.5080, lon:6.6280, note:'Grand Lac return'},
   {name:'Finish (Genève)',     short:'FIN',  lat:46.2044, lon:6.1568, note:'SNG finish line'}
 ];
+if(IS_ZUG) WAYPOINTS = ZG.waypoints;
 var ARRIVAL_NM = 0.27; // ~500 m per PRD §7.3 auto-advance
 
 // ===== GREAT-CIRCLE MATH =====
@@ -2545,7 +2603,7 @@ function initLakeMap() {
   lakeBoatLayer = L.layerGroup().addTo(lakeMap);
 
   // Fit to the race corridor
-  lakeMap.fitBounds([[46.195, 6.13], [46.52, 6.95]], {padding:[6,6]});
+  lakeMap.fitBounds(IS_ZUG ? ZG.bounds : [[46.195, 6.13], [46.52, 6.95]], {padding:[6,6]});
 }
 
 function drawWaypointsOnMap() {
@@ -3188,9 +3246,9 @@ function updateOscarLink(raceCode) {
 
 // ===== Race-day banner + live mode stub =====
 // Bol d'Or Mirabaud 2026 — gun at 10:00 CEST on Saturday 6 June.
-var BOL_DOR_START  = new Date('2026-06-06T10:00:00+02:00').getTime();
-var BOL_DOR_FINISH = BOL_DOR_START + 24 * 3600 * 1000;   // T+24h cut-off for countdown state 4
-var BOL_DOR_END    = BOL_DOR_START + 36 * 3600 * 1000;   // existing live-mode window (raceState 'live')
+var BOL_DOR_START  = IS_ZUG ? ZG.startMs  : new Date('2026-06-06T10:00:00+02:00').getTime();
+var BOL_DOR_FINISH = IS_ZUG ? ZG.finishMs : (BOL_DOR_START + 24 * 3600 * 1000);   // T+24h cut-off for countdown state 4
+var BOL_DOR_END    = IS_ZUG ? ZG.endMs    : (BOL_DOR_START + 36 * 3600 * 1000);   // existing live-mode window (raceState 'live')
 var liveModePolling = false;
 var liveModeTimer = null;
 
@@ -3205,6 +3263,7 @@ function updateRaceDayBanner() {
   var b = document.getElementById('raceDayBanner');
   var btn = document.getElementById('liveBtn');
   if(!b || !btn) return;
+  if(IS_ZUG){ return updateRaceDayBannerZ(b, btn); }
   var st = raceState();
   if(st === 'pre') {
     var diff = BOL_DOR_START - Date.now();
@@ -3233,6 +3292,7 @@ function updateRaceDayBanner() {
 }
 
 function toggleLiveMode() {
+  if(IS_ZUG){ window.open(ZG.tracTracUrl, '_blank', 'noopener'); return; }
   var st = raceState();
   if(st === 'pre') {
     alert('Live mode activates automatically when the Bol d\'Or 2026 start window opens (6 June 2026, 10:00 CEST).');
@@ -3274,7 +3334,7 @@ function initRivalMap() {
   rivalManoeuvreLayer = L.layerGroup().addTo(rivalMap);
   rivalTargetMarkersLayer = L.layerGroup().addTo(rivalMap);
   rivalScrubLayer = L.layerGroup().addTo(rivalMap);  // on top — scrubber positions
-  rivalMap.fitBounds([[46.195, 6.13], [46.52, 6.95]], {padding:[6,6]});
+  rivalMap.fitBounds(IS_ZUG ? ZG.bounds : [[46.195, 6.13], [46.52, 6.95]], {padding:[6,6]});
 }
 
 // ===== Time scrubber (follow-mode for visible targets) =====
@@ -5769,6 +5829,122 @@ function fmtTime(d) {
 }
 
 // ===== INIT =====
+// ===== VENUE: Zugersee (Goldschäkel dry-run) — only active when IS_ZUG =====
+// Live wind-pattern classifier for Zugersee. Cham (CHZ) is the on-lake station.
+// Returns the same shape as classifyWindPattern() and reuses existing CSS classes.
+function classifyWindPatternZ(){
+  if(!msStationsData) return null;
+  var byId = {};
+  msStationsData.forEach(function(s){ byId[s.id] = s; });
+  var primary = byId['CHZ'];
+  var pil = byId['PIL'];
+  var alt = ['AEG','LUZ','WAE'].map(function(id){ return byId[id]; })
+            .filter(function(s){ return s && s.dir != null && s.speed != null; });
+  var lakeS = (primary && primary.dir != null && primary.speed != null) ? primary : (alt.length ? alt[0] : null);
+  if(!lakeS) return null;
+  var dir = lakeS.dir, spd = lakeS.speed;
+  var hour = new Date().getHours();
+  var foehn = (dir >= 120 && dir <= 200 && spd >= 8) ||
+              (pil && pil.dir != null && pil.speed != null && pil.dir >= 140 && pil.dir <= 200 && pil.speed >= 20 && dir >= 110 && dir <= 210);
+  var pattern, css, desc;
+  if(foehn){
+    pattern = 'Föhn (S)'; css = 'vaudaire';
+    desc = 'Strong S/SE flow from the Alps via the Reuss/Muota valleys — warm and gusty, strongest at the Arth (south) end. Builds fast; reef early.';
+  } else if(spd < 3){
+    pattern = 'Calm / transition'; css = 'calm';
+    desc = 'Very light air. Zugersee is prone to holes — watch the thermal fill, direction first. Evenings can reward a beat toward the Obersee (Chiemen).';
+  } else if(dir >= 20 && dir <= 80 && spd >= 4){
+    pattern = 'Bise (NE)'; css = 'bise';
+    desc = 'Steady NE flow over the Mittelland — the most reliable working breeze here, running down the long NE–SW axis.';
+  } else if(dir >= 200 && dir <= 260){
+    pattern = 'Westwind (SW/W)'; css = 'vent';
+    desc = 'SW/W flow, often pre-frontal. Shifty and gusty behind the western hills; mid-lake steadiest. Watch for veering as a front passes.';
+  } else if(spd < 10 && hour >= 12 && hour <= 20){
+    pattern = 'Thermal / lake breeze'; css = 'thermal';
+    desc = 'Afternoon thermal — light and patchy across the narrow lake. The Chiemen area toward the Obersee is "good for surprises", especially in the evening.';
+  } else {
+    pattern = 'Mixed / unsettled'; css = 'mixed';
+    desc = 'No single dominant pattern — recheck in 30 min. Cham (CHZ) on the NW shore is the on-lake reference.';
+  }
+  return {pattern:pattern, css:css, dir:dir, spd:spd, spread:0, desc:desc, lakeCount:(primary?1:0)+alt.length};
+}
+
+// Race-day banner for Zugersee — live fleet is on TracTrac via manage2sail (link-out).
+function updateRaceDayBannerZ(b, btn){
+  var st = raceState();
+  b.style.display = '';
+  if(st === 'pre'){
+    var diff = BOL_DOR_START - Date.now();
+    var days = Math.floor(diff / 86400000);
+    var hours = Math.floor((diff % 86400000) / 3600000);
+    b.className = 'race-day-banner pre';
+    b.innerHTML = '<b>Goldschäkel Regatta (Zugersee):</b> ' + days + 'd ' + hours + 'h until the provisional start (30 May 2026, 10:00). Live fleet tracking, if the RC enables it, is on TracTrac via manage2sail — open it with the button.';
+    btn.textContent = 'Open TracTrac ↗';
+    btn.classList.remove('on'); btn.disabled = false;
+    btn.title = 'Opens the Goldschäkel event on manage2sail / TracTrac.';
+  } else if(st === 'live'){
+    b.className = 'race-day-banner live';
+    b.innerHTML = '<b>Goldschäkel — race window open.</b> Open the live fleet on TracTrac via manage2sail (only if the RC has enabled tracking for this regatta).';
+    btn.textContent = 'Open TracTrac ↗';
+    btn.classList.remove('on'); btn.disabled = false;
+  } else {
+    b.className = 'race-day-banner past';
+    b.innerHTML = 'Goldschäkel 2026 finished. Results on manage2sail.';
+    btn.style.display = 'none';
+  }
+}
+
+// Applies venue chrome on load: a venue toggle pill (both venues) and, when in
+// Zugersee mode, the title + Zugersee wind-pattern guide + timeline note.
+function applyVenueChrome(){
+  try {
+    if(!document.getElementById('venuePill')){
+      var pill = document.createElement('div');
+      pill.id = 'venuePill';
+      pill.style.cssText = 'position:fixed;z-index:9999;right:8px;bottom:8px;display:flex;gap:4px;background:var(--bg2,#0a1628);border:1px solid var(--bg3,#1a2942);border-radius:14px;padding:3px;font-size:10px;opacity:.85';
+      var mk = function(label, val){
+        var x = document.createElement('button');
+        x.textContent = label;
+        var on = (ACTIVE_VENUE === val);
+        x.style.cssText = 'border:0;border-radius:11px;padding:3px 9px;cursor:pointer;font-weight:700;' +
+          (on ? 'background:var(--acc,#4a9eff);color:#06121f' : 'background:transparent;color:var(--tx2,#9fb3c8)');
+        x.onclick = function(){
+          try { localStorage.setItem('venue_v1', val); } catch(e){}
+          var u = new URL(location.href); u.searchParams.set('venue', val); location.href = u.toString();
+        };
+        return x;
+      };
+      pill.appendChild(mk('Bol d\'Or', 'boldor'));
+      pill.appendChild(mk('Zugersee', 'zugersee'));
+      document.body.appendChild(pill);
+    }
+  } catch(e){ console.error('venuePill', e); }
+  if(!IS_ZUG) return;
+  try { document.title = ZG.title; } catch(e){}
+  var g = document.getElementById('windGuideCard');
+  if(g){
+    g.innerHTML =
+      '<div class="card-title">Wind pattern guide — Zugersee (YCI Revier)</div>' +
+      '<div style="font-size:11px;line-height:1.6;color:var(--tx2)">' +
+        '<div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:6px">Synoptic</div>' +
+        '<div style="margin-bottom:6px"><strong style="color:var(--tx)">Bise (NE)</strong> — Cold, dry NE over the Mittelland. The most reliable working breeze; runs down the long NE–SW axis.</div>' +
+        '<div style="margin-bottom:6px"><strong style="color:var(--tx)">Föhn (S)</strong> — Warm, gusty S/SE from the Alps via the Reuss/Muota valleys. Strongest at the Arth (south) end; reef early.</div>' +
+        '<div style="margin-bottom:10px"><strong style="color:var(--tx)">Westwind (SW/W)</strong> — Pre-frontal, shifty and gusty behind the western hills. Mid-lake steadiest.</div>' +
+        '<div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:6px">Local / thermal</div>' +
+        '<div style="margin-bottom:6px"><strong style="color:var(--tx)">Lake breeze</strong> — Afternoon thermal, light and patchy across the narrow lake.</div>' +
+        '<div><strong style="color:var(--tx)">Chiemen (evening)</strong> — The Chiemen area toward the Obersee is "good for surprises"; an evening beat from Immensee can pay (per YCI).</div>' +
+        '<div style="margin-top:8px;font-size:10px;color:var(--tx3)">Stations: Cham (CHZ, on-lake) primary · Luzern / Wädenswil regional · Pilatus gradient.</div>' +
+      '</div>';
+  }
+  try {
+    var ptc = document.getElementById('patternTimelineCard');
+    if(ptc){
+      var note = ptc.querySelector('div[style*="font-size:10px"]');
+      if(note) note.textContent = 'Forecast-side pattern read per zone-hour. Goldschäkel window (Sat 30 May 2026, provisional 10:00 CEST) outlined in white.';
+    }
+  } catch(e){}
+}
+
 function _safe(label, fn){ try { fn(); } catch(e) { console.error('[init] '+label+':', e); } }
 _safe('initPolarBtns',       function(){ initPolarBtns(); });
 _safe('buildVMGTable',       function(){ buildVMGTable(); });
@@ -5778,6 +5954,7 @@ _safe('fetchWind',           function(){ fetchWind(); });
 _safe('fetchStations',       function(){ fetchStations(); });
 _safe('renderPhase',         function(){ renderPhase(); });
 _safe('probeGpsPermission',  function(){ probeGpsPermission(); });
+_safe('applyVenueChrome',    function(){ applyVenueChrome(); });
 _safe('renderChecklist',     function(){ renderChecklist(); });
 _safe('updateCountdown',     function(){ updateCountdown(); });
 _safe('renderPerfProfile',   function(){ renderPerfProfileInputs(); });

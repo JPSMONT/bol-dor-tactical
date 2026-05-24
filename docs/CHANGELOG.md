@@ -11,6 +11,12 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 ### Changed
 - **CLAUDE.md current-state snapshot corrected** to match shipped reality (per `SESSION-HANDOFF-2026-05-23` §6): service-worker cache `v3 → v4`; repo visibility `Private → Public`; "What's outstanding" rewritten (Trim Coach is DONE `e719fb9`; outstanding is now Live SuiviRegate race-day polling, Live Instruments mode, Trim Coach live-data upgrade, on-water field test); snapshot date bumped to 24 May 2026.
 
+### Added — Zugersee venue profile (Goldschäkel dry run)
+- **Venue switch** — two venues behind a flag: `boldor` (default, **unchanged**) and `zugersee`. Activate via `?venue=zugersee` or the venue pill (bottom-right); choice persists in `localStorage` (`venue_v1`). The Bol d'Or path is byte-identical when the venue is `boldor`.
+- **Zugersee profile** — map center/bounds + lake outline; 9-point forecast grid (Zug/Walchwil/Arth); MeteoSwiss stations (CHZ Cham on-lake primary + LUZ/WAE/AEG/PIL); provisional Goldschäkel course (start off Immensee); race clock (Sat 30 May 2026, provisional 10:00 CEST, +8 h finish / +10 h live window); a Zugersee live wind-pattern classifier (Bise / Föhn / Westwind / thermal / Chiemen) + wind-pattern guide; Rivals tab links out to the Goldschäkel on TracTrac / manage2sail.
+- **Service worker cache v4 → v5** — forces installed PWAs to pick up the venue feature.
+- Verified: full inline JS syntax-valid; Bol d'Or default byte-identical (data literals untouched, every venue branch reproduces the original value, countdown strings identical); Zugersee config + classifier runtime-tested. **Zugersee path still needs an on-device smoke test** (GPS on water, offline). Live TracTrac positions depend on the RC enabling tracking; SI / exact course / start time pending publication.
+
 ### Notes
 - QA review pass completed (no code changes): all inline JS / `sw.js` / `workers/corsproxy.js` syntax-valid, `manifest.json` valid, race countdown `2026-06-06T10:00:00+02:00` correct, and all live data endpoints (Open-Meteo, MeteoSwiss, Cloudflare CORS proxy → SuiviRegate KMZ) reachable. Open issues logged in `docs/QA-review-2026-05-24.md`.
 
