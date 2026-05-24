@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Tactical sailing PWA for **Little Johnka** (CYD 27 ORC, SUI 6116) racing the Bol d'Or Mirabaud on Lac Léman. The race is ~70 NM, starts 10h00 Saturday from Genève, finishes at Le Bouveret. Duration: ~18-24 hours including overnight sailing.
+Tactical sailing PWA for **Little Johnka** (CYD 27 ORC, SUI 6116) racing the Bol d'Or Mirabaud on Lac Léman. The race is a ~123 km (~66 NM) round trip: starts 10:00 Saturday from Genève, rounds Le Bouveret (Haut-Lac) and returns to finish at Genève. Duration: ~18-24 hours including overnight sailing.
 
 **Owner:** Joao Monteiro (joao@pinto.ventures)
 **Club:** OSCA (Obersee Segel Club Arth)
@@ -45,7 +45,7 @@ The app at `https://jpsmont.github.io/bol-dor-tactical/` is feature-complete aga
 
 ### Cross-cutting infrastructure
 
-- **PWA install** — service worker (cache v5) caches shell + Open-Meteo + MeteoSwiss responses; manifest with Little Johnka custom favicon and home-screen icons (192/512/apple-touch)
+- **PWA install** — service worker (cache versioned — bumped on each user-facing change; currently v10) caches shell + Open-Meteo responses (MeteoSwiss + map tiles are NOT yet precached — offline gap, see `docs/QA-review-2026-05-24.md` #1); manifest with Little Johnka custom favicon and home-screen icons (192/512/apple-touch)
 - **Self-hosted CORS proxy** — Cloudflare Worker at `https://corsproxy-bol-dor.jpsmont.workers.dev` fronts SuiviRegate KMZ fetches with host-allowlist and 1 h edge cache; replaces public proxy fallbacks (kept as second/third entries in `CORS_PROXIES` arrays in both `index.html` and `replay.html`); source at `workers/corsproxy.js`
 - **Night-vision dark theme** by default; responsive at 600 / 900 px breakpoints
 
@@ -114,12 +114,15 @@ When making changes, Claude Code MUST:
 ## Lac Léman Race Course Waypoints
 
 ```javascript
+// Bol d'Or course is a round trip (7 waypoints in index.html); Zugersee venue swaps its own.
 const WAYPOINTS = [
-  { name: "Genève (Start)", lat: 46.2044, lon: 6.1556 },
-  { name: "Yvoire", lat: 46.3710, lon: 6.3270 },
-  { name: "Thonon", lat: 46.3700, lon: 6.4800 },
-  { name: "Évian", lat: 46.4010, lon: 6.5890 },
-  { name: "Le Bouveret (Finish)", lat: 46.3910, lon: 6.8570 }
+  { name: "Start (Genève)",    lat: 46.2044, lon: 6.1568 },
+  { name: "Nyon passage",      lat: 46.3830, lon: 6.2340 },
+  { name: "Lausanne abeam",    lat: 46.5080, lon: 6.6280 },
+  { name: "Montreux approach", lat: 46.4340, lon: 6.9100 },
+  { name: "Le Bouveret mark",  lat: 46.3910, lon: 6.8570 },
+  { name: "Return: Lausanne",  lat: 46.5080, lon: 6.6280 },
+  { name: "Finish (Genève)",   lat: 46.2044, lon: 6.1568 }
 ];
 ```
 

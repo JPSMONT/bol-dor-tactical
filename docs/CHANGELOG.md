@@ -6,6 +6,17 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-24 — Docs sync to latest state
+
+### Changed
+- **README** refreshed: venues (Bol d'Or / Zugersee) + the mode-aware cockpit, maneuver-loss tracker and Debrief; countdown corrected 09:00 → 10:00; repo-file table + line counts updated; venue-aware Wind / Strategy / bank-advisor notes; dark base map.
+- **CLAUDE.md** corrected: course is a ~123 km round trip finishing at Genève (not Le Bouveret); `WAYPOINTS` snippet → the real 7-point round trip; service-worker cache note de-pinned (currently v10) and flags the offline gap.
+- **PRD-v6 roadmap**: added a build-status line (Phase 0 / 1.5 / 2 v1 shipped; Phase 1 parked).
+- **QA-fix-round2**: supersede note for post-17-May work; **QA-review-2026-05-24**: resolution status (#5/#6 fixed, #1 still open).
+- Docs only — no code change.
+
+---
+
 ## 2026-05-24 — Debrief (Phase 2 v1) + live-instruments architecture spec
 
 ### Added

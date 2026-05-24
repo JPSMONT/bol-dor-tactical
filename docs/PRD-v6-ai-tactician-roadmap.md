@@ -3,6 +3,8 @@
 **Date:** 24 May 2026 · **Owner:** Joao Monteiro (joao@pinto.ventures) · **Boat:** Little Johnka (CYD 27 ORC)
 **Status:** Direction-setting roadmap. Sequences the "AI Tactical Navigator & Performance Intelligence System" vision PRD against the current app and its real dependencies. Supersedes nothing — extends `PRD-v4.md` / `PRD-v5-addendum.md`.
 
+> **Build status (24 May 2026):** Phase 0 (Race cockpit) ✅, Phase 1.5 (in-race maneuver-loss tracker) ✅, Phase 2 v1 (in-app Debrief) ✅ — all shipped, behind the venue system. Phase 1 (live instruments) ⏸ **parked** pending hardware (`PRD-v6-live-instruments-spec.md` / `live-instruments-handoff-2026-05-24.md`). Phases 3–4 future.
+
 > Guiding sentence from the vision: **compress complexity into actionable intent.** The skipper should not interpret data — the system interprets it for the skipper.
 
 ---

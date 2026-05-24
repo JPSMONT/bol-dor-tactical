@@ -5,6 +5,8 @@
 **Window:** 20 days to race start, 13 days to T5 dry run on Lac Léman (30 May)
 **Status:** Active build brief — hand directly to Claude Code in terminal
 
+> **Note (24 May 2026):** This covers QA round 2 (work up to 17 May). Everything since — venue profiles, the AI cockpit, maneuver-loss tracker, Debrief — is tracked in `CHANGELOG.md` and `PRD-v6-*.md`.
+
 This document consolidates the active build list after:
 - The Round 1 QA audit (which identified the original 11-fix list — see `QA-fix-round1.md`)
 - An audit of `index.html` against that list (which confirmed many items already shipped)

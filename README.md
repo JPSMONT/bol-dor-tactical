@@ -2,7 +2,7 @@
 
 Tactical sailing companion for **Little Johnka** (CYD 27 ORC, SUI 6116) racing the **Bol d'Or Mirabaud** on Lac Léman, 6–7 June 2026. Single-file PWAs (no build step), designed for live use on phone and iPad during a 24-hour overnight race.
 
-This is a working app, not a prototype. Eleven commits since the initial scaffolding cover the full PRD v4.0 scope plus polish.
+This is a working app, not a prototype. It covers the full PRD v4 scope plus the v5/v6 evolution — **venue profiles** (Bol d'Or + Zugersee) and the **AI tactical cockpit** (race cockpit, maneuver-loss tracker, debrief). See `docs/PRD-v6-ai-tactician-roadmap.md`.
 
 ---
 
@@ -10,13 +10,17 @@ This is a working app, not a prototype. Eleven commits since the initial scaffol
 
 | File | Purpose |
 |---|---|
-| `index.html` | Main PWA — 5 tabs: Dashboard, Polars, Wind, Strategy, Rivals. ~3 600 lines of inline HTML/CSS/JS. |
+| `index.html` | Main PWA — 5 tabs: Dashboard, Polars, Wind, Strategy, Rivals. ~6 000 lines of inline HTML/CSS/JS. |
 | `replay.html` | Standalone race-replay viewer. Leaflet + SuiviRegate KMZ + LJ ghost simulation. ~760 lines. |
 | `sw.js` | Service worker — caches the shell + Open-Meteo responses for offline race-day use. |
 | `manifest.json` | PWA manifest (home-screen icons, theme colour). |
 | `icon-192.png` / `icon-512.png` | App icons. |
 | `CLAUDE.md` | Project instructions / build order — also acts as the "README for AI assistants". |
-| `docs/PRD-v4.md` | Full product requirements (May 2026 vision). The source of truth for feature scope. |
+| `docs/PRD-v4.md` | Full product requirements (May 2026 vision) — v4 feature scope. |
+| `docs/PRD-v5-addendum.md` | Strategic direction (variable perfFactor, YDVR roadmap, Performance Memory). |
+| `docs/PRD-v6-ai-tactician-roadmap.md` | AI tactical co-pilot roadmap (Phases 0–4) + build status. |
+| `docs/PRD-v6-live-instruments-spec.md` · `docs/live-instruments-handoff-2026-05-24.md` | Live-instrument architecture + resume note (parked pending install). |
+| `docs/Zugersee-wind-brief-2026-05-24.md` | Zugersee wind/tactical research for the dry run. |
 | `.gitignore` | macOS metadata + editor cruft. |
 | `README.md` | This file. |
 
@@ -32,14 +36,23 @@ No bundler, no Node toolchain. Open `index.html` in a modern browser; it just wo
 
 ---
 
+## Venues & the AI cockpit (latest — May 2026)
+
+The app now supports **two venues** behind a switch (default = Bol d'Or). Activate Zugersee with `?venue=zugersee` or the venue pill (bottom-right); the Bol d'Or path is unchanged.
+
+- **Bol d'Or / Lac Léman** — the original race profile.
+- **Zugersee / Goldschäkel** (dry run, 30 May 2026) — real OSM shoreline, Untersee/Chiemen/Obersee zones, Cham (CHZ) wind station, a Zugersee wind classifier + bank advisor, dark base map.
+
+The **Dashboard is a mode-aware cockpit** (Planning → Race → Debrief, see below). Roadmap: `docs/PRD-v6-ai-tactician-roadmap.md`. Live-instrument hardware decision (parked): `docs/PRD-v6-live-instruments-spec.md` + `docs/live-instruments-handoff-2026-05-24.md`.
+
 ## Tab-by-tab guide (`index.html`)
 
 ### Dashboard
-- Live countdown to **2026-06-06 09:00 CEST**.
-- **Race-day readiness checklist** (appears once we're inside D-14). Auto-detects 5 app-readiness items (service worker, wind data, station freshness, rival KMZ cache, GPS permission) and tracks 14 manual items across Tracking phone / Tactical device / Boat + crew. Manual ticks persist in `localStorage`.
-- Race-sim banner (currently a forward-looking 30-min simulation using the live forecast).
-- Boat spec card (CYD 27 ORC details).
-- Quick VMG calculator + current-wind summary.
+- **Mode-aware Race cockpit** at the top (PRD v6 Phase 0): glanceable skipper display — Planning before the gun → Race cockpit during → Debrief after. Tiles: big nav (heading / SOG / next mark / VMG), polar efficiency, wind state, tactical bias, plus an **in-race maneuver-loss tracker** (race-scoped start/finish + trim; GPS tack/gybe loss in boat-lengths; running polar %). Tiles are tagged by data source (live / model).
+- **Post-race Debrief card** (Phase 2 v1): duration, maneuver count, avg loss & polar %, best/worst maneuver, polar-% trend bars, maneuver table.
+- Live countdown to **2026-06-06 10:00 CEST** (4-state race clock).
+- **Race-day readiness checklist** (inside D-14): auto-detects 5 app-readiness items + manual Tracking-phone / Tactical-device items (boat & crew items removed — readiness is tool/device only). Persists in `localStorage`.
+- Race-sim banner, Quick VMG calculator, current-wind summary.
 
 ### Polars
 - Interactive polar diagram for all 7 ORC TWS (6, 8, 10, 12, 14, 16, 20 kn).
@@ -49,15 +62,15 @@ No bundler, no Node toolchain. Open `index.html` in a modern browser; it just wo
 ### Wind
 - **Race-prep phase card**: D-14 → race-day timeline with the current phase highlighted; per-phase tactical guidance from PRD §5.1. Direct link to MeteoSwiss radar.
 - **MeteoSwiss live stations**: GVE / CGI / PUY / VEV / AIG / EVI, fetched every 10 min from `data.geo.admin.ch`, km/h → knots, ages flagged amber if stale.
-- **Pattern read**: rule-based classifier producing one of Vaudaire / Bise / Vent / Joran / Fraidieu / Morget-Bornan / Môlan / Séchard / Calm / Mixed, with tactical commentary. Includes a **wind-shift detector** (PRD §10.1) that flags sustained shifts >10° vs the last hour.
-- **48-h wind forecast** at 9 grid points × 4 models (AROME HD 1.3 km + ICON-CH1 1 km + ICON-CH2 2 km + ICON-D2 2 km), three zones (Geneva / Lausanne / Bouveret). Inter-model spread drives a confidence pill on every row.
+- **Current Wind Pattern**: rule-based classifier (venue-aware — Lac Léman patterns, or Bise / Föhn / Westwind / thermal on Zugersee), with tactical commentary. Includes a **wind-shift detector** (PRD §10.1) that flags sustained shifts >10° vs the last hour.
+- **48-h wind forecast** at 9 grid points × 4 models (AROME HD 1.3 km + ICON-CH1 1 km + ICON-CH2 2 km + ICON-D2 2 km), three zones (Geneva / Lausanne / Bouveret on Lac Léman; Untersee / Chiemen / Obersee on Zugersee). Inter-model spread drives a confidence pill on every row.
 - Static **wind pattern guide** with all PRD §11.2 thermals (Séchard, Morget, Bornan, Fraidieu, Vauderon, Môlan).
 
 ### Strategy
 - **GPS Navigation** (PRD §7): live position, gold boat icon rotated by fused heading (GPS COG ≥ 3 kn; device compass otherwise — DeviceOrientation API with iOS permission flow). SOG / COG / Bearing / Distance / VMC tiles; compass rose distinguishing heading vs bearing-to-mark; **night-mode big-bearing** display (huge red digits on black); **PPR bar** (SOG vs polar target). 7-waypoint route per PRD §7.3, auto-advances at 500 m. IndexedDB track recording.
-- **Race-course map** (Leaflet + OpenSeaMap on black). Lake polygon, 9-point wind grid with live mid-lake arrows, 5-waypoint route.
+- **Race-course map** (Leaflet — OpenSeaMap seamarks over a dark CARTO base map). 9-point wind grid with live mid-lake arrows, 7-waypoint route.
 - **Route simulation**: synthesises a Little Johnka track from polars + a wind field. Strategy options Auto / Swiss / Mid / French. Algorithm options **Greedy VMC** (fast) and **Isochrone routing** (PRD §17 P3 — globally optimal, ~36-bucket angular pruning). Scenarios: Now (live forecast) / 2026 race day / 2025-2021 historical (KMZ rivals overlay + per-gate time-delta table). LJ ghost renders **white-with-gold-trim** so it's never confused with Pertuiset's gold rival track.
-- **Bank-selection advisor**: VMG comparison across the 9 grid points + forecast-offset slider.
+- **Bank-selection advisor**: VMG comparison across the 9 grid points + forecast-offset slider (venue-aware — Swiss/French banks on Lac Léman; narrows / Rigi-shadow / Föhn logic on Zugersee).
 - **Tactical notes** card with Bol d'Or-specific reminders.
 
 ### Rivals (PRD §4)
