@@ -2386,6 +2386,7 @@ function renderCockpit(){
   var modeCls=st==='live'?'race':(st==='past'?'debrief':'');
   var venue=(typeof IS_ZUG!=='undefined' && IS_ZUG) ? "Goldschäkel · Zugersee" : "Bol d'Or · Lac Léman";
   var h='<div class="ckpt-head"><span class="ckpt-mode '+modeCls+'">'+modeLabel+'</span><span class="ckpt-venue">'+venue+'</span></div>';
+  h+=raceControlHtml();
 
   var fh=fusedHeading(), nm=ckptNextMark(), perf=computePerf();
   if(gpsPos){
@@ -2422,7 +2423,7 @@ function renderCockpit(){
   var windS=wpat?(wpat.spd.toFixed(0)+' kn '+windDirName(wpat.dir)+' ('+Math.round(wpat.dir)+'°)'):'Waiting on stations';
   h+='<div class="ckpt-grid3">'+
      '<div class="ckpt-tile"><div class="tl">Wind state</div><div class="tv" style="font-size:17px">'+windV+'</div><div class="ts">'+windS+'</div><div class="ckpt-tag model">model / calibrated</div></div>'+
-     '<div class="ckpt-tile ckpt-future"><div class="tl">Maneuver value</div><div class="tv" style="font-size:17px;color:var(--tx2)">Hold</div><div class="ts">tack gain vs loss</div><div class="ckpt-tag future">needs maneuver log</div></div>'+
+     maneuverTileHtml()+
      '<div class="ckpt-tile ckpt-future"><div class="tl">Tactical risk · lane</div><div class="tv" style="font-size:17px;color:var(--tx2)">Clear</div><div class="ts">dirty-air / compression</div><div class="ckpt-tag future">needs live fleet</div></div>'+
      '</div>';
 
@@ -2432,6 +2433,127 @@ function renderCockpit(){
      '<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--tx3);vertical-align:middle;margin-right:4px"></span>needs YDVR / fleet</span>'+
      '</div>';
   body.innerHTML=h;
+}
+
+// ===== RACE LOG (PRD v6 Phase 1.5) — in-race maneuver-loss + polar-% tracker =====
+// GPS-based (best practice: SOG/COG is more stable than wind for tack loss; treat
+// statistically). Race-scoped: only counts between a confirmed start and finish,
+// both trimmable, so pre-start tactics and the post-finish sail-down are excluded.
+var RACEWIN_KEY='race_window_v1', MANV_KEY='maneuver_log_v1', BUCKET_KEY='perf_buckets_v1';
+var BOAT_LOA_M=8.25;
+function _load(k,f){ try{ var r=JSON.parse(localStorage.getItem(k)); return r!=null?r:f; }catch(e){ return f; } }
+var raceWin=_load(RACEWIN_KEY,{startMs:null,finishMs:null});
+var maneuverLog=_load(MANV_KEY,[]); if(!Array.isArray(maneuverLog)) maneuverLog=[];
+var perfBuckets=_load(BUCKET_KEY,{}); if(typeof perfBuckets!=='object'||!perfBuckets) perfBuckets={};
+var _manvBuf=[], _manvState={turning:false}, _trimOpen=false, _bucketCtr=0;
+function raceSave(){ try{ localStorage.setItem(RACEWIN_KEY,JSON.stringify(raceWin)); }catch(e){} }
+function manvSave(){ try{ localStorage.setItem(MANV_KEY,JSON.stringify(maneuverLog.slice(-300))); }catch(e){} }
+function bucketSave(){ try{ localStorage.setItem(BUCKET_KEY,JSON.stringify(perfBuckets)); }catch(e){} }
+function fmtDur(ms){ if(ms<0)ms=0; var s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=s%60; return (h>0?h+':':'')+String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0'); }
+function inRaceWindow(t){ return !!raceWin.startMs && t>=raceWin.startMs && (!raceWin.finishMs || t<=raceWin.finishMs); }
+function startRace(){ raceWin.startMs=Date.now(); raceWin.finishMs=null; raceSave(); try{renderCockpit();}catch(e){} }
+function finishRace(){ if(raceWin.startMs){ raceWin.finishMs=Date.now(); raceSave(); bucketSave(); try{renderCockpit();}catch(e){} } }
+function resetRace(){ raceWin={startMs:null,finishMs:null}; maneuverLog=[]; perfBuckets={}; _manvBuf=[]; _manvState={turning:false}; _trimOpen=false; raceSave(); manvSave(); bucketSave(); try{renderCockpit();}catch(e){} }
+function toggleTrim(){ _trimOpen=!_trimOpen; try{renderCockpit();}catch(e){} }
+function trimRace(key,delta){ if(raceWin[key]==null) return; raceWin[key]+=delta; if(raceWin.finishMs && raceWin.startMs && raceWin.finishMs<=raceWin.startMs) raceWin.finishMs=raceWin.startMs+60000; raceSave(); try{renderCockpit();}catch(e){} }
+function _avgVmgBefore(t){ var s=0,n=0; for(var i=0;i<_manvBuf.length;i++){ var b=_manvBuf[i]; if(b.t<=t && t-b.t<=10000){ s+=b.vmg; n++; } } return n?s/n:0; }
+function sampleRacePerf(){
+  if(!gpsPos || gpsPos.sog==null) return;
+  var t=Date.now(); if(!inRaceWindow(t)) return;
+  if(typeof computePerf!=='function') return;
+  var perf=computePerf(); if(!perf) return;
+  var fh=fusedHeading(); if(fh.value==null) return;
+  var vmg=Math.abs(gpsPos.sog*Math.cos(perf.twa*Math.PI/180));
+  var mi=Math.floor(t/60000);
+  if(!perfBuckets[mi]) perfBuckets[mi]={s:0,n:0};
+  perfBuckets[mi].s+=perf.ratio; perfBuckets[mi].n++;
+  if((++_bucketCtr)%15===0) bucketSave();
+  _manvBuf.push({t:t,sog:gpsPos.sog,cog:fh.value,vmg:vmg,target:perf.target,twa:perf.twa,tws:perf.tws,twd:perf.twd});
+  while(_manvBuf.length && t-_manvBuf[0].t>90000) _manvBuf.shift();
+  detectManeuver();
+}
+function detectManeuver(){
+  var n=_manvBuf.length; if(n<5) return;
+  var cur=_manvBuf[n-1], j, ref;
+  if(_manvState.turning){
+    var dt=(cur.t-_manvState.lastT)/1000; if(dt<0) dt=0; _manvState.lastT=cur.t;
+    if(_manvState.baseVmg>0.3){ _manvState.loss += Math.max(0,_manvState.baseVmg-cur.vmg)*0.514444*dt; }
+    ref=null; for(j=n-1;j>=0;j--){ if(cur.t-_manvBuf[j].t>=6000){ ref=_manvBuf[j]; break; } }
+    var stable=ref?Math.abs(((cur.cog-ref.cog+540)%360)-180)<18:false;
+    var recovered=_manvState.baseVmg>0.3 && cur.vmg>=0.88*_manvState.baseVmg;
+    var timeout=cur.t-_manvState.startT>45000;
+    if((stable&&recovered)||timeout){
+      var lossM=Math.round(_manvState.loss);
+      var type=(_manvState.twaBefore!=null && _manvState.twaBefore<90)?'Tack':'Gybe';
+      maneuverLog.push({t:cur.t,type:type,lossM:lossM,lossBL:+(lossM/BOAT_LOA_M).toFixed(1),tws:+((cur.tws||0)).toFixed(1),twd:Math.round(cur.twd||0)});
+      manvSave();
+      _manvState={turning:false,cooldownUntil:cur.t+15000};
+    }
+    return;
+  }
+  if(_manvState.cooldownUntil && cur.t<_manvState.cooldownUntil) return;
+  var past=null; for(j=n-1;j>=0;j--){ if(cur.t-_manvBuf[j].t>=12000){ past=_manvBuf[j]; break; } }
+  if(!past) return;
+  var dch=Math.abs(((cur.cog-past.cog+540)%360)-180);
+  if(dch>55 && cur.sog>1.5){
+    _manvState={turning:true,startT:past.t,lastT:cur.t,baseVmg:_avgVmgBefore(past.t),twaBefore:past.twa,loss:0};
+  }
+}
+function raceStats(){
+  if(!raceWin.startMs) return null;
+  var s=raceWin.startMs, f=raceWin.finishMs||Date.now(), sumR=0,nR=0,k;
+  for(k in perfBuckets){ var ms=(+k)*60000; if(ms>=s-60000 && ms<=f){ sumR+=perfBuckets[k].s; nR+=perfBuckets[k].n; } }
+  var man=maneuverLog.filter(function(m){ return m.t>=s && m.t<=f; });
+  var avgLoss=man.length?+(man.reduce(function(a,m){ return a+m.lossBL; },0)/man.length).toFixed(1):null;
+  return {avgPct:nR?Math.round(sumR/nR*100):null, count:man.length, last:man.length?man[man.length-1]:null, avgLoss:avgLoss};
+}
+function raceControlHtml(){
+  var now=Date.now();
+  var gun=(typeof BOL_DOR_START!=='undefined')?BOL_DOR_START:null;
+  var box='background:var(--bg3);border-radius:var(--r);padding:8px 10px;margin-bottom:8px;font-size:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap';
+  if(!raceWin.startMs){
+    var armed=gun && now>=gun;
+    return '<div style="'+box+'">'+
+      '<span style="color:var(--tx2)">'+(armed?'Gun window open — confirm your start:':'Race timing')+'</span>'+
+      '<button class="refresh-btn" onclick="startRace()"'+(armed?' style="background:var(--warn);color:#06121f;border-color:var(--warn);font-weight:700"':'')+'>Start race</button>'+
+      (armed?'':'<span style="color:var(--tx3);font-size:11px;margin-left:auto">auto-arms at the gun</span>')+
+      '</div>';
+  }
+  if(!raceWin.finishMs){
+    return '<div style="'+box+'">'+
+      '<span style="color:var(--acc2);font-weight:700">Racing T+'+fmtDur(now-raceWin.startMs)+'</span>'+
+      '<button class="refresh-btn" onclick="trimRace(\'startMs\',-60000)">&minus;1m start</button>'+
+      '<button class="refresh-btn" onclick="trimRace(\'startMs\',60000)">+1m</button>'+
+      '<button class="refresh-btn" onclick="finishRace()" style="margin-left:auto;background:var(--err);color:#fff;border-color:var(--err)">Finish</button>'+
+      '</div>';
+  }
+  var t='<div style="'+box+'">'+
+    '<span style="color:var(--tx2)">Race complete · '+fmtDur(raceWin.finishMs-raceWin.startMs)+'</span>'+
+    '<button class="refresh-btn" onclick="toggleTrim()">'+(_trimOpen?'Hide trim':'Trim')+'</button>'+
+    '<button class="refresh-btn" onclick="resetRace()" style="margin-left:auto">Reset</button>'+
+    '</div>';
+  if(_trimOpen){ t+='<div style="'+box+';flex-direction:column;align-items:stretch">'+_trimRow('Start','startMs')+_trimRow('Finish','finishMs')+'</div>'; }
+  return t;
+}
+function _trimRow(label,key){
+  var d=new Date(raceWin[key]), hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0');
+  return '<div style="display:flex;align-items:center;gap:6px;margin:2px 0"><span style="width:46px;color:var(--tx3)">'+label+'</span>'+
+    '<button class="refresh-btn" onclick="trimRace(\''+key+'\',-600000)">&minus;10m</button>'+
+    '<button class="refresh-btn" onclick="trimRace(\''+key+'\',-60000)">&minus;1m</button>'+
+    '<span style="font-weight:700;min-width:46px;text-align:center">'+hh+':'+mm+'</span>'+
+    '<button class="refresh-btn" onclick="trimRace(\''+key+'\',60000)">+1m</button>'+
+    '<button class="refresh-btn" onclick="trimRace(\''+key+'\',600000)">+10m</button></div>';
+}
+function maneuverTileHtml(){
+  if(!raceWin.startMs){
+    return '<div class="ckpt-tile ckpt-future"><div class="tl">Maneuver loss</div><div class="tv" style="font-size:17px;color:var(--tx2)">—</div><div class="ts">starts when you confirm the gun</div><div class="ckpt-tag future">GPS · race only</div></div>';
+  }
+  var rs=raceStats(), last=rs&&rs.last;
+  var lastTxt=last?(last.type+' −'+last.lossBL+' BL'):'no maneuver yet';
+  var lastColor='var(--tx)';
+  if(last && rs.avgLoss!=null) lastColor=(last.lossBL<=rs.avgLoss)?'var(--acc2)':'var(--warn)';
+  var sub=rs?('avg '+(rs.avgLoss!=null?rs.avgLoss+' BL':'—')+' · '+rs.count+' man · polar '+(rs.avgPct!=null?rs.avgPct+'%':'—')):'';
+  return '<div class="ckpt-tile"><div class="tl">Maneuver loss (race)</div><div class="tv" style="font-size:17px;color:'+lastColor+'">'+lastTxt+'</div><div class="ts">'+sub+'</div><div class="ckpt-tag model">GPS · relative</div></div>';
 }
 
 // ===== STRATEGY / BANK SELECTION — 9-way =====
@@ -2896,6 +3018,7 @@ function onGPSUpdate(pos) {
   autoAdvanceWaypoint();
   renderNavPanel();
   try { tickTrimCoach(); } catch(e) { console.error('[trimCoach] onGPSUpdate:', e); }
+  try { sampleRacePerf(); } catch(e) { console.error('[raceLog] onGPSUpdate:', e); }
 }
 
 function onGPSError(err) {

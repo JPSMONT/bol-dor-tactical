@@ -6,6 +6,15 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-24 — In-race maneuver-loss tracker (PRD v6 Phase 1.5)
+
+### Added
+- **Race-scoped maneuver-loss + polar-% tracker.** GPS-based (best practice: SOG/COG is more stable than wind for tack loss, and numbers are treated statistically). A race-timing control on the cockpit **auto-arms at the gun**, you confirm Start / tap Finish, and both timestamps are **trimmable** (±1m / ±10m) so pre-start tactics and the post-finish sail-down are excluded. While racing it samples each GPS fix, detects tacks/gybes (heading change + speed dip), computes **distance lost vs the pre-maneuver baseline VMG** (metres + boat-lengths), and keeps a running **race-average polar %** (per-minute buckets). The cockpit Maneuver tile shows the last maneuver coloured vs the race average, plus count, average loss, and race polar %. Every maneuver is persisted (localStorage) to seed the Phase-2 maneuver-cost database / Debrief.
+- Honest framing: a relative/trend tool until the YDVR (SOG not boat-speed-through-water, model wind) — read it averaged, not per single tack.
+- **Service worker cache v8 → v9.** Implements Phase 1.5 of `docs/PRD-v6-ai-tactician-roadmap.md`.
+
+---
+
 ## 2026-05-24 — Race cockpit (PRD v6 Phase 0)
 
 ### Added
