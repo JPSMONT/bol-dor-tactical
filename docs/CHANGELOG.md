@@ -6,6 +6,18 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-24 — Zugersee venue fixes (round 2)
+
+### Changed
+- **Venue-aware dashboard/forecast labels** — in Zugersee mode the "Current wind" card, the "Start line conditions" card, and the 48 h forecast zone tabs now read Zugersee / Immensee / Zug·Walchwil·Arth (the data was already Zugersee; only the labels were hardcoded).
+- **Zugersee forecast pattern classifier + legend** — the pattern timeline classifies and labels with Zugersee patterns (Bise / Föhn / West / Thermal / Calm); Joran/Séchard removed from the legend.
+- **Strategy & Rivals maps now have a dark base map** — CARTO dark layer under the OpenSeaMap seamark overlay, so the real shoreline shows (was marks-on-black). On Zugersee the coarse hand-drawn polygon is skipped in favour of the base map; on Bol d'Or the outline is kept as an accent.
+- **Removed the Boat info card** and the **Boat + crew readiness section** — readiness is now tool/device-only. Both venues.
+- **Service worker cache v5 → v6.**
+
+### Notes
+- CARTO base tiles aren't in the SW precache, so the map base needs network (standalone offline fix still open). Zugersee path still wants an on-device smoke test.
+
 ## 2026-05-24 — Docs refresh + QA review
 
 ### Changed

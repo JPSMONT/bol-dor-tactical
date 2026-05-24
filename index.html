@@ -443,7 +443,7 @@ canvas{display:block}
           <div id="simWindStatus" style="font-size:10px;margin-top:6px;color:#fbbf24"></div>
         </div>
         <div class="card">
-          <div class="card-title">Start line conditions — Geneva</div>
+          <div class="card-title" id="startCondTitle">Start line conditions — Geneva</div>
           <div id="startConditions" class="loading">Loading wind...</div>
         </div>
         <div class="card">
@@ -456,25 +456,6 @@ canvas{display:block}
         </div>
       </div>
 
-      <details class="card boat-info-card">
-        <summary class="card-title boat-info-summary">Boat info <span class="boat-info-sub">— CYD 27 ORC Ceccarelli</span></summary>
-        <div class="metric-row" style="margin-top:10px">
-          <div class="metric"><div class="label">LOA</div><div class="val">8.25<span class="unit"> m</span></div></div>
-          <div class="metric"><div class="label">Displacement</div><div class="val">1,780<span class="unit"> kg</span></div></div>
-        </div>
-        <div class="metric-row">
-          <div class="metric"><div class="label">Draft</div><div class="val">1.72<span class="unit"> m</span></div></div>
-          <div class="metric"><div class="label">Beam</div><div class="val">2.16<span class="unit"> m</span></div></div>
-        </div>
-        <div class="metric-row">
-          <div class="metric"><div class="label">Main</div><div class="val">27.13<span class="unit"> m²</span></div></div>
-          <div class="metric"><div class="label">Jib</div><div class="val">17.66<span class="unit"> m²</span></div></div>
-        </div>
-        <div class="metric-row">
-          <div class="metric"><div class="label">Spinnaker</div><div class="val">47.18<span class="unit"> m²</span></div></div>
-          <div class="metric"><div class="label">YS / GPH</div><div class="val">94<span class="unit"> / 660</span></div></div>
-        </div>
-      </details>
       <div class="card">
         <div class="card-title">Quick VMG calculator</div>
         <div class="slider-wrap">
@@ -495,7 +476,7 @@ canvas{display:block}
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Current wind — Lac Léman</div>
+        <div class="card-title" id="dashWindTitle">Current wind — Lac Léman</div>
         <div id="dashWind" class="loading">Fetching forecast...</div>
       </div>
     </div>
@@ -1044,11 +1025,7 @@ var CHECKLIST_ITEMS = [
   {key:'tact_device',   section:'Tactical device', label:'Tactical app on a SECOND device',                 detail:'iPad or second phone, PRD §12.3'},
   {key:'tact_charged',  section:'Tactical device', label:'Tactical device 100% + cable aboard'},
   {key:'tact_bright',   section:'Tactical device', label:'Screen brightness max, auto-dim off'},
-  {key:'tact_cache',    section:'Tactical device', label:'App loaded once on race-day Wi-Fi for SW cache'},
-  {key:'sails',         section:'Boat + crew',     label:'Sail inventory aboard',                            detail:'Main 27.1 m² · Jib 17.7 m² · Spinnaker 47.2 m²'},
-  {key:'safety',        section:'Boat + crew',     label:'Safety gear check',                                detail:'Lifejackets, flares, nav lights'},
-  {key:'crew_briefed',  section:'Boat + crew',     label:'Crew briefed on tactical plan + bank choice'},
-  {key:'emergency',     section:'Boat + crew',     label:'Emergency contacts logged + race-control frequency known'}
+  {key:'tact_cache',    section:'Tactical device', label:'App loaded once on race-day Wi-Fi for SW cache'}
 ];
 
 var _checklistGpsPerm = 'unknown';
@@ -1099,7 +1076,7 @@ function renderChecklist() {
   prog.style.color = pct >= 80 ? 'var(--acc2)' : (pct >= 50 ? 'var(--warn)' : 'var(--tx2)');
 
   var html = '';
-  ['App', 'Tracking phone', 'Tactical device', 'Boat + crew'].forEach(function(sec){
+  ['App', 'Tracking phone', 'Tactical device'].forEach(function(sec){
     if(!sections[sec]) return;
     html += '<div class="cl-section">'+sec+'</div>';
     sections[sec].forEach(function(row){
@@ -1898,7 +1875,19 @@ var PATTERN_LABELS = {
   calm:'Calm', mixed:'Mixed'
 };
 
+// Zugersee forecast pattern classifier (reuses existing CSS classes; relabelled via patLabel)
+function classifyForecastPatternZ(meanDir, meanSpd, localHr){
+  if(meanSpd < 3) return 'calm';
+  if(meanDir >= 120 && meanDir <= 200 && meanSpd >= 8) return 'vaudaire';   // Föhn (S)
+  if(meanDir >= 20  && meanDir <= 80  && meanSpd >= 4) return 'bise';
+  if(meanDir >= 200 && meanDir <= 260)                 return 'vent';        // Westwind
+  if(meanSpd < 10 && localHr >= 12 && localHr <= 20)   return 'thermal';     // lake breeze
+  return 'mixed';
+}
+var PATTERN_LABELS_ZG = { bise:'Bise', vaudaire:'Föhn', vent:'West', thermal:'Thermal', calm:'Calm', mixed:'Mixed' };
+function patLabel(p){ return (IS_ZUG && PATTERN_LABELS_ZG[p]) ? PATTERN_LABELS_ZG[p] : (PATTERN_LABELS[p] || p); }
 function classifyForecastPattern(meanDir, meanSpd, localHr) {
+  if(IS_ZUG) return classifyForecastPatternZ(meanDir, meanSpd, localHr);
   if(meanSpd >= 10 && meanDir >= 130 && meanDir <= 180) return 'vaudaire';
   if(meanSpd < 3) return 'calm';
   if(meanDir >= 20  && meanDir <= 70  && meanSpd >= 4)  return 'bise';
@@ -1968,7 +1957,7 @@ function renderPatternTimeline() {
       var inRace = (ts >= RACE_START_MS && ts < RACE_END_MS) ? ' race' : '';
       var when = pts[0].hours[h];
       var tip = zoneName + ' · ' + when.getDate() + '/' + (when.getMonth()+1) + ' ' +
-                String(when.getHours()).padStart(2,'0') + ':00 · ' + PATTERN_LABELS[pattern] +
+                String(when.getHours()).padStart(2,'0') + ':00 · ' + patLabel(pattern) +
                 ' · ' + cal.speed.toFixed(1) + ' kn @ ' + Math.round(cal.dir) + '°';
       html += '<div class="ptl-cell ptl-' + pattern + inRace + '" title="' + tip + '"></div>';
     }
@@ -1977,8 +1966,8 @@ function renderPatternTimeline() {
 
   // Legend
   html += '<div class="ptl-legend">';
-  ['bise','vent','vaudaire','thermal','joran','sechard','calm','mixed'].forEach(function(p){
-    html += '<span class="ptl-leg"><span class="ptl-sw ptl-'+p+'"></span>' + PATTERN_LABELS[p] + '</span>';
+  (IS_ZUG ? ['bise','vaudaire','vent','thermal','calm','mixed'] : ['bise','vent','vaudaire','thermal','joran','sechard','calm','mixed']).forEach(function(p){
+    html += '<span class="ptl-leg"><span class="ptl-sw ptl-'+p+'"></span>' + patLabel(p) + '</span>';
   });
   html += '<span class="ptl-leg"><span class="ptl-sw ptl-race"></span>' + (IS_ZUG ? 'Goldschäkel window' : 'Race window 2026') + '</span>';
   html += '</div>';
@@ -2561,14 +2550,20 @@ function initLakeMap() {
     preferCanvas: true
   });
 
-  // Black canvas — no base map. OpenSeaMap seamarks rendered directly on black.
+  // Dark base map (CARTO dark) under the OpenSeaMap seamark overlay — shows the
+  // real shoreline while staying night-vision friendly.
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19, subdomains: 'abcd',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+  }).addTo(lakeMap);
   L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: '&copy; <a href="https://www.openseamap.org">OpenSeaMap</a>'
   }).addTo(lakeMap);
 
-  // Lake outline — now the primary visual reference for the shoreline
-  L.polygon(LAKE, {
+  // Lake outline — kept on Bol d'Or as a subtle accent; on Zugersee the base map
+  // shows the real shoreline, so skip the coarse hand-drawn polygon.
+  if(!IS_ZUG) L.polygon(LAKE, {
     color: '#4a9eff', weight: 1.5, opacity: 0.85,
     fillColor: '#0a1628', fillOpacity: 0.6,
     interactive: false
@@ -2576,7 +2571,7 @@ function initLakeMap() {
 
   // 9-point bank selection grid
   lakeGridLayer = L.layerGroup().addTo(lakeMap);
-  var pointColors = {'Geneva':'#97C459','Lausanne':'#378ADD','Bouveret':'#D85A30'};
+  var pointColors = {'Geneva':'#97C459','Lausanne':'#378ADD','Bouveret':'#D85A30','Zug':'#97C459','Walchwil':'#378ADD','Arth':'#D85A30'};
   GRID_POINTS.forEach(function(gp){
     var col = pointColors[gp.zone] || '#fff';
     var r = gp.shore === 'Mid' ? 6 : 4;
@@ -3320,11 +3315,15 @@ function initRivalMap() {
     attributionControl: true,
     preferCanvas: true       // Canvas renderer scales to 400+ polylines
   });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19, subdomains: 'abcd',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+  }).addTo(rivalMap);
   L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: '&copy; <a href="https://www.openseamap.org">OpenSeaMap</a> · tracks &copy; <a href="https://www.suiviregate.ch">SuiviRegate</a>'
   }).addTo(rivalMap);
-  L.polygon(LAKE, {
+  if(!IS_ZUG) L.polygon(LAKE, {
     color: '#4a9eff', weight: 1.5, opacity: 0.85,
     fillColor: '#0a1628', fillOpacity: 0.6,
     interactive: false
@@ -5921,6 +5920,12 @@ function applyVenueChrome(){
   } catch(e){ console.error('venuePill', e); }
   if(!IS_ZUG) return;
   try { document.title = ZG.title; } catch(e){}
+  try {
+    var sct = document.getElementById('startCondTitle'); if(sct) sct.textContent = 'Start line conditions — Immensee';
+    var dwt = document.getElementById('dashWindTitle');  if(dwt) dwt.textContent = 'Current wind — Zugersee';
+    var zt = document.getElementById('zoneTabs');
+    if(zt){ var zb = zt.querySelectorAll('button'); for(var i=0; i<zb.length && i<ZONE_NAMES.length; i++){ zb[i].textContent = ZONE_NAMES[i]; } }
+  } catch(e){ console.error('venue labels', e); }
   var g = document.getElementById('windGuideCard');
   if(g){
     g.innerHTML =
