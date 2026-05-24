@@ -6,6 +6,18 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-24 — Service-worker offline hardening (QA #1)
+
+### Changed
+- **`sw.js` rewritten for offline resilience** (cache v10 → v11, plus a separate capped tile cache):
+  - **MeteoSwiss** station data (`data.geo.admin.ch`) is now network-first + cached like Open-Meteo → last-known stations survive offline.
+  - **Leaflet + JSZip** (pinned unpkg URLs) are precached → the map and replay load with no signal.
+  - **Map tiles** (OpenSeaMap seamarks + CARTO dark base) are cached cache-first into a capped runtime cache (~800 tiles) → a race area loaded while online stays usable offline.
+  - Hardened: GET-only, defensive fallbacks everywhere, tile cache preserved across app updates.
+- Resolves QA-review issue #1 (the last open item from the 24 May review). Tip: open the map over the race area while you still have signal so the tiles cache.
+
+---
+
 ## 2026-05-24 — Docs sync to latest state
 
 ### Changed

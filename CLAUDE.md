@@ -45,7 +45,7 @@ The app at `https://jpsmont.github.io/bol-dor-tactical/` is feature-complete aga
 
 ### Cross-cutting infrastructure
 
-- **PWA install** — service worker (cache versioned — bumped on each user-facing change; currently v10) caches shell + Open-Meteo responses (MeteoSwiss + map tiles are NOT yet precached — offline gap, see `docs/QA-review-2026-05-24.md` #1); manifest with Little Johnka custom favicon and home-screen icons (192/512/apple-touch)
+- **PWA install** — service worker (cache versioned — currently v11) caches the shell + pinned Leaflet/JSZip + Open-Meteo + MeteoSwiss responses, and map tiles (OpenSeaMap/CARTO) in a capped runtime cache, for offline race-day use; manifest with Little Johnka custom favicon and home-screen icons (192/512/apple-touch)
 - **Self-hosted CORS proxy** — Cloudflare Worker at `https://corsproxy-bol-dor.jpsmont.workers.dev` fronts SuiviRegate KMZ fetches with host-allowlist and 1 h edge cache; replaces public proxy fallbacks (kept as second/third entries in `CORS_PROXIES` arrays in both `index.html` and `replay.html`); source at `workers/corsproxy.js`
 - **Night-vision dark theme** by default; responsive at 600 / 900 px breakpoints
 
