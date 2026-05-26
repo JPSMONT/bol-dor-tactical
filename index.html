@@ -867,6 +867,24 @@ canvas{display:block}
 
     <!-- ===== RIVALS ===== -->
     <div class="view" id="v4">
+      <!-- Zugersee Cup rivals UI (PRD-v6-rivals-zugersee-spec.md). Populated by
+           renderRivalsZG(); hidden on Bol d'Or via inline style set at init. -->
+      <div id="rivalsZG" style="display:none">
+        <div class="card" id="zscEventCard">
+          <div class="card-title">Zugersee Cup 2026</div>
+          <div id="zscEventBody" class="loading">Loading event…</div>
+        </div>
+        <div class="card" id="zscKwindooCard">
+          <div class="card-title">Live tracker — Kwindoo</div>
+          <div id="zscKwindooBody" class="loading">Loading…</div>
+        </div>
+        <div class="card" id="zscYardstickCard">
+          <div class="card-title">Yardstick class — direct corrected-time competitors</div>
+          <div id="zscYardstickBody" class="loading">Loading…</div>
+        </div>
+      </div>
+      <!-- Bol d'Or rivals UI (SuiviRegate) — hidden when IS_ZUG. -->
+      <div id="rivalsBoldor">
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <div class="card-title" style="margin:0">SuiviRegate historical tracks</div>
@@ -914,6 +932,7 @@ canvas{display:block}
         </div>
         <div id="analysisBody"><div class="loading">Loading…</div></div>
       </div>
+      </div><!-- /#rivalsBoldor -->
     </div>
 
   </div>
@@ -1083,6 +1102,75 @@ var ZG = {
 }
 ZG.finishMs = ZG.startMs + 8*3600*1000;
 ZG.endMs    = ZG.startMs + 10*3600*1000;
+// ===== ZUGERSEE CUP 2026 — event registry (Rivals tab Zugersee mode) =====
+// Per PRD-v6-rivals-zugersee-spec.md. Joao pastes the Kwindoo URL once YCI/YCZ/
+// OSCA/SCC publish it for each event; the URL is persisted in localStorage
+// (`zsc_events_v1`). manage2sail URLs are public and hard-coded where known.
+ZG.zscEvents = [
+  { id:'goldschaekel-26', date:'2026-05-30', name:'Goldschäkel-Regatta',
+    host:'YCI Immensee',          hostUrl:'https://www.yci.ch/',
+    m2sUrl:'https://www.manage2sail.com/en-US/event/a2195470-e42f-4270-bbf7-311397ab5957' },
+  { id:'blauband-26',     date:'2026-06-27', name:'Blauband-Regatta',
+    host:'Yacht Club Zug',        hostUrl:'',
+    m2sUrl:'' },
+  { id:'rigi-anker-26',   date:'2026-08-29', name:'Rigi Anker Cup',
+    host:'OSCA Obersee Club Arth', hostUrl:'http://www.osca.ch/',
+    m2sUrl:'' },
+  { id:'chomerbar-26',    date:'2026-09-12', name:'Chomer Bär',
+    host:'SCC Segel Club Cham',   hostUrl:'',
+    m2sUrl:'' }
+];
+
+// ===== ZSC localStorage =====
+var ZSC_EVENTS_KEY    = 'zsc_events_v1';
+var ZSC_YARDSTICK_KEY = 'zsc_yardstick_v1';
+var ZSC_YARDSTICK_WIN = 'zsc_yardstick_window_v1';
+function zscEventsState(){
+  try {
+    var raw = localStorage.getItem(ZSC_EVENTS_KEY);
+    if(raw) return JSON.parse(raw);
+  } catch(e){}
+  return { active: null, events: {} };
+}
+function zscEventsSave(s){ try { localStorage.setItem(ZSC_EVENTS_KEY, JSON.stringify(s)); } catch(e){} }
+function zscPickActiveEvent(){
+  var state = zscEventsState();
+  if(state.active && ZG.zscEvents.some(function(e){return e.id===state.active})) return state.active;
+  // Default: nearest future event (or most recent if all in past).
+  var now = Date.now();
+  var future = ZG.zscEvents.filter(function(e){return new Date(e.date).getTime() + 36*3600*1000 > now});
+  var pick = future.length ? future[0] : ZG.zscEvents[ZG.zscEvents.length-1];
+  return pick.id;
+}
+function zscEventById(id){
+  for(var i=0;i<ZG.zscEvents.length;i++){ if(ZG.zscEvents[i].id===id) return ZG.zscEvents[i]; }
+  return null;
+}
+// Default Yardstick boats around CYD 27 (94). Values from Swiss Sailing
+// Yardstick Liste 2025 for the most common Zugersee Cup classes. Joao can
+// edit/add via the Rivals UI; saved boats override the seed.
+var ZSC_YARDSTICK_SEED = [
+  { ys: 92,  name: 'J/70',                self: false },
+  { ys: 92,  name: 'T780',                self: false },
+  { ys: 94,  name: 'CYD 27 (Little Johnka)', self: true },
+  { ys: 96,  name: 'Esse 850',            self: false },
+  { ys: 98,  name: 'Surprise',            self: false },
+  { ys: 100, name: 'Ufo 22',              self: false },
+  { ys: 100, name: 'First 25.7',          self: false }
+];
+function zscYardstickList(){
+  try {
+    var raw = localStorage.getItem(ZSC_YARDSTICK_KEY);
+    if(raw){ var arr = JSON.parse(raw); if(Array.isArray(arr) && arr.length) return arr; }
+  } catch(e){}
+  return ZSC_YARDSTICK_SEED.slice();
+}
+function zscYardstickSave(arr){ try { localStorage.setItem(ZSC_YARDSTICK_KEY, JSON.stringify(arr)); } catch(e){} }
+function zscYardstickWindow(){
+  try { var n = parseInt(localStorage.getItem(ZSC_YARDSTICK_WIN), 10); if(n>=2 && n<=20) return n; } catch(e){}
+  return 4; // ±4 around CYD 27 = 90..98
+}
+function zscYardstickWindowSave(n){ try { localStorage.setItem(ZSC_YARDSTICK_WIN, String(n)); } catch(e){} }
 // Countdown / clock labels — boldor values reproduce the original strings exactly.
 var VLAB = IS_ZUG
   ? { ev:'Goldschäkel Regatta', gun:'10:00 (provisional)', long:'May 30, 2026 · 10:00 (provisional)', range:'May 30, 2026' }
@@ -4073,6 +4161,8 @@ var rivalVisible = (function(){
 })();
 
 function showRivals() {
+  // Zugersee venue: render the Kwindoo / Yardstick UI instead of SuiviRegate.
+  if(IS_ZUG){ try { renderRivalsZG(); } catch(e){ console.error('renderRivalsZG:', e); } return; }
   if(!rivalMap) initRivalMap();
   if(rivalMap) setTimeout(function(){ rivalMap.invalidateSize(); }, 0);
   renderRivalTargetsList();
@@ -4082,6 +4172,252 @@ function showRivals() {
   if(!currentRivalYear && rivalDataByYear['BOL25'] == null) {
     loadRaceYear('BOL25');
   }
+}
+
+// ===== RIVALS — Zugersee Cup version (PRD-v6-rivals-zugersee-spec.md) =====
+// Per-event Kwindoo iframe + Yardstick class panel. No SuiviRegate, no
+// per-rival analysis (Kwindoo's own UI handles that). All input is
+// Primary-device only; Advisor renders read-only.
+
+function zscSafeKwindooUrl(s){
+  // Accept full kwindoo.com URLs, return null otherwise. Don't embed arbitrary
+  // sites — only the trusted host. Allow http→https upgrade.
+  s = (s || '').trim();
+  if(!s) return null;
+  try {
+    var u = new URL(s);
+    if(/(^|\.)kwindoo\.com$/i.test(u.hostname)){ u.protocol = 'https:'; return u.toString(); }
+  } catch(e){}
+  return null;
+}
+
+function renderRivalsZG(){
+  // Render the three Zugersee cards. Called on showTab(4) when IS_ZUG.
+  try { _renderZscEventCard();    } catch(e){ console.error('zsc event card:', e); }
+  try { _renderZscKwindooCard();  } catch(e){ console.error('zsc kwindoo card:', e); }
+  try { _renderZscYardstickCard();} catch(e){ console.error('zsc yardstick card:', e); }
+}
+
+function _renderZscEventCard(){
+  var body = document.getElementById('zscEventBody');
+  if(!body) return;
+  var state = zscEventsState();
+  if(!state.active) state.active = zscPickActiveEvent();
+  var ev = zscEventById(state.active) || ZG.zscEvents[0];
+
+  // Pill row to switch active event.
+  var pills = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">';
+  ZG.zscEvents.forEach(function(e){
+    var on = (e.id === ev.id);
+    pills += '<button class="refresh-btn" onclick="zscSetActive(\''+e.id+'\')"' +
+      (on ? ' style="background:var(--acc);color:var(--btn-on-fg);border-color:var(--acc)"' : '') +
+      '>'+e.name.replace(/-Regatta$/,'')+'</button>';
+  });
+  pills += '</div>';
+
+  // Countdown / status
+  var now = Date.now();
+  var startMs = new Date(ev.date + 'T10:00:00+02:00').getTime();
+  var diff = startMs - now;
+  var status;
+  if(diff > 0){
+    var d = Math.floor(diff/86400000);
+    var h = Math.floor((diff%86400000)/3600000);
+    status = d + 'd ' + h + 'h until the gun';
+  } else if(diff > -10*3600*1000){
+    status = '<span style="color:var(--acc2);font-weight:700">RACE WINDOW</span>';
+  } else {
+    var dp = Math.floor((now-startMs)/86400000);
+    status = (dp===0 ? 'today' : dp + ' day' + (dp>1?'s':'') + ' ago');
+  }
+
+  // Date pretty-print
+  var dateLabel = new Date(ev.date).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+
+  // Action links
+  var actions = [];
+  if(ev.m2sUrl) actions.push('<a class="rival-link" href="'+ev.m2sUrl+'" target="_blank" rel="noopener">Manage2Sail ↗</a>');
+  if(ev.hostUrl) actions.push('<a class="rival-link" href="'+ev.hostUrl+'" target="_blank" rel="noopener">'+ev.host.split(' ')[0]+' ↗</a>');
+  actions.push('<a class="rival-link" href="https://www.zugerseecup.ch/edition-2026" target="_blank" rel="noopener">Zugersee Cup ↗</a>');
+
+  body.innerHTML =
+    pills +
+    '<div style="font-size:14px;line-height:1.45">' +
+      '<div style="font-size:18px;font-weight:700;color:var(--tx);margin-bottom:4px">' + ev.name + '</div>' +
+      '<div style="color:var(--tx2);margin-bottom:8px">'+ dateLabel + ' · ' + ev.host + '</div>' +
+      '<div style="color:var(--tx2);margin-bottom:10px">'+ status +'</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' + actions.join('') + '</div>' +
+    '</div>';
+}
+
+function zscSetActive(id){
+  var state = zscEventsState();
+  state.active = id;
+  zscEventsSave(state);
+  renderRivalsZG();
+}
+
+function _renderZscKwindooCard(){
+  var body = document.getElementById('zscKwindooBody');
+  if(!body) return;
+  var state = zscEventsState();
+  if(!state.active) state.active = zscPickActiveEvent();
+  var ev = zscEventById(state.active) || ZG.zscEvents[0];
+  var saved = (state.events && state.events[ev.id]) ? state.events[ev.id] : {};
+  var url = zscSafeKwindooUrl(saved.kwindooUrl || '');
+
+  // Paste UI — hidden in Advisor mode (read-only).
+  var pasteUI = IS_ADVISOR ? '' :
+    '<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">' +
+      '<input type="text" id="zscKwindooInput" placeholder="Paste Kwindoo URL, e.g. https://kwindoo.com/tracking/12345-goldschaekel-2026" ' +
+        'value="'+ (saved.kwindooUrl || '').replace(/"/g,'&quot;') +'" ' +
+        'style="flex:1;min-width:260px;background:var(--bg2);border:1px solid var(--bg3);border-radius:6px;padding:8px 10px;color:var(--tx);font-size:13px">' +
+      '<button class="refresh-btn" onclick="zscSaveKwindooUrl()">Save</button>' +
+      (saved.kwindooUrl ? '<button class="refresh-btn" onclick="zscClearKwindooUrl()" style="background:transparent">Clear</button>' : '') +
+    '</div>';
+
+  var iframeOrPlaceholder;
+  if(url){
+    iframeOrPlaceholder =
+      '<div style="position:relative;width:100%;padding-bottom:56.25%;background:var(--bg2);border-radius:8px;overflow:hidden">' +
+        '<iframe id="zscKwindooFrame" src="'+url+'" ' +
+          'style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" ' +
+          'sandbox="allow-scripts allow-same-origin allow-popups allow-forms" ' +
+          'referrerpolicy="no-referrer-when-downgrade" ' +
+          'allow="geolocation; fullscreen" ' +
+          'loading="lazy"></iframe>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:var(--tx3)">' +
+        '<span>Embed may fail if Kwindoo CSP blocks iframes — use the button → if it does.</span>' +
+        '<a class="rival-link" href="'+url+'" target="_blank" rel="noopener">Open in new tab ↗</a>' +
+      '</div>';
+  } else {
+    iframeOrPlaceholder =
+      '<div style="background:var(--bg2);border:1px dashed var(--bg3);border-radius:8px;padding:24px;text-align:center;color:var(--tx2);line-height:1.6">' +
+        '<div style="font-size:14px;color:var(--tx);margin-bottom:6px">No Kwindoo URL yet for <strong>'+ev.name+'</strong></div>' +
+        (IS_ADVISOR
+          ? '<div style="font-size:12px">Primary device adds the URL when the host club publishes it.</div>'
+          : '<div style="font-size:12px">' + ev.host + ' publishes the Kwindoo URL in the NOR or by email shortly before race day — paste it above when you have it.</div>') +
+        '<div style="margin-top:12px"><a class="rival-link" href="https://kwindoo.com/events/list" target="_blank" rel="noopener">Kwindoo events list ↗</a></div>' +
+      '</div>';
+  }
+
+  body.innerHTML = pasteUI + iframeOrPlaceholder;
+}
+
+function zscSaveKwindooUrl(){
+  if(IS_ADVISOR) return;
+  var inp = document.getElementById('zscKwindooInput');
+  if(!inp) return;
+  var raw = inp.value;
+  var safe = zscSafeKwindooUrl(raw);
+  if(!safe && raw.trim()){
+    inp.style.borderColor = 'var(--err)';
+    setTimeout(function(){ if(inp) inp.style.borderColor = 'var(--bg3)'; }, 1200);
+    return;
+  }
+  var state = zscEventsState();
+  if(!state.events) state.events = {};
+  if(!state.active) state.active = zscPickActiveEvent();
+  state.events[state.active] = state.events[state.active] || {};
+  state.events[state.active].kwindooUrl = safe || '';
+  zscEventsSave(state);
+  renderRivalsZG();
+}
+function zscClearKwindooUrl(){
+  if(IS_ADVISOR) return;
+  var state = zscEventsState();
+  if(state.events && state.active && state.events[state.active]){
+    state.events[state.active].kwindooUrl = '';
+    zscEventsSave(state);
+  }
+  renderRivalsZG();
+}
+
+function _renderZscYardstickCard(){
+  var body = document.getElementById('zscYardstickBody');
+  if(!body) return;
+  var list = zscYardstickList();
+  var win = zscYardstickWindow();
+  // Find self (default CYD27=94)
+  var self = list.filter(function(b){return b.self})[0] || { ys: 94, name: 'CYD 27 (Little Johnka)' };
+  var lo = self.ys - win, hi = self.ys + win;
+  var inBand = list.filter(function(b){ return b.ys >= lo && b.ys <= hi; })
+                   .sort(function(a,b){ return a.ys - b.ys; });
+
+  var winUI = IS_ADVISOR ? '' :
+    '<div style="font-size:12px;color:var(--tx2);margin-bottom:8px">' +
+      'Class window: <strong>'+lo+'–'+hi+'</strong> YS (±<input type="number" min="2" max="20" value="'+win+'" ' +
+      'onchange="zscSetWindow(this.value)" style="width:48px;background:var(--bg2);border:1px solid var(--bg3);color:var(--tx);padding:2px 4px;border-radius:4px;font-size:12px"> points around Little Johnka at YS '+self.ys+')' +
+    '</div>';
+
+  var rows = inBand.map(function(b, i){
+    var meRow = b.self;
+    var ysCol = '<td style="padding:6px 10px;font-weight:700;'+(meRow?'color:var(--acc2)':'color:var(--tx)')+'">' + b.ys + '</td>';
+    var nameCol = '<td style="padding:6px 10px;color:var(--tx)">' + (b.name || '') + (meRow ? ' <span class="cal-badge" style="background:var(--acc2);color:var(--btn-on-fg)">you</span>' : '') + '</td>';
+    var del = (!IS_ADVISOR && !meRow)
+      ? '<td style="padding:6px 10px;text-align:right"><button onclick="zscDeleteBoat('+i+',\''+b.name.replace(/[\\\']/g,'')+'\','+b.ys+')" style="background:transparent;border:0;color:var(--err);font-size:14px;cursor:pointer;line-height:1">×</button></td>'
+      : '<td></td>';
+    return '<tr style="border-bottom:1px solid var(--bg3)">' + ysCol + nameCol + del + '</tr>';
+  }).join('');
+
+  var table =
+    '<table style="width:100%;border-collapse:collapse;font-size:14px">' +
+      '<thead><tr style="color:var(--tx3);text-transform:uppercase;font-size:11px;letter-spacing:.5px">' +
+        '<th style="padding:6px 10px;text-align:left;font-weight:700">YS</th>' +
+        '<th style="padding:6px 10px;text-align:left;font-weight:700">Boat</th>' +
+        '<th></th>' +
+      '</tr></thead>' +
+      '<tbody>' + (rows || '<tr><td colspan="3" style="padding:12px;color:var(--tx3);text-align:center;font-size:13px">No boats in band. Widen the window or add boats below.</td></tr>') + '</tbody>' +
+    '</table>';
+
+  var addUI = IS_ADVISOR ? '' :
+    '<div style="display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap">' +
+      '<input type="number" id="zscYsAdd"   placeholder="YS"   min="50" max="160" style="width:70px;background:var(--bg2);border:1px solid var(--bg3);color:var(--tx);padding:6px 8px;border-radius:6px;font-size:13px">' +
+      '<input type="text"   id="zscNameAdd" placeholder="Boat name (e.g. J/80)" style="flex:1;min-width:160px;background:var(--bg2);border:1px solid var(--bg3);color:var(--tx);padding:6px 8px;border-radius:6px;font-size:13px">' +
+      '<button class="refresh-btn" onclick="zscAddBoat()">Add</button>' +
+    '</div>';
+
+  var footer =
+    '<div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--tx3);flex-wrap:wrap;gap:6px">' +
+      '<span>' + inBand.length + ' boat'+(inBand.length===1?'':'s')+' in band · total list: ' + list.length + '</span>' +
+      '<a class="rival-link" href="https://www.swiss-sailing.ch/_Resources/Persistent/6/a/f/4/6af402cab361af6b83c43a5ddbdea32b8eb2b9d8/Yardstickzahlen%202025.pdf" target="_blank" rel="noopener">Swiss Sailing Yardstick Liste 2025 ↗</a>' +
+    '</div>';
+
+  body.innerHTML = winUI + table + addUI + footer;
+}
+
+function zscSetWindow(n){
+  if(IS_ADVISOR) return;
+  n = parseInt(n, 10);
+  if(!isFinite(n) || n < 2 || n > 20) return;
+  zscYardstickWindowSave(n);
+  renderRivalsZG();
+}
+
+function zscAddBoat(){
+  if(IS_ADVISOR) return;
+  var ys = parseInt((document.getElementById('zscYsAdd')||{}).value, 10);
+  var nm = ((document.getElementById('zscNameAdd')||{}).value || '').trim();
+  if(!isFinite(ys) || ys < 50 || ys > 160 || !nm) return;
+  var list = zscYardstickList();
+  // Avoid duplicates (same name + same ys).
+  if(!list.some(function(b){ return b.ys === ys && b.name.toLowerCase() === nm.toLowerCase(); })){
+    list.push({ ys: ys, name: nm, self: false });
+    zscYardstickSave(list);
+  }
+  renderRivalsZG();
+}
+
+function zscDeleteBoat(idx, name, ys){
+  if(IS_ADVISOR) return;
+  var list = zscYardstickList();
+  // idx is position in inBand (sorted); resolve back to absolute index by name+ys.
+  for(var i=0;i<list.length;i++){
+    if(list[i].name === name && list[i].ys === ys && !list[i].self){ list.splice(i,1); break; }
+  }
+  zscYardstickSave(list);
+  renderRivalsZG();
 }
 
 // ===== DeepRegatta link-out (no programmatic API — see deepregatta-firebase memory) =====
@@ -6751,6 +7087,14 @@ function updateRaceDayBannerZ(b, btn){
 // Applies venue chrome on load: a venue toggle pill (both venues) and, when in
 // Zugersee mode, the title + Zugersee wind-pattern guide + timeline note.
 function applyVenueChrome(){
+  // Rivals tab: swap the two top-level wrappers based on venue. On Bol d'Or the
+  // SuiviRegate UI shows; on Zugersee the Kwindoo / Yardstick cards show.
+  try {
+    var rZG = document.getElementById('rivalsZG');
+    var rBD = document.getElementById('rivalsBoldor');
+    if(rZG) rZG.style.display = IS_ZUG ? 'block' : 'none';
+    if(rBD) rBD.style.display = IS_ZUG ? 'none'  : 'block';
+  } catch(e){ console.error('rivals venue swap:', e); }
   try {
     if(!document.getElementById('venuePill')){
       var pill = document.createElement('div');
@@ -6867,6 +7211,7 @@ _safe('renderWindCalStatus', function(){ renderWindCalStatus(); });
 _safe('initTrimCoach',       function(){ tickTrimCoach(); });
 _safe('renderCockpit',       function(){ renderCockpit(); });
 _safe('renderTuningLog',     function(){ renderTuningLog(); });
+_safe('renderRivalsZG',      function(){ if(IS_ZUG) renderRivalsZG(); });
 setInterval(function(){ _safe('windCal tick', function(){ renderWindCalStatus(); }); }, 30000);
 setInterval(function(){ _safe('renderChecklist tick', function(){ renderChecklist(); }); }, 30000);
 setInterval(function(){ _safe('updateCountdown tick', function(){ updateCountdown(); }); }, 1000);

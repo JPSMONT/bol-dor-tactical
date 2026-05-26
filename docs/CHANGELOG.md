@@ -6,6 +6,26 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-26 — Rivals tab — Zugersee Cup version (Kwindoo + Yardstick)
+
+### Added
+- **Venue-aware Rivals tab.** Bol d'Or behaviour unchanged (SuiviRegate + 5 primary targets + per-rival analysis). On Zugersee, the tab now shows three cards from `docs/PRD-v6-rivals-zugersee-spec.md`:
+  1. **Event header** — pill row to switch between the 4 Zugersee Cup 2026 events (Goldschäkel 30 May / Blauband 27 Jun / Rigi Anker 29 Aug / Chomer Bär 12 Sep). Auto-selects the nearest future event. Shows host club, race date, live countdown, plus action links to Manage2Sail (where the URL is known), the host club's site, and the Zugersee Cup series page.
+  2. **Live tracker — Kwindoo.** An `<iframe>` embed of `kwindoo.com/tracking/<event-id>` for the active event. Joao pastes each event's Kwindoo URL once the host club publishes it; it's persisted per-event in `localStorage` (`zsc_events_v1`). URL input is validated to `kwindoo.com` only (no embedding arbitrary sites). If iframe load fails (Kwindoo CSP), a clear "Open in new tab ↗" link is always present as a fallback.
+  3. **Yardstick class panel.** Editable reference table seeded with Zugersee Cup regulars (J/70, T780, Esse 850, Surprise, Ufo 22, First 25.7) plus CYD 27 = 94. Class window defaults to ±4 (90–98) and is editable. Add / remove boats persists in `localStorage` (`zsc_yardstick_v1`, `zsc_yardstick_window_v1`). Direct link out to the Swiss Sailing Yardstick Liste 2025 PDF.
+- **`ZG.zscEvents` registry** — hard-coded 2026 event list with date / host / manage2sail URL where public. Easy to extend / annotate per season.
+- **Advisor-aware.** Save URL, Clear, Add boat, Delete boat, Window edit — all hidden on Advisor devices. The Yardstick + Kwindoo cards still render read-only so the crew can see the active config.
+
+### Changed
+- **Service worker cache v17 → v18.**
+
+### Notes
+- Per-event Kwindoo URL is *not* auto-discoverable — Kwindoo has no public API exposing events by venue / host. Joao pastes the URL on the morning of each event once the host club sends out the NOR / member email. The friction is one paste-and-save per event, but it works for *any* future event without code changes.
+- iframe `sandbox="allow-scripts allow-same-origin allow-popups allow-forms"` is the minimum permission set for Kwindoo to render and accept clicks without giving it cross-origin reach into the PWA.
+- Yardstick seed values are typical for the Zugersee Cup fleet (drawn from the 2025 Goldschäkel write-up and Swiss Sailing Liste 2025). Joao can correct / add as he learns the fleet over the season.
+
+---
+
 ## 2026-05-26 — 48h forecast resilient to upstream outages
 
 ### Fixed
