@@ -6,6 +6,28 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-26 — Day/Night theme + larger tablet typography (round 2)
+
+### Added
+- **Day / Night theme toggle** — third floating pill above Primary/Advisor and Bol d'Or/Zugersee. **Day** is a high-contrast light theme designed for bright daylight on water (`--bg #f4f6fa`, `--tx #0a1220`, accent `#0d4ea3`, sub-accent `#006d4f`); **Night** is the original dark theme. Persisted in `theme_v1` localStorage. A tiny bootstrap script in `<head>` sets the `data-theme` attribute on `<html>` *before body renders* so day-mode users don't see a flash of dark. Switching themes re-paints the cockpit + polar diagram + tuning log immediately (canvas elements don't pick up CSS-var changes on their own).
+
+### Changed
+- **Tablet typography — round 2** — round 1 widened `.app` but left text borderline-readable at arm's length under sun. Bumped another step across the board:
+  - cockpit tile values: 34 → **40** (≥700), 38 → **48** (≥1000)
+  - cockpit nav values: 24 → 28 (≥700), 28 → **34** (≥1000)
+  - countdown big number: 40 → **48** (≥700), 52 → **64** (≥1000)
+  - metric values: 28 → 32 (≥700), 32 → **38** (≥1000)
+  - header h1: 18 → 20 (≥700), 20 → **24** (≥1000)
+  - tabs / card-titles / pills / strat-notes / bank cards / wind grid / leg cards / forecast / race-sim banner — all bumped 1–4 px
+  - `.app` max-width: 860 → 880 (≥700), 1080 → **1120** (≥1000)
+- **Service worker cache v14 → v15.**
+
+### Notes
+- Day theme tweaks the chrome (cards, text, accents, tags) only; the polar diagram and Leaflet base tiles still use their dark-tuned colors, so they may look slightly off-piece in Day mode. Tunable as a follow-up if it bothers anyone in practice.
+- Tablet font bumps cascade correctly over the pre-existing 420 / 520 / 768 px rules; phones (<700 px) are unchanged.
+
+---
+
 ## 2026-05-26 — Tablet-responsive layout (iPad)
 
 ### Changed
