@@ -6,6 +6,25 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-26 — 48h forecast resilient to upstream outages
+
+### Fixed
+- **"Wind fetch failed: Response served by service worker is an error"** on Zugersee (and intermittently on Bol d'Or) — three root causes addressed:
+  1. **`Promise.all` → `Promise.allSettled`** in `fetchWind()`. The forecast queried 4 models in parallel and rejected the whole `Promise.all` on the first model error, hiding partial successes. Now each model resolves with `{model, ok, error?}` and the page renders with whichever models came back. Status pill shows "3/4 models (others unavailable)" when partial.
+  2. **Venue-aware model list.** `meteofrance_arome_france_hd` is a France-only domain model and always 502s for Zugersee (Switzerland). Dropped from the Zugersee model list. Bol d'Or still uses all 4. The list is set at venue init: `IS_ZUG ? 3 Swiss/D2 models : 4 models incl. AROME-HD`.
+  3. **HTTP status / content-type check before `.json()`.** Open-Meteo's nginx 502 pages have no CORS headers and HTML bodies, so they previously turned into either CORS-throws inside the SW (→ `Response.error()` → opaque error) or JSON parse errors in the page. Now `fetch().then(r => { if(!r.ok) throw new Error('HTTP '+r.status); ... })` short-circuits cleanly with a useful error.
+- **Service worker no longer caches non-2xx responses.** Previously a transient 502 would be cached and served on every subsequent reload until a successful network fetch happened — poisoning the offline fallback. Now `c.put` only fires when `r.ok`, so the next reload always re-tries the network. When network fails entirely with no cached fallback, the SW returns a clearly-shaped `503` JSON `{error:true, sw_fallback:true, reason:...}` so the page can surface a real message instead of an opaque error.
+- **Per-model error reporting in the UI.** When all models fail, the message lists which model returned what (e.g. "icon ch1: HTTP 502 from Open-Meteo, icon ch2: HTTP 502, ...") so the upstream cause is visible instead of hidden behind one generic line.
+
+### Changed
+- **Service worker cache v16 → v17.**
+
+### Notes
+- Open-Meteo was returning 502 across most models when this was diagnosed; the fix means the app stays usable through such outages instead of going dark. Bol d'Or race day's tactical decisions can't depend on all 4 models always being up — partial-render keeps the dashboard alive.
+- Pattern Timeline is fed by the same `fetchWind` success path → it stays stuck on "Waiting on forecast…" only when all models fail, and renders normally on partial success.
+
+---
+
 ## 2026-05-26 — Day-mode contrast + scroll fix + fonts round 3
 
 ### Fixed

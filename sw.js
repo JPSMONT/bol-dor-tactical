@@ -4,7 +4,7 @@
 //   • Open-Meteo + MeteoSwiss data  → network-first, fall back to last-known
 //   • map tiles (OpenSeaMap, CARTO) → cache-first into a capped tile cache
 //     (load the map over the race area while online so tiles are there offline)
-const CACHE = 'bol-tactic-v16';
+const CACHE = 'bol-tactic-v17';
 const TILES = 'bol-tiles-v1';
 const TILE_MAX = 800;
 
@@ -55,16 +55,28 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const url = req.url;
 
-  // Live data — network-first, last-known fallback
+  // Live data — network-first, last-known fallback.
+  // Only cache 2xx responses (don't poison cache with 502/504 errors during
+  // upstream outages — the page would then keep getting the bad cached copy
+  // on every reload until a successful network fetch). On network failure
+  // (CORS/offline/etc), serve the last-known good cached copy; if there's
+  // nothing cached, return a clearly-shaped JSON error the page can render.
   if (isData(url)) {
     e.respondWith((async () => {
       try {
         const r = await fetch(req);
-        const c = await caches.open(CACHE);
-        c.put(req, r.clone());
-        return r;
+        if (r && r.ok) {
+          const c = await caches.open(CACHE);
+          c.put(req, r.clone());
+        }
+        return r; // pass 4xx/5xx through to the page (which now checks r.ok)
       } catch (err) {
-        return (await caches.match(req)) || Response.error();
+        const cached = await caches.match(req);
+        if (cached) return cached;
+        return new Response(
+          JSON.stringify({ error: true, sw_fallback: true, reason: 'network unavailable: ' + (err && err.message || err) }),
+          { status: 503, headers: { 'Content-Type': 'application/json' } }
+        );
       }
     })());
     return;

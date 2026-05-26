@@ -1165,8 +1165,12 @@ var GRID_POINTS = [
 
 var ZONE_NAMES = ['Geneva','Lausanne','Bouveret'];
 if(IS_ZUG){ LAKE = ZG.lake; GRID_POINTS = ZG.gridPoints; ZONE_NAMES = ZG.zoneNames; }
-// PRD §17 P1 #7 — 4-model ensemble: AROME HD 1.3km + ICON-CH1 1km + ICON-CH2 2km + ICON-D2 2km
-var MODELS = ['meteofrance_arome_france_hd','meteoswiss_icon_ch1','meteoswiss_icon_ch2','icon_d2'];
+// PRD §17 P1 #7 — multi-model ensemble. **Venue-aware**: AROME-HD is a
+// France-only domain model, so omit it for Zugersee (Switzerland) where it
+// always returns 502/error. Order from highest-trust (regional) to lowest.
+var MODELS = IS_ZUG
+  ? ['meteoswiss_icon_ch1','meteoswiss_icon_ch2','icon_d2']     // Zugersee: 3 Swiss/D2 models
+  : ['meteofrance_arome_france_hd','meteoswiss_icon_ch1','meteoswiss_icon_ch2','icon_d2'];  // Lac Léman: 4 models
 
 // windData: {modelName: [{name,zone,shore,hours,speed,dir,gust}, ...per point], ...}
 // ensembleData: [{name,zone,shore,hours,speed,dir,gust,spread}, ...per point]
@@ -2419,18 +2423,53 @@ function renderWindCalStatus() {
 }
 
 function fetchWind() {
-  document.getElementById('windForecast').innerHTML = '<div class="loading">Fetching ' + MODELS.length + ' models × 9 points…</div>';
+  document.getElementById('windForecast').innerHTML = '<div class="loading">Fetching ' + MODELS.length + ' models × ' + GRID_POINTS.length + ' points…</div>';
   document.getElementById('dashWind').innerHTML = '<div class="loading">Fetching...</div>';
   rawModelData = {};
 
+  // Per-model fetch that resolves with {model, ok, error?} so allSettled never
+  // sees a rejection — we keep ALL outcomes so we can report per-model status
+  // and still render with whichever models succeeded.
   var promises = MODELS.map(function(model){
     var url = buildMultiLocUrl(model);
-    return fetch(url).then(function(r){return r.json()}).then(function(data){
+    return fetch(url).then(function(r){
+      // Check r.ok BEFORE r.json() so a 502/HTML response throws cleanly
+      // rather than producing an opaque JSON parse error.
+      if(!r.ok) throw new Error('HTTP ' + r.status + ' from Open-Meteo');
+      var ct = r.headers.get('content-type') || '';
+      if(ct.indexOf('json') < 0) throw new Error('non-JSON response (' + ct.slice(0,40) + ')');
+      return r.json();
+    }).then(function(data){
+      if(data && data.error) throw new Error(data.reason || 'Open-Meteo error');
       rawModelData[model] = parseModelResponse(data, model);
+      return { model: model, ok: true };
+    }).catch(function(err){
+      return { model: model, ok: false, error: err.message || String(err) };
     });
   });
 
-  Promise.all(promises).then(function(){
+  Promise.allSettled(promises).then(function(settled){
+    var results = settled.map(function(s){ return s.value || s; });
+    var ok = results.filter(function(r){ return r && r.ok; });
+    var failed = results.filter(function(r){ return r && !r.ok; });
+
+    if(ok.length === 0){
+      // Nothing came back — show all-models-down message + Retry
+      var detail = failed.map(function(r){ return r.model.replace(/^meteo[a-z]+_/,'').replace(/_/g,' ') + ': ' + r.error; }).join('<br>');
+      document.getElementById('windForecast').innerHTML =
+        '<div class="loading">Wind fetch failed — all ' + MODELS.length + ' models unavailable.' +
+        '<div style="font-size:11px;color:var(--tx3);margin-top:6px;line-height:1.4">' + detail + '</div>' +
+        '<button class="refresh-btn" onclick="fetchWind()" style="margin-top:10px">Retry</button>' +
+        '</div>';
+      document.getElementById('dashWind').innerHTML = '<div class="loading">Wind fetch failed <button class="refresh-btn" onclick="fetchWind()" style="margin-left:8px">Retry</button></div>';
+      if(raceSimActive) {
+        var sc = document.getElementById('startConditions');
+        if(sc) sc.innerHTML = '<div class="loading">Wind data unavailable — <button class="refresh-btn" onclick="fetchWind()">Retry fetch</button></div>';
+      }
+      return;
+    }
+
+    // Partial or full success — render with what we have.
     computeEnsemble();
     renderWind();
     renderDashWind();
@@ -2439,21 +2478,25 @@ function fetchWind() {
     renderPatternTimeline();
     if(raceSimActive) {
       var ws = document.getElementById('simWindStatus');
-      if(ws) { ws.textContent = 'Wind data loaded (' + Object.keys(rawModelData).length + ' models)'; ws.style.color = '#6ee7b7'; }
+      if(ws) { ws.textContent = 'Wind data loaded (' + ok.length + ' of ' + MODELS.length + ' models)'; ws.style.color = '#6ee7b7'; }
       try { renderRaceSim(); } catch(e) {
         console.error('Race sim render error:', e);
         if(document.getElementById('startConditions')) document.getElementById('startConditions').innerHTML = '<div class="loading" style="color:var(--err)">Render error: '+e.message+'</div>';
       }
     }
     var updNow = new Date();
-    document.getElementById('windUpdated').textContent = 'Updated ' + String(updNow.getHours()).padStart(2,'0') + ':' + String(updNow.getMinutes()).padStart(2,'0') + ' — auto-refreshes every 15 min';
-  }).catch(function(e){
-    console.error('Wind fetch error:', e);
-    document.getElementById('windForecast').innerHTML = '<div class="loading">Wind fetch failed: '+e.message+' <br><button class="refresh-btn" onclick="fetchWind()" style="margin-top:8px">Retry</button></div>';
-    document.getElementById('dashWind').innerHTML = '<div class="loading">Wind fetch failed <button class="refresh-btn" onclick="fetchWind()" style="margin-left:8px">Retry</button></div>';
-    if(raceSimActive) {
-      document.getElementById('startConditions').innerHTML = '<div class="loading">Wind data unavailable — <button class="refresh-btn" onclick="fetchWind()">Retry fetch</button></div>';
+    var stamp = 'Updated ' + String(updNow.getHours()).padStart(2,'0') + ':' + String(updNow.getMinutes()).padStart(2,'0');
+    if(failed.length > 0){
+      stamp += ' · ' + ok.length + '/' + MODELS.length + ' models (others unavailable)';
+      console.warn('Wind fetch partial — failed models:', failed);
+    } else {
+      stamp += ' — auto-refreshes every 15 min';
     }
+    var wu = document.getElementById('windUpdated'); if(wu) wu.textContent = stamp;
+  }).catch(function(e){
+    // allSettled should never reject, but a guard in case the .then handler throws.
+    console.error('Wind fetch handler error:', e);
+    document.getElementById('windForecast').innerHTML = '<div class="loading">Render error: '+e.message+' <br><button class="refresh-btn" onclick="fetchWind()" style="margin-top:8px">Retry</button></div>';
   });
 }
 
