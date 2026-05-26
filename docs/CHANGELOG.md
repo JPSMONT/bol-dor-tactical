@@ -6,6 +6,33 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-26 — Day-mode contrast + scroll fix + fonts round 3
+
+### Fixed
+- **Day-mode contrast — buttons with black text on dark accents** were unreadable. Introduced `--btn-on-fg` CSS variable (`#06121f` in Night, `#ffffff` in Day) and routed all accent-backgrounded buttons through it (`race-badge`, `polar-controls.on`, `ckpt-mode`, `sim-toggle`, `gps-btn.start`, `wp-btn.active`, `year-btn.on/loading`, `phase-step.current`, `rival-link.rival-live.on`, `cal-badge`, `cl-item.auto.checked`, plus the venue/role/theme floating pills and the Tuning Log Save button + sail toggles).
+- **Polar diagram axes invisible in Day mode** — canvas grid + tick labels were drawn at white-on-anything. Now reads `--polar-axis-{strong,med,weak,faint,ghost,label}` CSS variables at every render (light shades in Night, dark shades in Day) so the diagram inverts cleanly on theme swap.
+- **Strategy / Rivals map base tile** — switched from CARTO `dark_all` to CARTO `light_all` in Day mode. Initial render picks the right base from `document.documentElement.dataset.theme`; `setTheme()` calls `swapMapBaseTiles()` to swap live without a reload (removes the existing CARTO layer, adds the new one, preserves OpenSeaMap seamarks above). Map container background switched from hardcoded `#000` to `var(--bg)` so the loading skeleton matches theme.
+- **Scroll not working on Dashboard / Polars (iPad)** — the floating Day/Night, Primary/Advisor, Bol d'Or/Zugersee pills were `position:fixed` and captured swipe-to-scroll touches in the bottom-right corner. Set `pointer-events:none` on the pill containers and `pointer-events:auto` on the buttons inside — taps still work, swipes pass through to the underlying scroll container. Bottom padding on `.views` raised from 80 → 140 px to clear the now-3-pill stack.
+
+### Changed
+- **Tablet typography — round 3.** Round 2 still under-read at arm's length from the helm in full daylight. Pushed another step:
+  - cockpit tile values: 40 → **44** (≥700), 48 → **56** (≥1000)
+  - cockpit nav values: 28 → 32 (≥700), 34 → **40** (≥1000)
+  - countdown big number: 48 → 54 (≥700), 64 → **76** (≥1000)
+  - metric values: 32 → 36 (≥700), 38 → **42** (≥1000)
+  - header h1: 20 → 22 (≥700), 24 → **28** (≥1000)
+  - tabs: 15 → 17 (≥700), 16 → **19** (≥1000)
+  - .app max-width: 880 → 920 (≥700), 1120 → **1180** (≥1000)
+  - Newly scaled: checklist items, refresh buttons, GPS/waypoint buttons, zone tabs, leg stats, VMG table cells (with bigger row padding at ≥1000).
+  - Floating pills also enlarged for sailing-glove tap targets (font 14 / padding 7×14) and re-spaced to 10 / 60 / 110 px from the bottom.
+- **Service worker cache v15 → v16.**
+
+### Notes — open follow-ups
+- 48 h forecast on Zugersee returns "Wind fetch failed: Response served by service worker is an error" — likely an SW interception of the Open-Meteo URL going wrong; pattern timeline blocked by same. Next session.
+- Rivals tab on Zugersee needs a separate integration: boat list from `zugerseecup.ch`, tracking via Kwindoo (not SuiviRegate). Bigger feature — research + spec next.
+
+---
+
 ## 2026-05-26 — Day/Night theme + larger tablet typography (round 2)
 
 ### Added

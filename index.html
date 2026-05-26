@@ -31,6 +31,18 @@
   --bg:#0a1628;--bg2:#0f2035;--bg3:#162a45;--card:#1a3355;
   --tx:#e8edf4;--tx2:#8fa4bd;--tx3:#5a7290;
   --acc:#4a9eff;--acc2:#2dd4a8;--warn:#f59e0b;--err:#ef4444;
+  /* --btn-on-fg = text color used on accent-coloured buttons.
+     Dark text on bright (night) accents; light text on deep (day) accents. */
+  --btn-on-fg:#06121f;
+  /* --polar-axis = grid/labels on the polar diagram canvas.
+     Light in night mode, dark in day mode. */
+  --polar-axis:rgba(255,255,255,1);
+  --polar-axis-strong:rgba(255,255,255,.9);
+  --polar-axis-med:rgba(255,255,255,.55);
+  --polar-axis-weak:rgba(255,255,255,.22);
+  --polar-axis-faint:rgba(255,255,255,.14);
+  --polar-axis-ghost:rgba(255,255,255,.06);
+  --polar-axis-label:rgba(255,255,255,.4);
   --r:10px;
 }
 /* ===== DAY THEME — high-contrast for bright daylight on water =====
@@ -40,6 +52,14 @@ html[data-theme="day"]{
   --bg:#f4f6fa;--bg2:#ffffff;--bg3:#dde4ee;--card:#ffffff;
   --tx:#0a1220;--tx2:#3a4a5f;--tx3:#6b7a8f;
   --acc:#0d4ea3;--acc2:#006d4f;--warn:#b45309;--err:#b91c1c;
+  --btn-on-fg:#ffffff; /* white text on deep day accents */
+  --polar-axis:rgba(10,18,32,1);
+  --polar-axis-strong:rgba(10,18,32,.9);
+  --polar-axis-med:rgba(10,18,32,.6);
+  --polar-axis-weak:rgba(10,18,32,.32);
+  --polar-axis-faint:rgba(10,18,32,.18);
+  --polar-axis-ghost:rgba(10,18,32,.08);
+  --polar-axis-label:rgba(10,18,32,.6);
 }
 html[data-theme="day"] .card{box-shadow:0 1px 2px rgba(10,20,40,.06);border:1px solid var(--bg3)}
 html[data-theme="day"] .ckpt-tile,html[data-theme="day"] .ckpt-nav .nv{background:#f8fafc;border:1px solid var(--bg3)}
@@ -50,6 +70,13 @@ html[data-theme="day"] .countdown .big{color:#0d4ea3}
 html[data-theme="day"] .tabs button.on{background:#0d4ea3;color:#fff}
 html[data-theme="day"] .race-day-banner{background:#fff;border:1px solid var(--bg3);color:var(--tx)}
 html[data-theme="day"] details.card > summary:after{color:var(--tx2)}
+/* Day-mode form / input contrast — inputs sit on white cards and need a visible border + dark text. */
+html[data-theme="day"] input,html[data-theme="day"] select,html[data-theme="day"] textarea{
+  background:#fff;color:var(--tx);border:1px solid var(--bg3)
+}
+html[data-theme="day"] .pill{color:#fff}
+html[data-theme="day"] .conf-pill{color:#fff}
+html[data-theme="day"] .dash-conf{color:#fff}
 html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--tx);overflow:hidden}
 .app{display:flex;flex-direction:column;height:100%;max-width:480px;margin:0 auto}
 /* ===== TABLET / IPAD — widen container + scale typography =====
@@ -58,74 +85,101 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
    in bright daylight even with the day theme on. */
 /* iPad portrait (~810–1024 px wide) */
 @media(min-width:700px){
-  .app{max-width:880px}
-  header h1{font-size:20px}
-  header .race-badge{font-size:14px;padding:5px 14px}
-  .tabs button{font-size:15px;padding:12px 6px}
-  .card-title{font-size:14px;letter-spacing:0.8px}
-  .ckpt-head{font-size:14px}
-  .ckpt-tile .tv{font-size:40px}
-  .ckpt-tile .tl{font-size:14px}
-  .ckpt-tile .ts{font-size:14px;line-height:1.4}
-  .ckpt-nav .nv .v{font-size:28px}
-  .ckpt-nav .nv .l{font-size:13px}
-  .ckpt-tag{font-size:12px;padding:3px 8px}
-  .ckpt-legend{font-size:12px}
-  .countdown .big{font-size:48px}
-  .countdown .sub{font-size:15px}
-  .metric .val{font-size:32px}
-  .metric .label{font-size:14px}
-  .metric .unit{font-size:14px}
-  .loading{font-size:16px}
-  .pill{font-size:12px;padding:4px 12px}
-  .strat-note{font-size:14px;line-height:1.5}
-  .bank-name{font-size:17px}
-  .bank-detail{font-size:13px}
-  .bank-vmg .val{font-size:22px}
-  .vmg-table{font-size:14px}
-  .forecast-time{font-size:13px}
-  .forecast-vals{font-size:14px}
-  .race-sim-banner .sim-countdown{font-size:36px}
-  .race-sim-banner .sim-label{font-size:12px}
-  .leg-title{font-size:15px}
-  .tl-time{font-size:12px}
-  .tl-desc{font-size:14px}
-  .tl-wind{font-size:13px}
-  .start-cell .sc-val{font-size:22px}
-  .start-cell .sc-lbl{font-size:11px}
-  .wind-cell{font-size:13px}
-  .wind-grid-header{font-size:12px}
+  .app{max-width:920px}
+  header h1{font-size:22px}
+  header .race-badge{font-size:15px;padding:5px 14px}
+  .tabs button{font-size:17px;padding:14px 6px}
+  .card-title{font-size:15px;letter-spacing:0.8px}
+  .ckpt-head{font-size:15px}
+  .ckpt-tile .tv{font-size:44px}
+  .ckpt-tile .tl{font-size:15px}
+  .ckpt-tile .ts{font-size:15px;line-height:1.4}
+  .ckpt-nav .nv .v{font-size:32px}
+  .ckpt-nav .nv .l{font-size:14px}
+  .ckpt-tag{font-size:13px;padding:3px 9px}
+  .ckpt-legend{font-size:13px}
+  .countdown .big{font-size:54px}
+  .countdown .sub{font-size:17px}
+  .metric .val{font-size:36px}
+  .metric .label{font-size:15px}
+  .metric .unit{font-size:15px}
+  .loading{font-size:17px}
+  .pill{font-size:13px;padding:4px 12px}
+  .strat-note{font-size:15px;line-height:1.5}
+  .bank-name{font-size:19px}
+  .bank-detail{font-size:14px}
+  .bank-vmg .val{font-size:24px}
+  .vmg-table{font-size:15px}
+  .forecast-time{font-size:14px}
+  .forecast-vals{font-size:15px}
+  .race-sim-banner .sim-countdown{font-size:40px}
+  .race-sim-banner .sim-label{font-size:13px}
+  .leg-title{font-size:17px}
+  .tl-time{font-size:13px}
+  .tl-desc{font-size:15px}
+  .tl-wind{font-size:14px}
+  .start-cell .sc-val{font-size:24px}
+  .start-cell .sc-lbl{font-size:12px}
+  .wind-cell{font-size:14px}
+  .wind-grid-header{font-size:13px}
+  .cl-item{font-size:15px}
+  .refresh-btn{font-size:14px;padding:8px 16px}
+  .gps-btn{font-size:15px}
+  .wp-btn{font-size:14px}
+  .zone-tab button{font-size:14px;padding:10px}
+  .leg-stat .ls-val{font-size:20px}
+  .leg-stat .ls-lbl{font-size:11px}
+  /* Pills bigger so they're easier to tap with sailing gloves */
+  #venuePill,#rolePill,#themePill{font-size:14px}
+  #venuePill button,#rolePill button,#themePill button{padding:7px 14px;font-size:14px}
+  #venuePill{bottom:10px}
+  #rolePill{bottom:60px}
+  #themePill{bottom:110px}
 }
 /* iPad landscape / 13" iPad Pro portrait (~1024+ px) */
 @media(min-width:1000px){
-  .app{max-width:1120px}
-  header h1{font-size:24px}
-  header .race-badge{font-size:15px;padding:6px 16px}
-  .tabs button{font-size:16px;padding:14px 8px}
-  .card-title{font-size:15px}
-  .ckpt-tile .tv{font-size:48px}
-  .ckpt-tile .tl{font-size:15px}
-  .ckpt-tile .ts{font-size:15px}
-  .ckpt-nav .nv .v{font-size:34px}
-  .ckpt-nav .nv .l{font-size:14px}
-  .ckpt-tag{font-size:13px;padding:3px 10px}
-  .countdown .big{font-size:64px}
-  .countdown .sub{font-size:17px}
-  .metric .val{font-size:38px}
-  .metric .label{font-size:14px}
-  .race-sim-banner .sim-countdown{font-size:44px}
-  .strat-note{font-size:15px}
-  .bank-name{font-size:19px}
-  .bank-vmg .val{font-size:26px}
-  .vmg-table{font-size:15px}
+  .app{max-width:1180px}
+  header h1{font-size:28px}
+  header .race-badge{font-size:17px;padding:7px 18px}
+  .tabs button{font-size:19px;padding:16px 8px}
+  .card-title{font-size:17px}
+  .ckpt-tile .tv{font-size:56px}
+  .ckpt-tile .tl{font-size:17px}
+  .ckpt-tile .ts{font-size:17px}
+  .ckpt-nav .nv .v{font-size:40px}
+  .ckpt-nav .nv .l{font-size:15px}
+  .ckpt-tag{font-size:14px;padding:4px 11px}
+  .countdown .big{font-size:76px}
+  .countdown .sub{font-size:19px}
+  .metric .val{font-size:42px}
+  .metric .label{font-size:15px}
+  .race-sim-banner .sim-countdown{font-size:50px}
+  .race-sim-banner .sim-label{font-size:14px}
+  .strat-note{font-size:17px}
+  .bank-name{font-size:22px}
+  .bank-vmg .val{font-size:30px}
+  .vmg-table{font-size:17px}
+  .vmg-table th,.vmg-table td{padding:8px 6px}
+  .forecast-time{font-size:15px}
+  .forecast-vals{font-size:17px}
+  .cl-item{font-size:17px}
+  .refresh-btn{font-size:15px;padding:9px 18px}
+  .gps-btn{font-size:17px}
+  .wp-btn{font-size:16px}
+  .loading{font-size:19px}
 }
 header{padding:12px 16px 8px;display:flex;align-items:center;justify-content:space-between}
 header h1{font-size:15px;font-weight:600;letter-spacing:0.5px}
-header .race-badge{font-size:11px;background:var(--acc);color:#000;padding:3px 10px;border-radius:20px;font-weight:700}
+header .race-badge{font-size:11px;background:var(--acc);color:var(--btn-on-fg);padding:3px 10px;border-radius:20px;font-weight:700}
 .tabs{display:flex;gap:2px;padding:0 12px 8px}
 .tabs button{flex:1;padding:8px 4px;font-size:11px;font-weight:600;border:none;background:transparent;color:var(--tx3);border-radius:var(--r);cursor:pointer;transition:all .2s}
 .tabs button.on{background:var(--bg3);color:var(--tx)}
-.views{flex:1;overflow-y:auto;overflow-x:hidden;padding:0 12px 80px;-webkit-overflow-scrolling:touch}
+.views{flex:1;overflow-y:auto;overflow-x:hidden;padding:0 12px 140px;-webkit-overflow-scrolling:touch}
+/* Floating pill stacks (venue / role / theme) — wrapper must NOT capture
+   touches so that swipe-to-scroll gestures pass through to the underlying
+   .views. Only the actual buttons take taps. */
+#venuePill,#rolePill,#themePill{pointer-events:none}
+#venuePill button,#rolePill button,#themePill button{pointer-events:auto}
 .view{display:none}
 .view.on{display:block}
 .card{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:10px}
@@ -151,7 +205,7 @@ details.card[open] > summary:after{transform:rotate(90deg)}
 canvas{display:block}
 .polar-controls{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .polar-controls button{padding:6px 12px;font-size:12px;font-weight:600;border:1px solid var(--bg3);background:transparent;color:var(--tx2);border-radius:20px;cursor:pointer}
-.polar-controls button.on{background:var(--acc);color:#000;border-color:var(--acc)}
+.polar-controls button.on{background:var(--acc);color:var(--btn-on-fg);border-color:var(--acc)}
 .polar-legend{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px;font-size:10px;color:var(--tx2);margin-top:8px;line-height:1.5}
 .pl-sw{display:inline-block;width:18px;height:3px;border-radius:1px;vertical-align:middle}
 .pl-label{margin-left:4px}
@@ -197,7 +251,7 @@ canvas{display:block}
 .race-sim-banner .sim-sub{font-size:11px;color:#6ee7b7;margin-top:4px}
 #cockpitCard{border:1px solid var(--bg3)}
 .ckpt-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:11px}
-.ckpt-mode{font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#06121f;background:var(--acc);border-radius:10px;padding:2px 10px}
+.ckpt-mode{font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--btn-on-fg);background:var(--acc);border-radius:10px;padding:2px 10px}
 .ckpt-mode.race{background:var(--acc2)}
 .ckpt-mode.debrief{background:var(--tx3)}
 .ckpt-venue{color:var(--tx3)}
@@ -218,7 +272,7 @@ canvas{display:block}
 .ckpt-future{opacity:.55}
 .ckpt-legend{display:flex;gap:14px;margin-top:10px;font-size:10px;color:var(--tx3);flex-wrap:wrap}
 @media(max-width:520px){.ckpt-grid3{grid-template-columns:1fr}.ckpt-tile .tv{font-size:26px}}
-.sim-toggle{background:var(--acc2);color:#000;border:none;font-size:11px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;letter-spacing:0.5px}
+.sim-toggle{background:var(--acc2);color:var(--btn-on-fg);border:none;font-size:11px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;letter-spacing:0.5px}
 .sim-toggle.active{background:#ef4444;color:#fff}
 .leg-card{background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:8px;border-left:3px solid var(--acc)}
 .leg-card.leg2{border-left-color:var(--warn)}
@@ -258,8 +312,8 @@ canvas{display:block}
 .zone-subhead span{text-align:center;font-size:9px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:0.3px}
 @media(min-width:420px){.metric .val{font-size:24px}}
 /* Leaflet map for Strategy tab */
-#lakeMap{width:100%;height:300px;border-radius:8px;background:#000}
-#lakeMap .leaflet-container{background:#000}
+#lakeMap{width:100%;height:300px;border-radius:8px;background:var(--bg)}
+#lakeMap .leaflet-container{background:var(--bg)}
 #lakeMap .leaflet-control-attribution{background:rgba(0,0,0,.75);color:var(--tx3);font-size:9px}
 #lakeMap .leaflet-control-attribution a{color:var(--tx2)}
 #lakeMap .leaflet-control-zoom a{background:var(--bg3);color:var(--tx);border-color:var(--bg2)}
@@ -274,7 +328,7 @@ canvas{display:block}
 .wp-badge.num{background:#4a9eff}
 /* GPS / Nav panel */
 .gps-btn{background:var(--bg3);color:var(--tx);border:1px solid var(--bg3);font-size:12px;font-weight:700;padding:7px 14px;border-radius:20px;cursor:pointer;letter-spacing:.3px}
-.gps-btn.start{background:var(--acc2);color:#000;border-color:var(--acc2)}
+.gps-btn.start{background:var(--acc2);color:var(--btn-on-fg);border-color:var(--acc2)}
 .gps-btn.active{background:var(--err);color:#fff;border-color:var(--err)}
 .gps-status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--err);margin-right:6px;vertical-align:middle}
 .gps-status-dot.searching{background:var(--warn);animation:gpspulse 1.2s infinite}
@@ -283,7 +337,7 @@ canvas{display:block}
 .compass-wrap{display:flex;justify-content:center;padding:6px 0 4px}
 .wp-btn-row{display:flex;gap:4px;margin-top:10px;flex-wrap:wrap}
 .wp-btn{flex:1 1 calc(14% - 4px);min-width:46px;padding:7px 2px;font-size:10px;font-weight:700;border:1px solid var(--bg3);background:transparent;color:var(--tx2);border-radius:6px;cursor:pointer;letter-spacing:.3px;line-height:1.2}
-.wp-btn.active{background:var(--acc2);color:#000;border-color:var(--acc2)}
+.wp-btn.active{background:var(--acc2);color:var(--btn-on-fg);border-color:var(--acc2)}
 .wp-btn.passed{color:var(--tx3);opacity:.55}
 .off-course{text-align:center;font-size:15px;font-weight:700;margin:8px 0;padding:6px;border-radius:6px;background:var(--bg2)}
 .boat-icon{filter:drop-shadow(0 0 4px rgba(251,191,36,.7))}
@@ -313,13 +367,13 @@ canvas{display:block}
 /* Rivals tab */
 .year-row{display:flex;gap:4px;margin-bottom:10px}
 .year-btn{flex:1;padding:8px 4px;font-size:12px;font-weight:700;border:1px solid var(--bg3);background:transparent;color:var(--tx2);border-radius:6px;cursor:pointer;letter-spacing:.3px}
-.year-btn.on{background:var(--acc);color:#000;border-color:var(--acc)}
-.year-btn.loading{background:var(--warn);color:#000;border-color:var(--warn)}
+.year-btn.on{background:var(--acc);color:var(--btn-on-fg);border-color:var(--acc)}
+.year-btn.loading{background:var(--warn);color:var(--btn-on-fg);border-color:var(--warn)}
 .rival-status{font-size:11px;color:var(--tx3);padding:8px 10px;background:var(--bg2);border-radius:6px;margin-bottom:8px;line-height:1.4}
 .rival-status.error{color:#fca5a5;background:rgba(127,29,29,.3);border-left:3px solid var(--err)}
 .rival-status.success{color:#6ee7b7;background:rgba(6,78,59,.3);border-left:3px solid var(--acc2)}
-#rivalMap{width:100%;height:340px;border-radius:8px;background:#000}
-#rivalMap .leaflet-container{background:#000}
+#rivalMap{width:100%;height:340px;border-radius:8px;background:var(--bg)}
+#rivalMap .leaflet-container{background:var(--bg)}
 #rivalMap .leaflet-control-attribution{background:rgba(0,0,0,.75);color:var(--tx3);font-size:9px}
 #rivalMap .leaflet-control-attribution a{color:var(--tx2)}
 #rivalMap .leaflet-control-zoom a{background:var(--bg3);color:var(--tx);border-color:var(--bg2)}
@@ -344,7 +398,7 @@ canvas{display:block}
 .rival-target-eye{font-size:14px;color:var(--acc2);width:18px;text-align:center}
 .rival-target.off .rival-target-eye{color:var(--tx3)}
 .rival-analyse-btn{background:var(--bg3);color:var(--tx2);border:1px solid var(--bg3);font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;cursor:pointer;letter-spacing:.3px}
-.rival-analyse-btn:hover{background:var(--acc);color:#000;border-color:var(--acc)}
+.rival-analyse-btn:hover{background:var(--acc);color:var(--btn-on-fg);border-color:var(--acc)}
 /* Performance analysis */
 .an-row{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
 .an-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;font-variant-numeric:tabular-nums}
@@ -382,7 +436,7 @@ canvas{display:block}
 .rival-link{flex:1;text-align:center;padding:7px 10px;font-size:11px;font-weight:700;border:1px solid var(--bg3);background:transparent;color:var(--tx2);border-radius:6px;cursor:pointer;text-decoration:none;letter-spacing:.3px;display:block}
 .rival-link:hover{background:var(--bg3);color:var(--tx)}
 .rival-link.rival-live{background:transparent;color:var(--tx2)}
-.rival-link.rival-live.on{background:var(--acc2);color:#000;border-color:var(--acc2)}
+.rival-link.rival-live.on{background:var(--acc2);color:var(--btn-on-fg);border-color:var(--acc2)}
 .race-day-banner{font-size:11px;padding:8px 10px;border-radius:6px;margin-bottom:8px;line-height:1.4}
 .race-day-banner.pre{background:rgba(74,158,255,.1);border-left:3px solid var(--acc);color:var(--tx2)}
 .race-day-banner.live{background:rgba(45,212,168,.12);border-left:3px solid var(--acc2);color:#a7f3d0}
@@ -392,7 +446,7 @@ canvas{display:block}
 .phase-timeline{display:flex;gap:2px;margin-bottom:10px}
 .phase-step{flex:1;padding:6px 4px;background:var(--bg2);text-align:center;border-radius:4px;font-size:9px;font-weight:700;color:var(--tx3);letter-spacing:.3px;line-height:1.2;border:1px solid transparent}
 .phase-step.done{background:var(--bg3);color:var(--tx3);opacity:.6}
-.phase-step.current{background:var(--acc);color:#000;border-color:var(--acc)}
+.phase-step.current{background:var(--acc);color:var(--btn-on-fg);border-color:var(--acc)}
 .phase-step.upcoming{background:transparent;color:var(--tx3);border-color:var(--bg3)}
 .phase-step .ps-day{display:block;font-size:11px;font-weight:900;letter-spacing:0}
 .phase-guide{font-size:12px;color:var(--tx2);line-height:1.5;background:var(--bg2);padding:10px;border-radius:6px;border-left:3px solid var(--acc)}
@@ -430,7 +484,7 @@ canvas{display:block}
 .cl-item.checked .cl-box{background:var(--acc2);border-color:var(--acc2)}
 .cl-item.checked .cl-box:after{content:'✓'}
 .cl-item.auto .cl-box{background:var(--bg3);border-color:var(--bg3);font-size:10px;color:var(--tx3)}
-.cl-item.auto.checked .cl-box{background:var(--acc);border-color:var(--acc);color:#000}
+.cl-item.auto.checked .cl-box{background:var(--acc);border-color:var(--acc);color:var(--btn-on-fg)}
 .cl-label{flex:1;font-size:12px;color:var(--tx)}
 .cl-item.checked .cl-label{color:var(--tx2)}
 .cl-detail{font-size:10px;color:var(--tx3);margin-top:1px}
@@ -448,7 +502,7 @@ canvas{display:block}
 /* Wind Calibration */
 .cal-status{font-size:11px;color:var(--tx3);padding:6px 8px;background:var(--bg2);border-radius:6px;line-height:1.4}
 .cal-status.active{color:var(--tx);border-left:3px solid var(--acc2)}
-.cal-badge{display:inline-block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;background:var(--acc2);color:#000;padding:2px 6px;border-radius:10px;margin-right:6px;vertical-align:middle}
+.cal-badge{display:inline-block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;background:var(--acc2);color:var(--btn-on-fg);padding:2px 6px;border-radius:10px;margin-right:6px;vertical-align:middle}
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
 .modal-card{background:var(--card);border:1px solid var(--bg3);border-radius:10px;padding:18px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.6)}
 .modal-title{font-size:14px;font-weight:700;letter-spacing:.3px;color:var(--tx);margin-bottom:6px}
@@ -1060,6 +1114,34 @@ function setTheme(t){
   try { if(typeof renderCockpit === 'function') renderCockpit(); } catch(e){}
   try { if(typeof drawPolar === 'function' && document.querySelector('.view.on')) drawPolar(); } catch(e){}
   try { if(typeof renderTuningLog === 'function') renderTuningLog(); } catch(e){}
+  // Swap Leaflet base tiles to the theme-matching CARTO variant. Maps may not
+  // be initialized yet (lazy-init on first view); skip silently if so.
+  try { swapMapBaseTiles(); } catch(e){ console.error('swapMapBaseTiles:', e); }
+}
+
+// Swap the CARTO base tile layer on lakeMap and rivalMap to match theme.
+// Tracks the basetile reference per-map via a property on the map object.
+function swapMapBaseTiles(){
+  var isDay = document.documentElement.getAttribute('data-theme') === 'day';
+  var url = 'https://{s}.basemaps.cartocdn.com/' + (isDay ? 'light_all' : 'dark_all') + '/{z}/{x}/{y}{r}.png';
+  var maps = [typeof lakeMap !== 'undefined' ? lakeMap : null,
+              typeof rivalMap !== 'undefined' ? rivalMap : null];
+  for(var i=0;i<maps.length;i++){
+    var m = maps[i]; if(!m) continue;
+    // Find the CARTO base layer (first tileLayer whose URL contains 'cartocdn').
+    m.eachLayer(function(L_){
+      if(L_._url && /cartocdn\.com/.test(L_._url) && /_all/.test(L_._url)) m.removeLayer(L_);
+    });
+    L.tileLayer(url, { maxZoom: 19, subdomains: 'abcd',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    }).addTo(m);
+    // Ensure CARTO sits beneath OpenSeaMap seamarks (which were added after).
+    try {
+      m.eachLayer(function(L_){
+        if(L_._url && /openseamap/.test(L_._url)){ L_.bringToFront(); }
+      });
+    } catch(e){}
+  }
 }
 
 // Lake polygon (simplified)
@@ -1373,11 +1455,31 @@ function initPolarBtns() {
 // Dual-polar renderer: TWA polar on the right, AWA polar mirrored on the left.
 // Matches the ORC Speed Guide visual convention (15° major gridlines, 1° ticks,
 // single TWS selected at a time).
+// Read polar-axis colors from CSS vars so Day/Night theme swap repaints the
+// diagram with theme-appropriate ink (light grid on dark / dark grid on light).
+var POLAR_VARS = {
+  strong:'rgba(255,255,255,.9)', med:'rgba(255,255,255,.55)',
+  weak:'rgba(255,255,255,.22)', faint:'rgba(255,255,255,.14)',
+  ghost:'rgba(255,255,255,.06)', label:'rgba(255,255,255,.4)'
+};
+function refreshPolarVars(){
+  try {
+    var s = getComputedStyle(document.documentElement);
+    var pv = ['strong','med','weak','faint','ghost','label'];
+    for(var i=0;i<pv.length;i++){
+      var v = s.getPropertyValue('--polar-axis-'+pv[i]);
+      if(v) POLAR_VARS[pv[i]] = v.trim();
+    }
+  } catch(e){}
+}
+
 function drawPolar() {
   var cv = document.getElementById('polarCanvas');
   if(!cv) return;
   var ctx = cv.getContext('2d');
   if(!ctx) return;
+
+  refreshPolarVars();
 
   var W = cv.width, H = cv.height;
   ctx.clearRect(0, 0, W, H);
@@ -1416,12 +1518,12 @@ function drawPolar() {
       ctx.beginPath();
       if(side === 'R') ctx.arc(cx, CY, cr, -Math.PI/2, Math.PI/2);
       else             ctx.arc(cx, CY, cr, -Math.PI/2, Math.PI/2, true);
-      ctx.strokeStyle = (s % 2 === 0) ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.06)';
+      ctx.strokeStyle = (s % 2 === 0) ? POLAR_VARS.faint : POLAR_VARS.ghost;
       ctx.lineWidth = 0.5;
       ctx.stroke();
     }
     // Speed labels along the centerline at even rings
-    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.fillStyle = POLAR_VARS.label;
     ctx.font = '9px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -1435,12 +1537,12 @@ function drawPolar() {
       ctx.beginPath();
       ctx.moveTo(cx, CY);
       ctx.lineTo(pt[0], pt[1]);
-      ctx.strokeStyle = 'rgba(255,255,255,.14)';
+      ctx.strokeStyle = POLAR_VARS.faint;
       ctx.lineWidth = 0.6;
       ctx.stroke();
       if(a > 0 && a < 180) {
         var lp = toXY(side, a, MAX + 0.65);
-        ctx.fillStyle = 'rgba(255,255,255,.55)';
+        ctx.fillStyle = POLAR_VARS.med;
         ctx.font = '9px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -1448,7 +1550,7 @@ function drawPolar() {
       }
     }
     // 0° / 180° labels along the centerline
-    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.fillStyle = POLAR_VARS.med;
     ctx.font = 'bold 9px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
@@ -1457,7 +1559,7 @@ function drawPolar() {
     ctx.fillText('180°', cx, CY + RAD + 2);
 
     // 3) 1° / 5° tick marks on the outer rim
-    ctx.strokeStyle = 'rgba(255,255,255,.22)';
+    ctx.strokeStyle = POLAR_VARS.weak;
     for(var a = 1; a < 180; a++) {
       if(a % 15 === 0) continue;
       var inner = toXY(side, a, MAX - (a % 5 === 0 ? 0.35 : 0.18));
@@ -1481,7 +1583,7 @@ function drawPolar() {
   drawHalf('R');
 
   // Side titles (AWA / TWA) near the top centerline of each side
-  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  ctx.fillStyle = POLAR_VARS.strong;
   ctx.font = 'bold 11px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -1529,7 +1631,7 @@ function drawPolar() {
 
   // Zoom-level hint, drawn in screen coordinates outside the transform
   if(polarView.zoom !== 1 || polarView.panX !== 0 || polarView.panY !== 0) {
-    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.fillStyle = POLAR_VARS.med;
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
@@ -2520,7 +2622,7 @@ function renderCockpit(){
   var modeLabel=st==='live'?'Race':(st==='past'?'Debrief':'Planning');
   var modeCls=st==='live'?'race':(st==='past'?'debrief':'');
   var venue=(typeof IS_ZUG!=='undefined' && IS_ZUG) ? "Goldschäkel · Zugersee" : "Bol d'Or · Lac Léman";
-  var h='<div class="ckpt-head"><span class="ckpt-mode '+modeCls+'">'+modeLabel+'</span>'+(IS_ADVISOR?'<span style="margin-left:8px;background:var(--warn);color:#06121f;font-weight:800;border-radius:10px;padding:2px 8px;font-size:11px;text-transform:uppercase;letter-spacing:1px">Advisor</span>':'')+'<span class="ckpt-venue">'+venue+'</span></div>';
+  var h='<div class="ckpt-head"><span class="ckpt-mode '+modeCls+'">'+modeLabel+'</span>'+(IS_ADVISOR?'<span style="margin-left:8px;background:var(--warn);color:var(--btn-on-fg);font-weight:800;border-radius:10px;padding:2px 8px;font-size:11px;text-transform:uppercase;letter-spacing:1px">Advisor</span>':'')+'<span class="ckpt-venue">'+venue+'</span></div>';
   h+=raceControlHtml();
 
   var fh=fusedHeading(), nm=ckptNextMark(), perf=computePerf();
@@ -2659,7 +2761,7 @@ function raceControlHtml(){
     var armed=gun && now>=gun;
     return '<div style="'+box+'">'+
       '<span style="color:var(--tx2)">'+(armed?'Gun window open — confirm your start:':'Race timing')+'</span>'+
-      '<button class="refresh-btn" onclick="startRace()"'+(armed?' style="background:var(--warn);color:#06121f;border-color:var(--warn);font-weight:700"':'')+'>Start race</button>'+
+      '<button class="refresh-btn" onclick="startRace()"'+(armed?' style="background:var(--warn);color:var(--btn-on-fg);border-color:var(--warn);font-weight:700"':'')+'>Start race</button>'+
       (armed?'':'<span style="color:var(--tx3);font-size:11px;margin-left:auto">auto-arms at the gun</span>')+
       '</div>';
   }
@@ -2857,7 +2959,7 @@ function openTuningModal(){
   h +=   '<input type="text" id="tuningNote" placeholder="e.g., weather helm OK, tried more BS" style="width:100%;background:var(--bg3);border:1px solid var(--bg2);color:var(--tx);border-radius:6px;padding:6px 8px;font-size:13px;box-sizing:border-box"></div>';
   h += '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">';
   h +=   '<button class="refresh-btn" onclick="closeTuningModal()">Cancel</button>';
-  h +=   '<button class="refresh-btn" onclick="saveTuningEntry()" style="background:var(--acc2);color:#06121f;font-weight:700;border-color:var(--acc2)">Save</button>';
+  h +=   '<button class="refresh-btn" onclick="saveTuningEntry()" style="background:var(--acc2);color:var(--btn-on-fg);font-weight:700;border-color:var(--acc2)">Save</button>';
   h += '</div>';
   box.innerHTML = h;
   overlay.appendChild(box);
@@ -3261,7 +3363,7 @@ function initLakeMap() {
 
   // Dark base map (CARTO dark) under the OpenSeaMap seamark overlay — shows the
   // real shoreline while staying night-vision friendly.
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/'+(document.documentElement.getAttribute('data-theme')==='day'?'light_all':'dark_all')+'/{z}/{x}/{y}{r}.png', {
     maxZoom: 19, subdomains: 'abcd',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
   }).addTo(lakeMap);
@@ -4025,7 +4127,7 @@ function initRivalMap() {
     attributionControl: true,
     preferCanvas: true       // Canvas renderer scales to 400+ polylines
   });
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/'+(document.documentElement.getAttribute('data-theme')==='day'?'light_all':'dark_all')+'/{z}/{x}/{y}{r}.png', {
     maxZoom: 19, subdomains: 'abcd',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
   }).addTo(rivalMap);
@@ -6616,7 +6718,7 @@ function applyVenueChrome(){
         x.textContent = label;
         var on = (ACTIVE_VENUE === val);
         x.style.cssText = 'border:0;border-radius:11px;padding:3px 9px;cursor:pointer;font-weight:700;' +
-          (on ? 'background:var(--acc,#4a9eff);color:#06121f' : 'background:transparent;color:var(--tx2,#9fb3c8)');
+          (on ? 'background:var(--acc,#4a9eff);color:var(--btn-on-fg)' : 'background:transparent;color:var(--tx2,#9fb3c8)');
         x.onclick = function(){
           try { localStorage.setItem('venue_v1', val); } catch(e){}
           var u = new URL(location.href); u.searchParams.set('venue', val); location.href = u.toString();
@@ -6637,7 +6739,7 @@ function applyVenueChrome(){
         var on = (deviceRole === val);
         b.style.cssText = 'border:0;border-radius:11px;padding:3px 9px;cursor:pointer;font-weight:700;' +
           (on
-             ? (val === 'advisor' ? 'background:var(--warn);color:#06121f' : 'background:var(--acc,#4a9eff);color:#06121f')
+             ? (val === 'advisor' ? 'background:var(--warn);color:var(--btn-on-fg)' : 'background:var(--acc,#4a9eff);color:var(--btn-on-fg)')
              : 'background:transparent;color:var(--tx2,#9fb3c8)');
         b.onclick = function(){ setDeviceRole(val); };
         return b;
@@ -6657,7 +6759,7 @@ function applyVenueChrome(){
         b.textContent = label;
         var on = (curTheme === val);
         b.style.cssText = 'border:0;border-radius:11px;padding:4px 11px;cursor:pointer;font-weight:700;' +
-          (on ? 'background:var(--acc,#4a9eff);color:#06121f' : 'background:transparent;color:var(--tx2,#9fb3c8)');
+          (on ? 'background:var(--acc,#4a9eff);color:var(--btn-on-fg)' : 'background:transparent;color:var(--tx2,#9fb3c8)');
         b.onclick = function(){ setTheme(val); };
         return b;
       };
