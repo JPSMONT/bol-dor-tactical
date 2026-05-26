@@ -3,7 +3,7 @@
 **Date:** 24 May 2026 · **Owner:** Joao Monteiro (joao@pinto.ventures) · **Boat:** Little Johnka (CYD 27 ORC)
 **Status:** Direction-setting roadmap. Sequences the "AI Tactical Navigator & Performance Intelligence System" vision PRD against the current app and its real dependencies. Supersedes nothing — extends `PRD-v4.md` / `PRD-v5-addendum.md`.
 
-> **Build status (24 May 2026):** Phase 0 (Race cockpit) ✅, Phase 1.5 (in-race maneuver-loss tracker) ✅, Phase 2 v1 (in-app Debrief) ✅ — all shipped, behind the venue system. Phase 1 (live instruments) ⏸ **parked** pending hardware (`PRD-v6-live-instruments-spec.md` / `live-instruments-handoff-2026-05-24.md`). Phases 3–4 future.
+> **Build status (24 May 2026):** Phase 0 (Race cockpit) ✅, Phase 1.5 (in-race maneuver-loss tracker) ✅, Phase 2 v1 (in-app Debrief) ✅ — all shipped, behind the venue system. Phase 1 (live instruments) ⏸ **parked** pending hardware (`PRD-v6-live-instruments-spec.md` / `live-instruments-handoff-2026-05-24.md`). **Phase 1.6 (Tuning Log) 📝 specced** (`PRD-v6-tuning-log-spec.md`). Phases 3–4 future.
 
 > Guiding sentence from the vision: **compress complexity into actionable intent.** The skipper should not interpret data — the system interprets it for the skipper.
 
@@ -76,6 +76,12 @@ Design note: the cockpit must be glanceable in <1s — big type, high contrast, 
 **Deliverables:** Layer-1 NMEA ingestion (the PGNs above); real polar efficiency %, measured wind state, instrument-backed Trim Coach; the cockpit tiles flip from "model" (amber) to "live" (green).
 **Dependencies:** Signal K server (or YDWG-02 gateway) + WebSocket — see `PRD-v6-live-instruments-spec.md`. (YDVR-04 is the Debrief source, not live.)
 **Exit criteria:** instrument data stable on the water. *Assumption/risk: may not fully land before 6 June — fallback is the current model path (no regression), and the YDVR still logs to SD for post-race regardless.*
+
+### Phase 1.6 — Tuning Log (Performance Memory, scoped)
+**Goal:** capture setup vs polar % during training and racing → build a tuning database joinable by timestamp to GPS / maneuvers / Debrief, so the crew gradually learns what tune works best in which conditions.
+**Deliverables:** Tuning Log card on the Polars tab — one-tap snapshot (auto wind + perf + 8 manual settings + note), recent-entries table, best-by-wind-band stripe, CSV export, Advisor-mode aware (Primary device logs).
+**Dependencies:** none — works on model wind + polars; upgrades cleanly when YDVR-04 SD recordings can be joined.
+**Exit criteria:** crew uses it at the Goldschäkel; entries persist; CSV joins to the GPS track by `t_ms`. **Spec:** `docs/PRD-v6-tuning-log-spec.md`.
 
 ### Phase 2 — Debrief + maneuver intelligence (post-race)
 **Goal:** learn from logged data.

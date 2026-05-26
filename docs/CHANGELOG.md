@@ -6,6 +6,14 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-24 — Spec: Tuning Log (PRD v6 Phase 1.6)
+
+### Added
+- **`docs/PRD-v6-tuning-log-spec.md`** — scoped revival of "Performance Memory" (PRD v5 §2). One-tap snapshot of current settings vs polar %, timestamped and joinable to GPS / maneuver log / per-minute polar buckets / future YDVR SD recordings. Specs the data model, the 8-control settings list for Little Johnka (backstay, jib car, outhaul, cunningham, vang, traveller, halyard main, halyard jib + sail toggle), the snapshot UX, recent-entries table, best-by-wind-band view, CSV export, and Advisor-mode integration (Primary device logs only). Spec only — no app code yet.
+- **Roadmap**: Phase 1.6 entry + status line updated to reflect specced state.
+
+---
+
 ## 2026-05-24 — Advisor mode (multi-device read-only)
 
 ### Added
