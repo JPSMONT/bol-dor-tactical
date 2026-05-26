@@ -6,6 +6,19 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-26 — Tablet-responsive layout (iPad)
+
+### Changed
+- **`.app` container max-width 480 → 860 px ≥700 viewport, → 1080 px ≥1000 viewport**, with proportional font scaling on the most-read elements. Tablet/iPad users were getting a 480-px-wide phone strip centred on a 1376-pt-wide screen with the dashboard text rendered at phone-sized 10–13 px — barely legible at arm's length from the helm. The widening was a single-line change; the typography pass touches the cockpit tiles (`.ckpt-tile .tv` 30 → 34 → 38 px), nav values, countdown big number (32 → 40 → 52 px), metrics, header, race-badge, tab buttons, pills, strategy notes, bank cards, VMG table, forecast rows, and the Race-Sim banner countdown. Phone behaviour below 700 px is unchanged.
+- **Service worker cache v13 → v14.**
+
+### Notes
+- Two new media queries (no existing breakpoints removed). The pre-existing `@media(min-width:420px){.metric .val:24px}` is overridden by the new 700-px rule (28 px) and the 1000-px rule (32 px) in cascade order.
+- `@media(max-width:520px)` still collapses the cockpit row-2 grid on phones; the iPad 3-column cockpit row is preserved.
+- Knock-on benefit: the pre-existing `@media(min-width:768px){.tc-grid}` Trim-Coach 2-column rule now activates on iPad portrait too (it was previously dead code that no real device hit).
+
+---
+
 ## 2026-05-24 — Tuning Log build (PRD v6 Phase 1.6)
 
 ### Added

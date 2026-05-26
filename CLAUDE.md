@@ -45,9 +45,9 @@ The app at `https://jpsmont.github.io/bol-dor-tactical/` is feature-complete aga
 
 ### Cross-cutting infrastructure
 
-- **PWA install** — service worker (cache versioned — currently v13) caches the shell + pinned Leaflet/JSZip + Open-Meteo + MeteoSwiss responses, and map tiles (OpenSeaMap/CARTO) in a capped runtime cache, for offline race-day use; manifest with Little Johnka custom favicon and home-screen icons (192/512/apple-touch)
+- **PWA install** — service worker (cache versioned — currently v14) caches the shell + pinned Leaflet/JSZip + Open-Meteo + MeteoSwiss responses, and map tiles (OpenSeaMap/CARTO) in a capped runtime cache, for offline race-day use; manifest with Little Johnka custom favicon and home-screen icons (192/512/apple-touch)
 - **Self-hosted CORS proxy** — Cloudflare Worker at `https://corsproxy-bol-dor.jpsmont.workers.dev` fronts SuiviRegate KMZ fetches with host-allowlist and 1 h edge cache; replaces public proxy fallbacks (kept as second/third entries in `CORS_PROXIES` arrays in both `index.html` and `replay.html`); source at `workers/corsproxy.js`
-- **Night-vision dark theme** by default; responsive at 600 / 900 px breakpoints
+- **Night-vision dark theme** by default; responsive at 600 / 700 / 900 / 1000 px breakpoints (tablet pass: widens `.app` from 480 → 860 px ≥700, 1080 px ≥1000, with proportional font bumps on cockpit tiles, countdown, metrics, headers)
 - **Per-device role** — Primary (default) vs **Advisor** (read-only for race state: race controls hidden, the cockpit Enable-GPS button hidden, `sampleRacePerf()` early-returns so no maneuver/perf accumulation, visible Advisor badge). Pill toggle stacks above the venue pill; persists in `localStorage` (`device_role_v1`). For multi-device race-day setups where only one device should own the race log.
 
 ### What's outstanding
