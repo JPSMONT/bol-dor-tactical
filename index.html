@@ -932,6 +932,16 @@ var VLAB = IS_ZUG
   ? { ev:'Goldschäkel Regatta', gun:'10:00 (provisional)', long:'May 30, 2026 · 10:00 (provisional)', range:'May 30, 2026' }
   : { ev:'Bol d\'Or Mirabaud',       gun:'10:00 CEST',          long:'June 6, 2026 · 10:00 CEST',          range:'June 6–7, 2026' };
 
+// ===== DEVICE ROLE — per-device primary vs advisor (multi-device race-day setup) =====
+// 'primary' = owns GPS, race timer, maneuver log (the boat's tactical device).
+// 'advisor' = read-only for race state: race controls hidden, sampling disabled,
+// no local accumulation, so multiple crew devices can run the app without
+// polluting the primary's data. Persists in localStorage, per device.
+var DEVICE_ROLE_KEY = 'device_role_v1';
+var deviceRole = (function(){ try { var r = localStorage.getItem(DEVICE_ROLE_KEY); return (r === 'advisor') ? 'advisor' : 'primary'; } catch(e){ return 'primary'; } })();
+var IS_ADVISOR = (deviceRole === 'advisor');
+function setDeviceRole(r){ try { localStorage.setItem(DEVICE_ROLE_KEY, r); } catch(e){} location.reload(); }
+
 // Lake polygon (simplified)
 var LAKE=[[46.207,6.148],[46.215,6.175],[46.240,6.194],[46.265,6.197],[46.281,6.225],[46.304,6.242],[46.352,6.281],[46.366,6.308],[46.370,6.338],[46.340,6.388],[46.360,6.413],[46.366,6.446],[46.375,6.475],[46.405,6.513],[46.396,6.553],[46.401,6.594],[46.405,6.649],[46.408,6.688],[46.408,6.727],[46.399,6.768],[46.394,6.806],[46.388,6.830],[46.386,6.836],[46.395,6.860],[46.396,6.884],[46.396,6.908],[46.394,6.919],[46.397,6.924],[46.415,6.928],[46.436,6.908],[46.451,6.855],[46.459,6.839],[46.468,6.823],[46.474,6.788],[46.486,6.729],[46.491,6.714],[46.497,6.703],[46.504,6.656],[46.511,6.613],[46.507,6.553],[46.515,6.520],[46.503,6.492],[46.491,6.478],[46.476,6.450],[46.465,6.384],[46.453,6.337],[46.433,6.310],[46.406,6.283],[46.388,6.248],[46.369,6.230],[46.345,6.214],[46.336,6.204],[46.308,6.184],[46.282,6.167],[46.263,6.166],[46.252,6.153],[46.235,6.153],[46.228,6.150],[46.210,6.151],[46.207,6.148]];
 
@@ -2389,7 +2399,7 @@ function renderCockpit(){
   var modeLabel=st==='live'?'Race':(st==='past'?'Debrief':'Planning');
   var modeCls=st==='live'?'race':(st==='past'?'debrief':'');
   var venue=(typeof IS_ZUG!=='undefined' && IS_ZUG) ? "Goldschäkel · Zugersee" : "Bol d'Or · Lac Léman";
-  var h='<div class="ckpt-head"><span class="ckpt-mode '+modeCls+'">'+modeLabel+'</span><span class="ckpt-venue">'+venue+'</span></div>';
+  var h='<div class="ckpt-head"><span class="ckpt-mode '+modeCls+'">'+modeLabel+'</span>'+(IS_ADVISOR?'<span style="margin-left:8px;background:var(--warn);color:#06121f;font-weight:800;border-radius:10px;padding:2px 8px;font-size:11px;text-transform:uppercase;letter-spacing:1px">Advisor</span>':'')+'<span class="ckpt-venue">'+venue+'</span></div>';
   h+=raceControlHtml();
 
   var fh=fusedHeading(), nm=ckptNextMark(), perf=computePerf();
@@ -2405,9 +2415,13 @@ function renderCockpit(){
        '<div class="nv"><div class="l">VMG to mark</div><div class="v">'+vmc+'</div></div>'+
        '</div>';
   } else {
-    h+='<div class="ckpt-nav" style="justify-content:center"><div style="text-align:center">'+
-       '<div style="color:var(--tx2);font-size:12px;margin-bottom:6px">GPS off — the cockpit goes live once GPS is on.</div>'+
-       '<button class="refresh-btn" onclick="startGPS()">Enable GPS</button></div></div>';
+    if(IS_ADVISOR){
+      h+='<div class="ckpt-nav" style="justify-content:center"><div style="text-align:center;color:var(--tx2);font-size:12px">Advisor mode — GPS / nav live on the primary device.</div></div>';
+    } else {
+      h+='<div class="ckpt-nav" style="justify-content:center"><div style="text-align:center">'+
+         '<div style="color:var(--tx2);font-size:12px;margin-bottom:6px">GPS off — the cockpit goes live once GPS is on.</div>'+
+         '<button class="refresh-btn" onclick="startGPS()">Enable GPS</button></div></div>';
+    }
   }
 
   var bias=ckptBias();
@@ -2463,6 +2477,7 @@ function toggleTrim(){ _trimOpen=!_trimOpen; try{renderCockpit();}catch(e){} }
 function trimRace(key,delta){ if(raceWin[key]==null) return; raceWin[key]+=delta; if(raceWin.finishMs && raceWin.startMs && raceWin.finishMs<=raceWin.startMs) raceWin.finishMs=raceWin.startMs+60000; raceSave(); try{renderCockpit();}catch(e){} }
 function _avgVmgBefore(t){ var s=0,n=0; for(var i=0;i<_manvBuf.length;i++){ var b=_manvBuf[i]; if(b.t<=t && t-b.t<=10000){ s+=b.vmg; n++; } } return n?s/n:0; }
 function sampleRacePerf(){
+  if(IS_ADVISOR) return;
   if(!gpsPos || gpsPos.sog==null) return;
   var t=Date.now(); if(!inRaceWindow(t)) return;
   if(typeof computePerf!=='function') return;
@@ -2513,6 +2528,9 @@ function raceStats(){
   return {avgPct:nR?Math.round(sumR/nR*100):null, count:man.length, last:man.length?man[man.length-1]:null, avgLoss:avgLoss};
 }
 function raceControlHtml(){
+  if(IS_ADVISOR){
+    return '<div style="background:var(--bg3);border-radius:var(--r);padding:8px 10px;margin-bottom:8px;font-size:12px;color:var(--tx2)"><strong style="color:var(--warn)">Advisor mode</strong> — race controls live on the primary device. This device is read-only for race state.</div>';
+  }
   var now=Date.now();
   var gun=(typeof BOL_DOR_START!=='undefined')?BOL_DOR_START:null;
   var box='background:var(--bg3);border-radius:var(--r);padding:8px 10px;margin-bottom:8px;font-size:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap';
@@ -2550,6 +2568,9 @@ function _trimRow(label,key){
     '<button class="refresh-btn" onclick="trimRace(\''+key+'\',600000)">+10m</button></div>';
 }
 function maneuverTileHtml(){
+  if(IS_ADVISOR){
+    return '<div class="ckpt-tile ckpt-future"><div class="tl">Maneuver loss (race)</div><div class="tv" style="font-size:17px;color:var(--tx2)">Advisor</div><div class="ts">primary device tracks maneuvers</div><div class="ckpt-tag future">advisor mode</div></div>';
+  }
   if(!raceWin.startMs){
     return '<div class="ckpt-tile ckpt-future"><div class="tl">Maneuver loss</div><div class="tv" style="font-size:17px;color:var(--tx2)">—</div><div class="ts">starts when you confirm the gun</div><div class="ckpt-tag future">GPS · race only</div></div>';
   }
@@ -6244,6 +6265,26 @@ function applyVenueChrome(){
       pill.appendChild(mk('Zugersee', 'zugersee'));
       document.body.appendChild(pill);
     }
+    if(!document.getElementById('rolePill')){
+      var rp = document.createElement('div');
+      rp.id = 'rolePill';
+      rp.style.cssText = 'position:fixed;z-index:9999;right:8px;bottom:44px;display:flex;gap:4px;background:var(--bg2,#0a1628);border:1px solid var(--bg3,#1a2942);border-radius:14px;padding:3px;font-size:10px;opacity:.85';
+      var mkR = function(label, val){
+        var b = document.createElement('button');
+        b.textContent = label;
+        var on = (deviceRole === val);
+        b.style.cssText = 'border:0;border-radius:11px;padding:3px 9px;cursor:pointer;font-weight:700;' +
+          (on
+             ? (val === 'advisor' ? 'background:var(--warn);color:#06121f' : 'background:var(--acc,#4a9eff);color:#06121f')
+             : 'background:transparent;color:var(--tx2,#9fb3c8)');
+        b.onclick = function(){ setDeviceRole(val); };
+        return b;
+      };
+      rp.appendChild(mkR('Primary', 'primary'));
+      rp.appendChild(mkR('Advisor', 'advisor'));
+      document.body.appendChild(rp);
+    }
+    if(IS_ADVISOR && document.body) document.body.classList.add('advisor');
   } catch(e){ console.error('venuePill', e); }
   if(!IS_ZUG) return;
   try { document.title = ZG.title; } catch(e){}

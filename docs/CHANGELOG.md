@@ -6,6 +6,14 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-24 — Advisor mode (multi-device read-only)
+
+### Added
+- **Per-device role toggle** for multi-device race-day setups: **Primary** (default — owns GPS, race timer, maneuver log) vs **Advisor** (read-only for race state). On Advisor, the race-control row, Maneuver tile, and cockpit Enable-GPS button switch to a clear notice; the per-second GPS sampler is **disabled** so crew devices can't accumulate conflicting race stats. A small Role pill (Primary / Advisor) stacks above the venue pill; switching reloads the page. Persists in `localStorage` (`device_role_v1`). An **Advisor** badge appears on the cockpit head when active. Bol d'Or / Zugersee default both work as before in Primary mode.
+- **Service worker cache v11 → v12.**
+
+---
+
 ## 2026-05-24 — Service-worker offline hardening (QA #1)
 
 ### Changed
