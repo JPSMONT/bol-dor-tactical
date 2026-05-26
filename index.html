@@ -541,6 +541,14 @@ canvas{display:block}
           <tbody id="fullBody"></tbody>
         </table>
       </div>
+      <div class="card" id="tuningLogCard">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0">
+          <span>Tuning log</span>
+          <button class="refresh-btn" id="tuningLogBtn" onclick="openTuningModal()">⊕ Log current setup</button>
+        </div>
+        <div style="font-size:11px;color:var(--tx3);margin:6px 0 8px">Snapshot of conditions + perf + settings, timestamped for offline analysis. Per-device.</div>
+        <div id="tuningLogBody" class="loading">No entries yet — tap <strong>Log current setup</strong> to start.</div>
+      </div>
     </div>
 
     <!-- ===== WIND ===== -->
@@ -988,6 +996,7 @@ function showTab(i) {
       var pb = document.getElementById('polarBtns');
       if(pb) pb.innerHTML = '<div style="color:var(--err);font-size:11px">drawPolar error: '+e.message+' (see console)</div>';
     }
+    try { renderTuningLog(); } catch(e) { console.error('renderTuningLog:', e); }
   }
   if(i===0) { try { renderCockpit(); } catch(e) { console.error('renderCockpit:', e); } }
   if(i===2) { renderPhase(); if(msStationsData) renderStations(); }
@@ -2636,6 +2645,247 @@ function renderDebrief(){
   }
   h+='<div style="font-size:10px;color:var(--tx3);margin-top:8px">From the app\'s own GPS + maneuver log (relative/trend). Import YDVR-04 SD recordings for instrument-grade analysis (planned).</div>';
   body.innerHTML=h;
+}
+
+// ===== TUNING LOG (PRD v6 Phase 1.6) — settings vs polar % snapshots =====
+// Per-device localStorage log. Primary device logs; Advisor sees the table read-only.
+var TUNING_LOG_KEY = 'tuning_log_v1';
+var tuningLog = (function(){ try { var r = JSON.parse(localStorage.getItem(TUNING_LOG_KEY)); return Array.isArray(r)?r:[]; } catch(e){ return []; } })();
+var TUNING_DEFAULTS = { backstay:5, jib_car:3, outhaul:5, cunningham:3, vang:3, traveller:0, halyard_main:5, halyard_jib:5 };
+var TUNING_CONTROLS = [
+  {key:'backstay',     label:'Backstay (BS)',     min:0, max:10},
+  {key:'jib_car',      label:'Jib car (JC)',      min:1, max:10},
+  {key:'outhaul',      label:'Outhaul (OH)',      min:0, max:10},
+  {key:'cunningham',   label:'Cunningham (CU)',   min:0, max:10},
+  {key:'vang',         label:'Vang (V)',          min:0, max:10},
+  {key:'traveller',    label:'Traveller (TR)',    min:-5, max:5},
+  {key:'halyard_main', label:'Halyard main (HM)', min:0, max:10},
+  {key:'halyard_jib',  label:'Halyard jib (HJ)',  min:0, max:10}
+];
+function tuningSave(){ try { localStorage.setItem(TUNING_LOG_KEY, JSON.stringify(tuningLog)); } catch(e){} }
+function tuningLastValues(){
+  if(!tuningLog.length) return Object.assign({}, TUNING_DEFAULTS);
+  var last = tuningLog[tuningLog.length-1].settings || {};
+  var out = {};
+  TUNING_CONTROLS.forEach(function(c){ out[c.key] = (last[c.key]!=null) ? last[c.key] : TUNING_DEFAULTS[c.key]; });
+  return out;
+}
+function tuningLastSail(){ return (tuningLog.length && tuningLog[tuningLog.length-1].sail) ? tuningLog[tuningLog.length-1].sail : 'jib'; }
+function tuningCaptureCtx(){
+  var ctx = {
+    t: Date.now(),
+    mode: (typeof raceState==='function' && raceState()==='live') ? 'race' : 'training',
+    venue: (typeof IS_ZUG!=='undefined' && IS_ZUG) ? 'zugersee' : 'boldor',
+    wind: { tws:null, twa:null, twd:null, src:'model' },
+    perf: { sog:null, target:null, ratio:null, vmg:null }
+  };
+  var perf = (typeof computePerf==='function') ? computePerf() : null;
+  if(perf){
+    ctx.wind.tws    = +perf.tws.toFixed(1);
+    ctx.wind.twa    = Math.round(perf.twa);
+    ctx.wind.twd    = Math.round(perf.twd);
+    ctx.perf.target = +perf.target.toFixed(2);
+    ctx.perf.ratio  = +perf.ratio.toFixed(3);
+    if(typeof gpsPos!=='undefined' && gpsPos && gpsPos.sog!=null){
+      ctx.perf.sog = +gpsPos.sog.toFixed(2);
+      ctx.perf.vmg = +(gpsPos.sog * Math.cos(perf.twa * Math.PI/180)).toFixed(2);
+    }
+  } else if(typeof currentWindForBoat==='function'){
+    var w = currentWindForBoat();
+    if(w){ ctx.wind.tws = +w.speed.toFixed(1); ctx.wind.twd = Math.round(w.dir); }
+  }
+  return ctx;
+}
+function openTuningModal(){
+  if(typeof IS_ADVISOR!=='undefined' && IS_ADVISOR) return;
+  if(document.getElementById('tuningModalOverlay')) return;
+  var ctx = tuningCaptureCtx();
+  var settings = tuningLastValues();
+  var sail = tuningLastSail();
+  var overlay = document.createElement('div');
+  overlay.id = 'tuningModalOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;padding:14px';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--card);border:1px solid var(--bg3);border-radius:12px;padding:14px;max-width:480px;width:100%;max-height:92vh;overflow:auto;color:var(--tx)';
+  var sogTxt = ctx.perf.sog!=null ? ctx.perf.sog+' kn' : '—';
+  var targetTxt = ctx.perf.target!=null ? ctx.perf.target+' kn' : '—';
+  var ratioTxt = ctx.perf.ratio!=null ? Math.round(ctx.perf.ratio*100)+'%' : '—';
+  var ratioColor = (ctx.perf.ratio==null) ? 'var(--tx)' : (ctx.perf.ratio>=0.97 ? 'var(--acc2)' : (ctx.perf.ratio>=0.90 ? 'var(--warn)' : 'var(--err)'));
+  var h = '';
+  h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">';
+  h +=   '<div><div style="font-weight:700;font-size:15px">Log current setup</div>';
+  h +=   '<div style="font-size:11px;color:var(--tx3)">'+(ctx.mode==='race'?'Race':'Training')+' · '+(ctx.venue==='zugersee'?'Zugersee':'Bol d\'Or')+'</div></div>';
+  h +=   '<button class="refresh-btn" onclick="closeTuningModal()" aria-label="Close">✕</button>';
+  h += '</div>';
+  h += '<div style="background:var(--bg3);border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px">';
+  h +=   '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">';
+  h +=     '<div><div style="color:var(--tx3);font-size:10px">Wind</div><div>'+(ctx.wind.tws!=null?ctx.wind.tws+' kn':'—')+' @ '+(ctx.wind.twd!=null?ctx.wind.twd+'°':'—')+'</div></div>';
+  h +=     '<div><div style="color:var(--tx3);font-size:10px">TWA</div><div>'+(ctx.wind.twa!=null?ctx.wind.twa+'°':'—')+'</div></div>';
+  h +=     '<div><div style="color:var(--tx3);font-size:10px">Polar</div><div style="color:'+ratioColor+';font-weight:700">'+ratioTxt+'</div></div>';
+  h +=   '</div>';
+  h +=   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">';
+  h +=     '<div><div style="color:var(--tx3);font-size:10px">SOG</div><div>'+sogTxt+'</div></div>';
+  h +=     '<div><div style="color:var(--tx3);font-size:10px">Target</div><div>'+targetTxt+'</div></div>';
+  h +=   '</div>';
+  h += '</div>';
+  h += '<div style="font-size:10px;color:var(--tx3);margin:0 0 4px;text-transform:uppercase;letter-spacing:.5px">Settings</div>';
+  TUNING_CONTROLS.forEach(function(c){
+    var val = settings[c.key];
+    h += '<div style="display:flex;align-items:center;gap:8px;margin:5px 0">';
+    h +=   '<label style="flex:0 0 130px;font-size:12px;color:var(--tx2)">'+c.label+'</label>';
+    h +=   '<input type="range" min="'+c.min+'" max="'+c.max+'" step="1" value="'+val+'" data-tuning-key="'+c.key+'" oninput="this.nextElementSibling.textContent=this.value" style="flex:1">';
+    h +=   '<span style="flex:0 0 36px;text-align:right;font-weight:700">'+val+'</span>';
+    h += '</div>';
+  });
+  h += '<div style="display:flex;align-items:center;gap:8px;margin:8px 0 4px">';
+  h +=   '<label style="flex:0 0 130px;font-size:12px;color:var(--tx2)">Sail</label>';
+  h +=   '<div style="display:flex;gap:6px"><button class="refresh-btn" id="tuningSailJib" onclick="setTuningSail(\'jib\')">Jib</button><button class="refresh-btn" id="tuningSailSpi" onclick="setTuningSail(\'spi\')">Spi</button></div>';
+  h += '</div>';
+  h += '<div style="margin:8px 0"><label style="font-size:11px;color:var(--tx3);display:block;margin-bottom:4px">Note (optional)</label>';
+  h +=   '<input type="text" id="tuningNote" placeholder="e.g., weather helm OK, tried more BS" style="width:100%;background:var(--bg3);border:1px solid var(--bg2);color:var(--tx);border-radius:6px;padding:6px 8px;font-size:13px;box-sizing:border-box"></div>';
+  h += '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">';
+  h +=   '<button class="refresh-btn" onclick="closeTuningModal()">Cancel</button>';
+  h +=   '<button class="refresh-btn" onclick="saveTuningEntry()" style="background:var(--acc2);color:#06121f;font-weight:700;border-color:var(--acc2)">Save</button>';
+  h += '</div>';
+  box.innerHTML = h;
+  overlay.appendChild(box);
+  overlay._ctx = ctx;
+  document.body.appendChild(overlay);
+  setTuningSail(sail);
+}
+function closeTuningModal(){
+  var o = document.getElementById('tuningModalOverlay');
+  if(o && o.parentNode) o.parentNode.removeChild(o);
+}
+function setTuningSail(s){
+  var o = document.getElementById('tuningModalOverlay'); if(!o) return;
+  o._sail = (s==='spi') ? 'spi' : 'jib';
+  var jib = document.getElementById('tuningSailJib');
+  var spi = document.getElementById('tuningSailSpi');
+  if(jib){ jib.style.background = (o._sail==='jib')?'var(--acc)':''; jib.style.color = (o._sail==='jib')?'#06121f':''; }
+  if(spi){ spi.style.background = (o._sail==='spi')?'var(--acc)':''; spi.style.color = (o._sail==='spi')?'#06121f':''; }
+}
+function saveTuningEntry(){
+  var o = document.getElementById('tuningModalOverlay'); if(!o) return;
+  var ctx = o._ctx; var s = {};
+  o.querySelectorAll('[data-tuning-key]').forEach(function(el){ s[el.dataset.tuningKey] = parseInt(el.value, 10); });
+  ctx.settings = s;
+  ctx.sail = o._sail || 'jib';
+  var noteEl = document.getElementById('tuningNote');
+  ctx.note = noteEl ? (noteEl.value||'').trim() : '';
+  tuningLog.push(ctx);
+  tuningSave();
+  closeTuningModal();
+  try { renderTuningLog(); } catch(e){ console.error('renderTuningLog:', e); }
+}
+function tuningBestByBand(){
+  var bands = [
+    {lo:0,  hi:6,  label:'≤6 kt'},
+    {lo:6,  hi:12, label:'6–12 kt'},
+    {lo:12, hi:18, label:'12–18 kt'},
+    {lo:18, hi:99, label:'18+ kt'}
+  ];
+  return bands.map(function(b){
+    var es = tuningLog.filter(function(e){
+      return e.wind && e.wind.tws!=null && e.perf && e.perf.ratio!=null &&
+             e.wind.tws >= b.lo && e.wind.tws < b.hi &&
+             e.wind.twa!=null && e.wind.twa < 90;
+    });
+    if(!es.length) return { band:b, top:null };
+    es.sort(function(a,c){ return c.perf.ratio - a.perf.ratio; });
+    return { band:b, top: es[0] };
+  });
+}
+function tuningSettingsSummary(s){
+  if(!s) return '';
+  function v(k){ return (s[k]!=null) ? s[k] : '—'; }
+  return 'BS '+v('backstay')+' · JC '+v('jib_car')+' · OH '+v('outhaul')+' · V '+v('vang');
+}
+function formatTuningWhen(t){
+  var ago = Date.now() - t;
+  if(ago < 60000) return Math.floor(ago/1000)+'s';
+  if(ago < 3600000) return '−'+Math.floor(ago/60000)+'m';
+  if(ago < 86400000) return '−'+Math.floor(ago/3600000)+'h';
+  var d = new Date(t);
+  return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+function renderTuningLog(){
+  var body = document.getElementById('tuningLogBody'); if(!body) return;
+  var btn = document.getElementById('tuningLogBtn');
+  if(btn) btn.style.display = (typeof IS_ADVISOR!=='undefined' && IS_ADVISOR) ? 'none' : '';
+  if(!tuningLog.length){
+    body.innerHTML = '<div style="font-size:12px;color:var(--tx2)">' +
+      ((typeof IS_ADVISOR!=='undefined' && IS_ADVISOR)
+        ? 'No entries on this device. (Advisor — primary device logs.)'
+        : 'No entries yet — tap <strong>Log current setup</strong> to start.') +
+      '</div>';
+    return;
+  }
+  var h = '';
+  var best = tuningBestByBand();
+  if(best.some(function(b){ return !!b.top; })){
+    h += '<div style="background:var(--bg3);border-radius:8px;padding:8px;margin-bottom:8px">';
+    h +=   '<div style="font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Best close-hauled by wind band</div>';
+    h +=   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;font-size:11px">';
+    best.forEach(function(b){
+      if(!b.top){
+        h += '<div><span style="color:var(--tx3)">'+b.band.label+'</span> <span style="color:var(--tx3)">— no data</span></div>';
+        return;
+      }
+      var pct = Math.round(b.top.perf.ratio*100);
+      var color = pct>=97 ? 'var(--acc2)' : (pct>=90 ? 'var(--warn)' : 'var(--err)');
+      h += '<div><span style="color:var(--tx3)">'+b.band.label+'</span> <span style="color:'+color+';font-weight:700">'+pct+'%</span> · <span style="color:var(--tx2)">'+tuningSettingsSummary(b.top.settings)+'</span></div>';
+    });
+    h += '</div></div>';
+  }
+  h += '<div style="background:var(--bg3);border-radius:8px;padding:8px">';
+  h +=   '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
+  h +=     '<div style="font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px">Recent entries ('+tuningLog.length+')</div>';
+  h +=     '<button class="refresh-btn" onclick="exportTuningCSV()" style="font-size:10px;padding:3px 8px">Export CSV</button>';
+  h +=   '</div>';
+  h +=   '<div style="max-height:280px;overflow:auto"><table style="width:100%;font-size:11px;border-collapse:collapse">';
+  h +=     '<tr style="color:var(--tx3);text-align:left"><th style="padding:2px 4px">when</th><th>TWS</th><th>TWA</th><th style="text-align:right">polar</th><th style="padding-left:6px">settings · note</th></tr>';
+  var recent = tuningLog.slice(-20).reverse();
+  recent.forEach(function(e){
+    var when = formatTuningWhen(e.t);
+    var tws  = (e.wind && e.wind.tws!=null) ? e.wind.tws : '—';
+    var twa  = (e.wind && e.wind.twa!=null) ? e.wind.twa+'°' : '—';
+    var pct  = (e.perf && e.perf.ratio!=null) ? Math.round(e.perf.ratio*100) : null;
+    var pctTxt = pct!=null ? pct+'%' : '—';
+    var pctColor = pct==null ? 'var(--tx)' : (pct>=97 ? 'var(--acc2)' : (pct>=90 ? 'var(--warn)' : 'var(--err)'));
+    var sailMark = (e.sail==='spi') ? ' spi' : '';
+    var note = e.note ? ' — "' + (e.note.length>32 ? e.note.slice(0,32)+'…' : e.note) + '"' : '';
+    h += '<tr><td style="padding:2px 4px;color:var(--tx3)">'+when+'</td><td>'+tws+'</td><td>'+twa+'</td><td style="text-align:right;color:'+pctColor+';font-weight:700">'+pctTxt+'</td><td style="padding-left:6px;color:var(--tx2)">'+tuningSettingsSummary(e.settings)+sailMark+note+'</td></tr>';
+  });
+  h +=   '</table></div>';
+  h += '</div>';
+  body.innerHTML = h;
+}
+function exportTuningCSV(){
+  if(!tuningLog.length) return;
+  var cols = ['t_iso','t_ms','mode','venue','tws','twa','twd','sog','target','polar_pct','vmg','sail','backstay','jib_car','outhaul','cunningham','vang','traveller','halyard_main','halyard_jib','note'];
+  var rows = [cols.join(',')];
+  tuningLog.forEach(function(e){
+    var s = e.settings || {};
+    function n(v){ return v==null ? '' : v; }
+    var row = [
+      new Date(e.t).toISOString(), e.t, e.mode||'', e.venue||'',
+      n(e.wind&&e.wind.tws), n(e.wind&&e.wind.twa), n(e.wind&&e.wind.twd),
+      n(e.perf&&e.perf.sog), n(e.perf&&e.perf.target),
+      (e.perf&&e.perf.ratio!=null) ? Math.round(e.perf.ratio*100) : '',
+      n(e.perf&&e.perf.vmg), e.sail||'',
+      n(s.backstay), n(s.jib_car), n(s.outhaul), n(s.cunningham),
+      n(s.vang), n(s.traveller), n(s.halyard_main), n(s.halyard_jib),
+      (e.note||'').replace(/"/g,'""').replace(/,/g,';').replace(/\n/g,' ')
+    ];
+    rows.push(row.join(','));
+  });
+  var blob = new Blob([rows.join('\n')], {type:'text/csv;charset=utf-8'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'tuning_log_' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ if(a.parentNode) a.parentNode.removeChild(a); URL.revokeObjectURL(url); }, 200);
 }
 
 // ===== STRATEGY / BANK SELECTION — 9-way =====
@@ -6340,6 +6590,7 @@ _safe('renderPerfProfile',   function(){ renderPerfProfileInputs(); });
 _safe('renderWindCalStatus', function(){ renderWindCalStatus(); });
 _safe('initTrimCoach',       function(){ tickTrimCoach(); });
 _safe('renderCockpit',       function(){ renderCockpit(); });
+_safe('renderTuningLog',     function(){ renderTuningLog(); });
 setInterval(function(){ _safe('windCal tick', function(){ renderWindCalStatus(); }); }, 30000);
 setInterval(function(){ _safe('renderChecklist tick', function(){ renderChecklist(); }); }, 30000);
 setInterval(function(){ _safe('updateCountdown tick', function(){ updateCountdown(); }); }, 1000);

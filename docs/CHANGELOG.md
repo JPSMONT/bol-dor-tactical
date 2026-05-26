@@ -6,6 +6,25 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-24 — Tuning Log build (PRD v6 Phase 1.6)
+
+### Added
+- **`tuning_log_v1` localStorage log + Tuning Log card on the Polars tab**, implementing `docs/PRD-v6-tuning-log-spec.md` v1:
+  - **⊕ Log current setup** button opens a modal with eight sliders (backstay 0–10, jib car 1–10, outhaul 0–10, cunningham 0–10, vang 0–10, traveller −5 … +5, halyard main 0–10, halyard jib 0–10) defaulting to the last saved entry (first-ever entry = `5/3/5/3/3/0/5/5`). Sail toggle (Jib / Spi). Single free-text Note line.
+  - **Auto-captured** at save time from the live cockpit: `t`, `mode` (from `raceState()`), `venue` (from `ACTIVE_VENUE`), TWS / TWA / TWD with source tag, SOG / polar target / polar % / VMG (from `computePerf()`). No manual data entry for context.
+  - **Best-by-wind-band stripe** at the top of the card — top-1 entry per band (≤6 / 6–12 / 12–18 / 18+ kt), close-hauled only (TWA <90), formatted as `<polar%> — BS x · JC y · OH z · V v`.
+  - **Recent entries table** — relative-time labels (same day → "−3m"), TWS · TWA, colour-coded polar %, four-control summary, truncated note; tap a row to expand the full 8 controls + sail + note. Filters: wind band (all / ≤6 / 6–12 / 12–18 / 18+) and point of sail (upwind <90° / off-wind ≥90°). Default 20 most recent + **Show all** toggle.
+  - **CSV export** flattens entries with one row per snapshot (21 columns including all 8 settings, ISO + ms timestamps) — joinable to a GPS-track CSV in a notebook by `t_ms`.
+  - **Advisor-aware**: the "Log current setup" button is hidden on Advisor devices; the recent-entries table still renders read-only so the crew can see the most recent setups for discussion.
+- **Service worker cache v12 → v13.**
+
+### Notes
+- Storage is per-device (`localStorage`); ~200 B per entry → well under 1 MB after a season.
+- Settings labels and scales live in code for v1 (the spec parks the `tuning_labels_v1` rename overlay as a v1.1).
+- Polar-diagram overlay (each entry as a dot at its TWS/TWA, coloured by polar %) is Phase 2 of the spec.
+
+---
+
 ## 2026-05-24 — Spec: Tuning Log (PRD v6 Phase 1.6)
 
 ### Added
