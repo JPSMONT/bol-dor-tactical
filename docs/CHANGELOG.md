@@ -6,6 +6,25 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-29 — Goldschäkel course correction: triangle IMM→ART→WAL clockwise
+
+### Fixed
+- **Course shape was wrong.** Joao corrected my over-eager reading of the YCI Sicherheitsblatt map: the Goldschäkel is a **3-mark triangle**, not the 6-mark full-lake circumnavigation I had encoded. The Cham (top apex) and Risch (W mark) marks I added don't exist on this course — they were misinterpretations of either beat-track lines in some winds or year-specific marks not used in 2026.
+- **Position errors on all 3 real marks.** Walchwil was ~1.2 km too far north and west of the actual town; Arth ~900 m too far north; Immensee ~700 m too far NE. Corrected to actual town positions (verified against OSM), with each race mark placed just offshore in the lake.
+- **Rounding direction:** clockwise, not counter-clockwise. Start Immensee → south to Arth (1st mark) → north-east to Walchwil (2nd mark) → west back to Immensee finish.
+
+### Changed
+- **`ZG.waypoints`** reduced from 6 entries to 4 (IMM start / ART / WAL / IMM finish) with corrected coordinates.
+- **Strategy tab notes** rewritten — leg-by-leg tactical read (south to Arth, NE to Walchwil, west home) with wind-specific recommendations per leg; the old "marathon of small gains" framing for the 6-leg fantasy is gone, replaced with the real "3 legs, start matters a lot" framing.
+- **Rivals event card** course summary: "Triangle, clockwise — Start Immensee → Arth (S tip) → Walchwil (E shore) → Finish Immensee. 3 legs; Immensee is start & finish."
+- **Service worker cache v19 → v20.**
+
+### Notes
+- The 6-mark race-course polyline from the previous commit auto-rebuilds from `ZG.waypoints`, so it now correctly draws a 3-leg triangle with numbered marks 1 (IMM Start) → 2 (ART) → 3 (WAL) → 4 (IMM Finish).
+- Mark coordinates are still ~250 m accurate (offshore points eyeballed from town positions); the RC may shift mark positions on the day per wind. Good enough for navigation and orientation.
+
+---
+
 ## 2026-05-29 — Goldschäkel 2026 race details locked in from YCI Sicherheitsblatt
 
 ### Fixed

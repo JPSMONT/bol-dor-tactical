@@ -1097,17 +1097,15 @@ var ZG = {
     {id:'AEG',name:'Oberägeri',lat:47.1336,lon:8.6082,role:'Ägerisee E — elevated thermal'},
     {id:'PIL',name:'Pilatus',lat:46.9792,lon:8.2563,role:'Gradient wind (2106 m)'}
   ],
-  // Goldschäkel 2026 race course — full Zugersee circumnavigation per the YCI
-  // Sicherheitsblatt course-map (PDF, page 4). Counter-clockwise loop visiting
-  // both basins. Estimated coordinates read off the printed race map (~250 m
-  // accuracy); the RC may adjust mark positions on the day per actual wind.
+  // Goldschäkel 2026 race course — TRIANGLE between Immensee, Arth and Walchwil
+  // (clockwise, per Joao's read of the YCI Sicherheitsblatt course map).
+  // Three marks; Immensee is start *and* finish. Town positions verified from
+  // OSM; marks placed just offshore (in the lake) near each town.
   waypoints:[
-    {name:'Start (Immensee)', short:'IMM',  lat:47.0955, lon:8.4750, note:'YCI start line — gun 12:00 CEST'},
-    {name:'Walchwil (E mark)', short:'WAL', lat:47.1150, lon:8.5100, note:'East shore mid-lake — round to port'},
-    {name:'North top (Cham)', short:'CHM',  lat:47.1760, lon:8.5070, note:'Top-of-lake apex — Lorzenmündung area'},
-    {name:'Risch (W mark)',    short:'RIS', lat:47.1330, lon:8.4760, note:'West shore — round and head south'},
-    {name:'Arth (S tip)',      short:'ART', lat:47.0660, lon:8.5230, note:'South-tip apex — round back to finish'},
-    {name:'Finish (Immensee)', short:'FIN', lat:47.0955, lon:8.4750, note:'YCI finish line'}
+    {name:'Start (Immensee)',  short:'IMM', lat:47.0940, lon:8.4750, note:'YCI start line — gun 12:00 CEST'},
+    {name:'Arth (S mark)',     short:'ART', lat:47.0630, lon:8.5200, note:'South-tip mark — first leg from start, head SE'},
+    {name:'Walchwil (E mark)', short:'WAL', lat:47.1030, lon:8.5140, note:'East-shore mark — leg N from Arth up east shore'},
+    {name:'Finish (Immensee)', short:'FIN', lat:47.0940, lon:8.4750, note:'YCI finish line — leg W back across the lake'}
   ]
 }
 ZG.finishMs = ZG.startMs + 8*3600*1000;
@@ -1120,7 +1118,7 @@ ZG.zscEvents = [
   { id:'goldschaekel-26', date:'2026-05-30', startTime:'12:00', name:'Goldschäkel-Regatta',
     host:'YCI Immensee',          hostUrl:'https://www.yci.ch/',
     m2sUrl:'https://www.manage2sail.com/en-US/event/a2195470-e42f-4270-bbf7-311397ab5957',
-    course:'Full-lake circumnavigation — Start Immensee → Walchwil (E) → top (Cham/Lorzen) → Risch (W) → Arth (S tip) → Finish Immensee. ~6 legs covering both basins per the YCI Sicherheitsblatt.' },
+    course:'Triangle, clockwise — Start Immensee → Arth (S tip) → Walchwil (E shore) → Finish Immensee. 3 legs; Immensee is start & finish.' },
   { id:'blauband-26',     date:'2026-06-27', startTime:'10:00', name:'Blauband-Regatta',
     host:'Yacht Club Zug',        hostUrl:'', m2sUrl:'', course:'' },
   { id:'rigi-anker-26',   date:'2026-08-29', startTime:'10:00', name:'Rigi Anker Cup',
@@ -7203,10 +7201,13 @@ function applyVenueChrome(){
     var rct = document.getElementById('raceCourseTitle'); if(rct) rct.textContent = 'Race course — Zugersee';
     var sn = document.getElementById('stratNotes');
     if(sn) sn.innerHTML =
-      '<div class="strat-note" style="margin-top:0"><strong>Goldsch\u00e4kel 2026 \u2014 course (per YCI Sicherheitsblatt):</strong> Full-lake circumnavigation, gun 12:00 CEST. Start Immensee \u2192 east mark off Walchwil \u2192 top-of-lake apex (Cham / Lorzenm\u00fcndung) \u2192 west mark off Risch \u2192 down to Arth at the south tip \u2192 finish Immensee. ~6 legs visiting both basins; expect 20\u201325 NM total depending on wind.</div>' +
-      '<div class="strat-note"><strong>Tactical implications of the full course:</strong> the long NE leg (Walchwil shore) and the SE leg to Arth both run with shore-side wind shadow on a westerly \u2014 stay further off the east shore than feels natural in the Bise (NE) for cleaner air. The top-of-lake apex by Cham is a classic compression spot \u2014 mid-lake usually pays. Arth at the south tip sits in the F\u00f6hn fall-line: if S/SE is in, expect strong &amp; gusty as you approach.</div>' +
-      '<div class="strat-note"><strong>Where the wind is:</strong> Bise (NE) runs down the long axis \u2014 cleanest in the broad Untersee (north). West/WSW (prevailing) is clean over the open NW, but the Rigi shadows the Obersee west shore (Immensee side). F\u00f6hn (S) hits the Obersee hardest \u2014 strong &amp; gusty. Light days are thermal: follow the building breeze; evenings fill from the Obersee.</div>' +
-      '<div class="strat-note"><strong>Little Johnka edge:</strong> CYD 27 excels in 8\u201314 kn with VMG &gt;4 kn upwind. Zugersee averages only ~3 kn \u2014 keep the boat moving, minimise manoeuvres, hunt pressure lines. With a 6-leg course this is a marathon of small gains \u2014 polar % discipline matters more than peak boatspeed.</div>';
+      '<div class="strat-note" style="margin-top:0"><strong>Goldsch\u00e4kel 2026 \u2014 course (per YCI Sicherheitsblatt):</strong> Triangle, clockwise. Gun 12:00 CEST. Start Immensee \u2192 south leg to <strong>Arth</strong> (south tip) \u2192 north-east leg up to <strong>Walchwil</strong> (east shore mid-lake) \u2192 west leg back to Immensee finish. Three legs, all in the Obersee (south basin).</div>' +
+      '<div class="strat-note"><strong>Leg-by-leg tactical read:</strong><br>' +
+        '<strong>1. IMM \u2192 ART (south to Arth):</strong> ~4 km. On a northerly (Bise) this is a run/broad reach \u2014 spinnaker if 8 kn+. On a southerly (F\u00f6hn or thermal) this is the upwind beat \u2014 favour mid-lake for cleaner pressure; the Rigi shadows the western Immensee side.<br>' +
+        '<strong>2. ART \u2192 WAL (north-east):</strong> ~5 km. The longest leg. Wind direction relative to the lake axis decides spinnaker vs. jib. East shore is geographically closer but the Rossberg can shadow it on a westerly \u2014 stay off-shore until the layline.<br>' +
+        '<strong>3. WAL \u2192 IMM (west across):</strong> ~3.5 km. Cross-lake reach in almost any wind. Watch for pressure differences across the lake on light days \u2014 the leeward side often has the new breeze first.</div>' +
+      '<div class="strat-note"><strong>Where the wind is on Zugersee:</strong> Bise (NE) runs down the long axis \u2014 cleanest in the broad Untersee (north basin). West/WSW (prevailing) is clean over the open NW, but the Rigi shadows the Obersee west shore (Immensee side). F\u00f6hn (S) hits the Obersee hardest \u2014 strong &amp; gusty. Light days are thermal: follow the building breeze; evenings fill from the Obersee.</div>' +
+      '<div class="strat-note"><strong>Little Johnka edge:</strong> CYD 27 excels in 8\u201314 kn with VMG &gt;4 kn upwind. Zugersee averages only ~3 kn \u2014 keep the boat moving, minimise manoeuvres, hunt pressure lines. With only 3 legs the start matters a lot \u2014 clear-air priority over best line off the start.</div>';
   } catch(e){ console.error('venue labels', e); }
   var g = document.getElementById('windGuideCard');
   if(g){
