@@ -6,6 +6,30 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-29 — Goldschäkel 2026 race details locked in from YCI Sicherheitsblatt
+
+### Fixed
+- **Start time:** 10:00 (provisional placeholder) → **12:00 CEST** (confirmed). `ZG.startMs` now `2026-05-30T12:00:00+02:00`; `startProvisional` flipped to `false`. `VLAB` Zugersee `gun` / `long` strings updated. Race-day banner copy ("provisional start (30 May 2026, 10:00)") and pattern-timeline note ("provisional 10:00 CEST") rewritten to use the confirmed time. Per-event `startTime` field added to `ZG.zscEvents` so each Zugersee Cup race can carry its own gun time (Goldschäkel 12:00, others default 10:00 until confirmed).
+
+### Added
+- **Goldschäkel 2026 race course** — replaced the 3-waypoint stub (Immensee / Chiemen narrows / Immensee) with the **6-mark full-lake circumnavigation** read off the YCI course-map PDF (page 4):
+  1. Start (Immensee) — 47.0955 / 8.4750
+  2. Walchwil (E mark) — 47.1150 / 8.5100
+  3. North top (Cham / Lorzenmündung) — 47.1760 / 8.5070
+  4. Risch (W mark) — 47.1330 / 8.4760
+  5. Arth (S tip) — 47.0660 / 8.5230
+  6. Finish (Immensee) — 47.0955 / 8.4750
+- **Race-course polyline overlay on the Strategy map.** A red polyline + numbered circle badges (1–6) drawn directly on top of the live CARTO/OpenSeaMap base in `initLakeMap()` when `IS_ZUG`. Each badge shows a tooltip with the mark's full name on hover. The Strategy map now answers "which way am I going?" at a glance instead of just "where is the lake?".
+- **Rivals event card — course summary** for Goldschäkel: a highlighted box describing the 6-leg circumnavigation, gun time, host. Other Zugersee Cup events will get the same treatment once we know their courses.
+- **Strategy notes rewritten** for the full course — tactical implications spelled out per leg (NE Walchwil shadow, top-of-lake compression, Föhn fall-line at Arth), polar-% discipline framing for the marathon vs. the original short-course framing.
+
+### Notes
+- Mark positions are eyeballed from the printed PDF map (~250 m accuracy). The RC may adjust positions on the day per actual wind direction — these are working estimates good enough for navigation and orientation, not for the exact rounding line. The course polyline is interactive=false so it doesn't intercept clicks on the underlying map.
+- The YCI Sicherheitsblatt has a typo at the clubhouse GPS position: "Breite 41.1" should read 47.1 (Immensee is in Switzerland, not Italy). Stored as 47.10 in `ZG.clubhouse` with the typo flagged in a comment.
+- **Service worker cache v18 → v19.**
+
+---
+
 ## 2026-05-26 — Rivals tab — Zugersee Cup version (Kwindoo + Yardstick)
 
 ### Added

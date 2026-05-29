@@ -1068,7 +1068,10 @@ var IS_ZUG = (ACTIVE_VENUE === 'zugersee');
 var ZG = {
   name:'Zugersee', eventName:'Goldschäkel Regatta', eventShort:'Goldschäkel',
   title:'Goldschäkel · Little Johnka',
-  startMs:new Date('2026-05-30T10:00:00+02:00').getTime(), startProvisional:true,
+  startMs:new Date('2026-05-30T12:00:00+02:00').getTime(), startProvisional:false,
+  // Race confirmed by YCI Sicherheitsblatt 2026: gun at 12:00 CEST, AP land 11:00,
+  // AP boat 11:54, then ISAF 5-4-1 sequence (11:55 / 11:56 / 11:59) to 12:00.
+  clubhouse:{lat:47.10, lon:8.466, label:'YCI Clubhouse'}, // PDF says 41.1°/8.466° (typo; Immensee is in CH not Italy)
   bounds:[[47.060,8.450],[47.185,8.530]],
   courseBearing:343,
   tracTracUrl:'https://www.manage2sail.com/en-US/event/a2195470-e42f-4270-bbf7-311397ab5957',
@@ -1094,10 +1097,17 @@ var ZG = {
     {id:'AEG',name:'Oberägeri',lat:47.1336,lon:8.6082,role:'Ägerisee E — elevated thermal'},
     {id:'PIL',name:'Pilatus',lat:46.9792,lon:8.2563,role:'Gradient wind (2106 m)'}
   ],
+  // Goldschäkel 2026 race course — full Zugersee circumnavigation per the YCI
+  // Sicherheitsblatt course-map (PDF, page 4). Counter-clockwise loop visiting
+  // both basins. Estimated coordinates read off the printed race map (~250 m
+  // accuracy); the RC may adjust mark positions on the day per actual wind.
   waypoints:[
-    {name:'Start (Immensee)',short:'IMM',lat:47.0955,lon:8.474,note:'YCI start area — RC sets course'},
-    {name:'Chiemen narrows',short:'CHM',lat:47.110,lon:8.492,note:'Lake pinch — wind acceleration'},
-    {name:'Finish (Immensee)',short:'FIN',lat:47.0955,lon:8.474,note:'YCI finish area'}
+    {name:'Start (Immensee)', short:'IMM',  lat:47.0955, lon:8.4750, note:'YCI start line — gun 12:00 CEST'},
+    {name:'Walchwil (E mark)', short:'WAL', lat:47.1150, lon:8.5100, note:'East shore mid-lake — round to port'},
+    {name:'North top (Cham)', short:'CHM',  lat:47.1760, lon:8.5070, note:'Top-of-lake apex — Lorzenmündung area'},
+    {name:'Risch (W mark)',    short:'RIS', lat:47.1330, lon:8.4760, note:'West shore — round and head south'},
+    {name:'Arth (S tip)',      short:'ART', lat:47.0660, lon:8.5230, note:'South-tip apex — round back to finish'},
+    {name:'Finish (Immensee)', short:'FIN', lat:47.0955, lon:8.4750, note:'YCI finish line'}
   ]
 }
 ZG.finishMs = ZG.startMs + 8*3600*1000;
@@ -1107,18 +1117,16 @@ ZG.endMs    = ZG.startMs + 10*3600*1000;
 // OSCA/SCC publish it for each event; the URL is persisted in localStorage
 // (`zsc_events_v1`). manage2sail URLs are public and hard-coded where known.
 ZG.zscEvents = [
-  { id:'goldschaekel-26', date:'2026-05-30', name:'Goldschäkel-Regatta',
+  { id:'goldschaekel-26', date:'2026-05-30', startTime:'12:00', name:'Goldschäkel-Regatta',
     host:'YCI Immensee',          hostUrl:'https://www.yci.ch/',
-    m2sUrl:'https://www.manage2sail.com/en-US/event/a2195470-e42f-4270-bbf7-311397ab5957' },
-  { id:'blauband-26',     date:'2026-06-27', name:'Blauband-Regatta',
-    host:'Yacht Club Zug',        hostUrl:'',
-    m2sUrl:'' },
-  { id:'rigi-anker-26',   date:'2026-08-29', name:'Rigi Anker Cup',
-    host:'OSCA Obersee Club Arth', hostUrl:'http://www.osca.ch/',
-    m2sUrl:'' },
-  { id:'chomerbar-26',    date:'2026-09-12', name:'Chomer Bär',
-    host:'SCC Segel Club Cham',   hostUrl:'',
-    m2sUrl:'' }
+    m2sUrl:'https://www.manage2sail.com/en-US/event/a2195470-e42f-4270-bbf7-311397ab5957',
+    course:'Full-lake circumnavigation — Start Immensee → Walchwil (E) → top (Cham/Lorzen) → Risch (W) → Arth (S tip) → Finish Immensee. ~6 legs covering both basins per the YCI Sicherheitsblatt.' },
+  { id:'blauband-26',     date:'2026-06-27', startTime:'10:00', name:'Blauband-Regatta',
+    host:'Yacht Club Zug',        hostUrl:'', m2sUrl:'', course:'' },
+  { id:'rigi-anker-26',   date:'2026-08-29', startTime:'10:00', name:'Rigi Anker Cup',
+    host:'OSCA Obersee Club Arth', hostUrl:'http://www.osca.ch/', m2sUrl:'', course:'' },
+  { id:'chomerbar-26',    date:'2026-09-12', startTime:'10:00', name:'Chomer Bär',
+    host:'SCC Segel Club Cham',   hostUrl:'', m2sUrl:'', course:'' }
 ];
 
 // ===== ZSC localStorage =====
@@ -1173,7 +1181,7 @@ function zscYardstickWindow(){
 function zscYardstickWindowSave(n){ try { localStorage.setItem(ZSC_YARDSTICK_WIN, String(n)); } catch(e){} }
 // Countdown / clock labels — boldor values reproduce the original strings exactly.
 var VLAB = IS_ZUG
-  ? { ev:'Goldschäkel Regatta', gun:'10:00 (provisional)', long:'May 30, 2026 · 10:00 (provisional)', range:'May 30, 2026' }
+  ? { ev:'Goldschäkel Regatta', gun:'12:00 CEST',          long:'May 30, 2026 · 12:00 CEST',          range:'May 30, 2026' }
   : { ev:'Bol d\'Or Mirabaud',       gun:'10:00 CEST',          long:'June 6, 2026 · 10:00 CEST',          range:'June 6–7, 2026' };
 
 // ===== DEVICE ROLE — per-device primary vs advisor (multi-device race-day setup) =====
@@ -3511,6 +3519,29 @@ function initLakeMap() {
     interactive: false
   }).addTo(lakeMap);
 
+  // Goldschäkel 2026 race course — full-lake circumnavigation per the YCI
+  // Sicherheitsblatt map. Drawn as a red polyline overlay so the skipper sees
+  // the legs against the live shoreline. Only renders on Zugersee.
+  if(IS_ZUG && WAYPOINTS && WAYPOINTS.length > 1){
+    var courseLine = WAYPOINTS.map(function(w){ return [w.lat, w.lon]; });
+    L.polyline(courseLine, {
+      color: '#ef4444', weight: 3, opacity: 0.85,
+      dashArray: '0',
+      interactive: false
+    }).addTo(lakeMap);
+    // Mark each waypoint with a small numbered badge so the leg order is obvious.
+    WAYPOINTS.forEach(function(w, i){
+      L.marker([w.lat, w.lon], {
+        interactive: false,
+        icon: L.divIcon({
+          className: 'zg-mark',
+          html: '<div style="background:#ef4444;color:#fff;border-radius:50%;width:18px;height:18px;line-height:18px;text-align:center;font-size:11px;font-weight:700;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.6)">'+(i+1)+'</div>',
+          iconSize:[22,22], iconAnchor:[11,11]
+        })
+      }).bindTooltip(w.short + ' — ' + w.name, {direction:'top', offset:[0,-10]}).addTo(lakeMap);
+    });
+  }
+
   // 9-point bank selection grid
   lakeGridLayer = L.layerGroup().addTo(lakeMap);
   var pointColors = {'Geneva':'#97C459','Lausanne':'#378ADD','Bouveret':'#D85A30','Untersee':'#97C459','Chiemen':'#e0b13a','Obersee':'#D85A30'};
@@ -4215,9 +4246,9 @@ function _renderZscEventCard(){
   });
   pills += '</div>';
 
-  // Countdown / status
+  // Countdown / status (per-event start time, default 10:00 CEST)
   var now = Date.now();
-  var startMs = new Date(ev.date + 'T10:00:00+02:00').getTime();
+  var startMs = new Date(ev.date + 'T' + (ev.startTime || '10:00') + ':00+02:00').getTime();
   var diff = startMs - now;
   var status;
   if(diff > 0){
@@ -4240,12 +4271,18 @@ function _renderZscEventCard(){
   if(ev.hostUrl) actions.push('<a class="rival-link" href="'+ev.hostUrl+'" target="_blank" rel="noopener">'+ev.host.split(' ')[0]+' ↗</a>');
   actions.push('<a class="rival-link" href="https://www.zugerseecup.ch/edition-2026" target="_blank" rel="noopener">Zugersee Cup ↗</a>');
 
+  // Optional course summary (currently set for Goldschäkel).
+  var courseLine = ev.course
+    ? '<div style="margin:8px 0 10px;padding:8px 10px;background:var(--bg2);border-left:3px solid var(--acc);border-radius:6px;font-size:13px;color:var(--tx2);line-height:1.5"><strong style="color:var(--tx)">Course:</strong> ' + ev.course + '</div>'
+    : '';
+
   body.innerHTML =
     pills +
     '<div style="font-size:14px;line-height:1.45">' +
       '<div style="font-size:18px;font-weight:700;color:var(--tx);margin-bottom:4px">' + ev.name + '</div>' +
-      '<div style="color:var(--tx2);margin-bottom:8px">'+ dateLabel + ' · ' + ev.host + '</div>' +
+      '<div style="color:var(--tx2);margin-bottom:8px">'+ dateLabel + ' · ' + (ev.startTime || '10:00') + ' CEST · ' + ev.host + '</div>' +
       '<div style="color:var(--tx2);margin-bottom:10px">'+ status +'</div>' +
+      courseLine +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' + actions.join('') + '</div>' +
     '</div>';
 }
@@ -7068,7 +7105,7 @@ function updateRaceDayBannerZ(b, btn){
     var days = Math.floor(diff / 86400000);
     var hours = Math.floor((diff % 86400000) / 3600000);
     b.className = 'race-day-banner pre';
-    b.innerHTML = '<b>Goldschäkel Regatta (Zugersee):</b> ' + days + 'd ' + hours + 'h until the provisional start (30 May 2026, 10:00). Live fleet tracking, if the RC enables it, is on TracTrac via manage2sail — open it with the button.';
+    b.innerHTML = '<b>Goldschäkel Regatta (Zugersee):</b> ' + days + 'd ' + hours + 'h until the start (30 May 2026, 12:00 CEST). Live fleet tracking, if the RC enables it, is on TracTrac via manage2sail — open it with the button.';
     btn.textContent = 'Open TracTrac ↗';
     btn.classList.remove('on'); btn.disabled = false;
     btn.title = 'Opens the Goldschäkel event on manage2sail / TracTrac.';
@@ -7166,9 +7203,10 @@ function applyVenueChrome(){
     var rct = document.getElementById('raceCourseTitle'); if(rct) rct.textContent = 'Race course — Zugersee';
     var sn = document.getElementById('stratNotes');
     if(sn) sn.innerHTML =
-      '<div class="strat-note" style="margin-top:0"><strong>Goldsch\u00e4kel / Zugersee:</strong> RC-set course off Immensee (NW Obersee, by the Chiemen narrows). No fixed long course \u2014 sail the marks the committee lays.</div>' +
-      '<div class="strat-note"><strong>Where the wind is:</strong> Bise (NE) runs down the long axis and accelerates through the Chiemen narrows \u2014 cleanest in the broad Untersee (north). West/WSW (prevailing) is clean over the open NW, but the Rigi shadows the Obersee west shore (Immensee side). F\u00f6hn (S) hits the Obersee hardest \u2014 strong &amp; gusty. Light days are thermal: follow the building breeze; evenings fill from the Obersee.</div>' +
-      '<div class="strat-note"><strong>Little Johnka edge:</strong> CYD 27 excels in 8\u201314 kn with VMG &gt;4 kn upwind. Zugersee averages only ~3 kn \u2014 keep the boat moving, minimise manoeuvres, hunt pressure lines.</div>';
+      '<div class="strat-note" style="margin-top:0"><strong>Goldsch\u00e4kel 2026 \u2014 course (per YCI Sicherheitsblatt):</strong> Full-lake circumnavigation, gun 12:00 CEST. Start Immensee \u2192 east mark off Walchwil \u2192 top-of-lake apex (Cham / Lorzenm\u00fcndung) \u2192 west mark off Risch \u2192 down to Arth at the south tip \u2192 finish Immensee. ~6 legs visiting both basins; expect 20\u201325 NM total depending on wind.</div>' +
+      '<div class="strat-note"><strong>Tactical implications of the full course:</strong> the long NE leg (Walchwil shore) and the SE leg to Arth both run with shore-side wind shadow on a westerly \u2014 stay further off the east shore than feels natural in the Bise (NE) for cleaner air. The top-of-lake apex by Cham is a classic compression spot \u2014 mid-lake usually pays. Arth at the south tip sits in the F\u00f6hn fall-line: if S/SE is in, expect strong &amp; gusty as you approach.</div>' +
+      '<div class="strat-note"><strong>Where the wind is:</strong> Bise (NE) runs down the long axis \u2014 cleanest in the broad Untersee (north). West/WSW (prevailing) is clean over the open NW, but the Rigi shadows the Obersee west shore (Immensee side). F\u00f6hn (S) hits the Obersee hardest \u2014 strong &amp; gusty. Light days are thermal: follow the building breeze; evenings fill from the Obersee.</div>' +
+      '<div class="strat-note"><strong>Little Johnka edge:</strong> CYD 27 excels in 8\u201314 kn with VMG &gt;4 kn upwind. Zugersee averages only ~3 kn \u2014 keep the boat moving, minimise manoeuvres, hunt pressure lines. With a 6-leg course this is a marathon of small gains \u2014 polar % discipline matters more than peak boatspeed.</div>';
   } catch(e){ console.error('venue labels', e); }
   var g = document.getElementById('windGuideCard');
   if(g){
@@ -7189,7 +7227,7 @@ function applyVenueChrome(){
     var ptc = document.getElementById('patternTimelineCard');
     if(ptc){
       var note = ptc.querySelector('div[style*="font-size:10px"]');
-      if(note) note.textContent = 'Forecast-side pattern read per zone-hour. Goldschäkel window (Sat 30 May 2026, provisional 10:00 CEST) outlined in white.';
+      if(note) note.textContent = 'Forecast-side pattern read per zone-hour. Goldschäkel window (Sat 30 May 2026, 12:00 CEST) outlined in white.';
     }
   } catch(e){}
 }
