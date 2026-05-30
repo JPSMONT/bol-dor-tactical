@@ -6,6 +6,21 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-30 — Dashboard re-org: Start Sequence promotes at T-30; readiness moved to Strategy
+
+### Changed
+- **Race-day Readiness checklist moved** from the Dashboard to the bottom of the Strategy tab. The Dashboard now stays focused on race-time decisions; pre-race prep lives where you go to plan the route.
+- **Start Sequence card auto-promotes to the TOP of the Dashboard at T-30 min** (when the sequence engages — phase transitions from `idle` to `ap_up`). It returns to its default position (after Countdown) when not in the start window, and **hides entirely after the start gun** (`phase === 'started'`) so the cockpit + maneuver tracker get the screen real estate.
+
+### Added
+- New `placeStartSeqCard(phase)` helper. Called on every tick; uses `insertBefore` to move the card between top-of-dashboard and after-countdown positions. Toggles `display:none` once the race is on.
+
+### Notes
+- The voice-unlock button stays accessible during the `idle` phase (T > 30 min) — the card is just at its default position, not hidden. So Joao can tap "Enable voice" any time before T-30 and the rest of the sequence will speak automatically.
+- **Service worker cache v23 → v24.**
+
+---
+
 ## 2026-05-30 — Start sequence v2.1: AP pennant + hide-down flags + sync-to-gun
 
 ### Fixed

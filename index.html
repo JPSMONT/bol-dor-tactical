@@ -643,13 +643,6 @@ canvas{display:block}
         </div>
         <div id="startSeqBody"><div class="loading" style="padding:18px;font-size:13px">Set the start time to arm the sequence.</div></div>
       </div>
-      <div class="card" id="checklistCard" style="display:none">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <div class="card-title" style="margin:0">Race-day readiness</div>
-          <div id="checklistProgress" class="checklist-progress">0/0</div>
-        </div>
-        <div id="checklistBody"></div>
-      </div>
       <div id="raceSimPanel" style="display:none">
         <div class="race-sim-banner">
           <div class="sim-label">Race simulation active</div>
@@ -899,6 +892,15 @@ canvas{display:block}
             <strong>Little Johnka's edge:</strong> CYD 27 excels in 8-14 kn TWS with VMG >4 kn upwind. In light air (<6 kn), keep the boat moving with minimal manoeuvres. Sail inventory: Main (27.1 m²), Jib (17.7 m²), Spinnaker (47.2 m²).
           </div>
         </div>
+      </div>
+      <!-- Race-day readiness checklist — moved here from the Dashboard so the
+           Dashboard stays focused on race-time decisions. -->
+      <div class="card" id="checklistCard" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="card-title" style="margin:0">Race-day readiness</div>
+          <div id="checklistProgress" class="checklist-progress">0/0</div>
+        </div>
+        <div id="checklistBody"></div>
       </div>
     </div>
 
@@ -4769,6 +4771,39 @@ function tickStartSequence(){
   }
   renderStartSequence(secs, phase);
   applyCountdownColor(phase);
+  placeStartSeqCard(phase);
+}
+// Place the Start Sequence card on the Dashboard based on phase:
+//   - active (ap_up → one_min): promote to top of the Dashboard
+//   - idle (T > 30 min):        keep at default position (after Countdown card),
+//                                so the user can still tap "Enable voice" early
+//   - started:                  hide entirely (race is on, no longer needed)
+function placeStartSeqCard(phase){
+  try {
+    var card = document.getElementById('startSeqCard');
+    if(!card) return;
+    var v0 = document.getElementById('v0');
+    if(!v0) return;
+    var activePhases = {'ap_up':1,'ap_down':1,'warning':1,'prep':1,'one_min':1};
+    if(phase === 'started'){
+      card.style.display = 'none';
+      return;
+    }
+    card.style.display = '';
+    if(activePhases[phase]){
+      // Promote to top — insert before the first child if not already there.
+      if(v0.firstElementChild !== card){
+        v0.insertBefore(card, v0.firstElementChild);
+      }
+    } else {
+      // Idle (T > 30 min): keep at original position (right after Countdown card).
+      var cv = document.getElementById('countdownVal');
+      var countdownCard = cv ? cv.closest('.card') : null;
+      if(countdownCard && countdownCard.nextElementSibling !== card){
+        v0.insertBefore(card, countdownCard.nextElementSibling);
+      }
+    }
+  } catch(e){ console.error('placeStartSeqCard:', e); }
 }
 function applyCountdownColor(phase){
   var cd = document.querySelector('.countdown');
