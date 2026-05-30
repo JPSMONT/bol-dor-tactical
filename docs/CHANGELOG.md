@@ -6,6 +6,38 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-29 — Automated start sequence (ISAF Rule 26 + voice + flags) — chrono v2
+
+### Changed
+- **The Race-start chrono is now automatic.** Once a start time is set (via the simplified time-picker modal), the dashboard's new **Start Sequence card** runs the entire ISAF Rule 26 sequence by itself — flag icons raise/lower at each transition, voice alerts announce each phase, and the countdown numbers change colour as the race progresses. No more manual sync-to-gun buttons.
+- **Adjust modal simplified** to just date + time picker + reset-to-default. Quick-postpone and sync-to-gun rows removed (the auto-sequence makes them redundant). Re-labelled "Set start".
+
+### Added
+- **Start Sequence card** on the Dashboard, just under the Race Countdown card. Renders:
+  - **Phase label** (Pre-sequence / AP down / Warning / Preparatory / 1-minute / RACE STARTED)
+  - **T-X countdown + "Next signal in …" hint**
+  - **Five flag icons** (AP, White, P, I, Black) drawn inline as SVGs — bright + raised when up, faded + dropped when down. Smooth transition on each phase change.
+  - **🔊 Enable voice button** (one-tap audio unlock for iOS Safari — required before SpeechSynthesis can fire).
+- **Phase transitions and voice alerts** (driven entirely by `getEffectiveStartMs()` vs `Date.now()`):
+  - **T-30 min:** AP UP · "30 minutes to start. AP flag up."
+  - **T-6 min:**  AP DOWN · "6 minutes to go. AP flag down."
+  - **T-5 min:**  White UP (warning signal) · "5 minutes. Warning signal. White flag up."
+  - **T-4 min:**  P + I + Black UP (preparatory) · "4 minutes. Preparatory signal. P, I, and Black flags up."
+  - **T-1 min:**  P + I + Black DOWN (white stays up) · "1 minute. P, I and Black flags down."
+  - **T-0:**     White DOWN · "Start!" · countdown numbers turn **green** (elapsed mode).
+  - **T+30 min:** sequence ends.
+- **Countdown colour states** — class added to `.countdown` based on phase: amber during prep/warning/1-min, green after start.
+- **Service worker cache v21 → v22.**
+
+### Notes
+- Voice alerts use Web SpeechSynthesis API. iOS Safari requires a user tap before audio can play; the "Enable voice" button speaks "Voice armed" on tap to unlock the audio context for the rest of the session.
+- The 30-min heads-up is Joao's enhancement to standard Rule 26 (real RCs only fire the 5-4-1-start sequence; the 30-min AP-up is a pre-sequence holding pattern showing the crew where in the day they are).
+- Each transition fires only ONCE — the engine tracks `_seqLastPhase` so re-renders don't repeat the announcement.
+- Sequence ticks once per second alongside the existing countdown tick.
+- Works on Advisor devices too — every crew device hears the announcements.
+
+---
+
 ## 2026-05-29 — Editable race start + sync-to-gun (race-day chronograph v1)
 
 ### Added

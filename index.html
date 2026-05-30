@@ -240,8 +240,31 @@ canvas{display:block}
 .strat-note{font-size:12px;color:var(--tx2);line-height:1.5;padding:10px;background:var(--bg2);border-radius:8px;margin-top:8px;border-left:3px solid var(--acc)}
 .lake-svg{width:100%;height:auto}
 .countdown{text-align:center;padding:12px 0}
-.countdown .big{font-size:32px;font-weight:800;color:var(--acc)}
+.countdown .big{font-size:32px;font-weight:800;color:var(--acc);transition:color .6s ease}
+.countdown.is-racing .big{color:var(--acc2)} /* race started — green */
+.countdown.is-prep .big{color:var(--warn)}   /* in prep window — amber */
 .countdown .sub{font-size:12px;color:var(--tx3);margin-top:2px}
+/* ===== START SEQUENCE — flag display ===== */
+.seq-stage{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--tx);margin-bottom:6px;text-align:center}
+.seq-next{font-size:12px;color:var(--tx2);text-align:center;margin-bottom:10px;line-height:1.4}
+.seq-flags{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:14px 0 8px}
+.seq-flag{width:56px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.seq-flag svg{width:48px;height:36px;display:block;border-radius:3px;border:1px solid rgba(0,0,0,.4);box-shadow:0 1px 2px rgba(0,0,0,.4);transition:opacity .3s ease,transform .3s ease}
+.seq-flag.down svg{opacity:.18;transform:translateY(8px)}
+.seq-flag.up svg{opacity:1;transform:translateY(0)}
+.seq-flag .lbl{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.5px}
+.seq-flag.up .lbl{color:var(--tx)}
+.seq-flag.up .state{color:var(--acc2)}
+.seq-flag.down .state{color:var(--tx3)}
+.seq-flag .state{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+#audioUnlockBtn.armed{background:var(--acc2);color:var(--btn-on-fg);border-color:var(--acc2)}
+@media(min-width:700px){
+  .seq-flag{width:72px}
+  .seq-flag svg{width:64px;height:48px}
+  .seq-flag .lbl{font-size:13px}
+  .seq-stage{font-size:17px}
+  .seq-next{font-size:14px}
+}
 .refresh-btn{background:var(--bg3);border:none;color:var(--tx2);font-size:11px;padding:6px 14px;border-radius:20px;cursor:pointer;font-weight:600}
 .loading{text-align:center;padding:30px;color:var(--tx3);font-size:13px}
 /* Race Sim Mode */
@@ -602,13 +625,23 @@ canvas{display:block}
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <div class="card-title" style="margin:0">Race countdown</div>
-          <button class="refresh-btn" id="adjustStartBtn" onclick="openStartAdjust()">⏱ Adjust</button>
+          <button class="refresh-btn" id="adjustStartBtn" onclick="openStartAdjust()">⏱ Set start</button>
         </div>
         <div class="countdown">
           <div class="big" id="countdownVal">--</div>
           <div class="sub" id="countdownSub">until Bol d'Or Mirabaud start — June 6, 2026 · 10:00 CEST</div>
           <div id="startOverrideBadge" style="display:none;margin-top:8px;font-size:11px;color:var(--warn);font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Postponed — start time adjusted</div>
         </div>
+      </div>
+      <!-- Automated start sequence (ISAF Rule 26 + 30-min heads-up).
+           Renders the active phase + flag icons. Voice alerts fire on each
+           transition (audio must be unlocked once by user interaction first). -->
+      <div class="card" id="startSeqCard">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div class="card-title" style="margin:0">Start sequence</div>
+          <button class="refresh-btn" id="audioUnlockBtn" onclick="unlockRaceAudio()" style="font-size:11px">🔊 Enable voice</button>
+        </div>
+        <div id="startSeqBody"><div class="loading" style="padding:18px;font-size:13px">Set the start time to arm the sequence.</div></div>
       </div>
       <div class="card" id="checklistCard" style="display:none">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -965,42 +998,25 @@ canvas{display:block}
   </div>
 </div>
 
-<!-- Adjust race start modal — handles RC postponements + sync-to-gun chrono shortcuts -->
+<!-- Set race start modal — time picker only. Everything else (flags, voice,
+     transitions) is automatic on the dashboard once the start time is set. -->
 <div class="modal-bg" id="startAdjustModal" style="display:none" onclick="if(event.target===this)closeStartAdjust()">
-  <div class="modal-card" style="max-width:520px">
-    <div class="modal-title">Adjust race start</div>
+  <div class="modal-card" style="max-width:480px">
+    <div class="modal-title">Set race start</div>
     <div class="modal-hint" id="startAdjustHint">Current start: --</div>
 
-    <div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px;font-weight:700">Quick postpone (AP up)</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
-      <button class="refresh-btn" onclick="adjustStartBy(5)">+5 min</button>
-      <button class="refresh-btn" onclick="adjustStartBy(10)">+10 min</button>
-      <button class="refresh-btn" onclick="adjustStartBy(15)">+15 min</button>
-      <button class="refresh-btn" onclick="adjustStartBy(30)">+30 min</button>
-      <button class="refresh-btn" onclick="adjustStartBy(60)">+1 h</button>
-      <button class="refresh-btn" onclick="adjustStartBy(-5)" style="opacity:.7">−5 min</button>
+    <div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;margin:16px 0 6px;font-weight:700">Start time (24 h, local)</div>
+    <div class="modal-row" style="grid-template-columns:1fr 1fr">
+      <input type="date" id="adjStartDate" style="background:var(--bg2);border:1px solid var(--bg3);color:var(--tx);padding:10px;border-radius:6px;font-size:15px">
+      <input type="time" id="adjStartTime" step="60" style="background:var(--bg2);border:1px solid var(--bg3);color:var(--tx);padding:10px;border-radius:6px;font-size:15px">
     </div>
-
-    <div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px;font-weight:700">Sync to gun (tap when you hear it)</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
-      <button class="refresh-btn" onclick="syncToGun(5)" style="background:var(--acc);color:var(--btn-on-fg);border-color:var(--acc)">5-min gun</button>
-      <button class="refresh-btn" onclick="syncToGun(4)">4-min gun</button>
-      <button class="refresh-btn" onclick="syncToGun(1)">1-min gun</button>
-      <button class="refresh-btn" onclick="syncToGun(0)" style="background:var(--acc2);color:var(--btn-on-fg);border-color:var(--acc2)">Start gun NOW</button>
-    </div>
-    <div style="font-size:11px;color:var(--tx3);line-height:1.4;margin-top:4px">Tapping "5-min gun" sets the start to <strong>5 min from now</strong> and snaps to the nearest second. Use this to align the countdown with the RC's actual signals.</div>
-
-    <div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px;font-weight:700">Exact time (24 h, local)</div>
-    <div class="modal-row" style="grid-template-columns:1fr 1fr auto">
-      <input type="date" id="adjStartDate" style="background:var(--bg2);border:1px solid var(--bg3);color:var(--tx);padding:8px;border-radius:6px">
-      <input type="time" id="adjStartTime" step="60" style="background:var(--bg2);border:1px solid var(--bg3);color:var(--tx);padding:8px;border-radius:6px">
-      <button class="refresh-btn" onclick="setExactStart()">Set</button>
-    </div>
+    <div style="font-size:12px;color:var(--tx3);line-height:1.5;margin-top:8px">When the RC postpones, just type the new gun time. The dashboard runs the full Rule-26 sequence automatically from there — flags, voice alerts, countdown — no further taps needed.</div>
 
     <div class="modal-error" id="startAdjustError" style="margin-top:10px"></div>
     <div class="modal-buttons" style="margin-top:14px">
       <button class="refresh-btn" onclick="resetStartToDefault()" style="background:transparent;color:var(--err)">Reset to default</button>
-      <button class="refresh-btn" onclick="closeStartAdjust()">Close</button>
+      <button class="refresh-btn" onclick="closeStartAdjust()">Cancel</button>
+      <button class="gps-btn start" onclick="setExactStart(); closeStartAdjust();">Set start</button>
     </div>
   </div>
 </div>
@@ -4603,20 +4619,6 @@ function openStartAdjust(){
 function closeStartAdjust(){
   var m = document.getElementById('startAdjustModal'); if(m) m.style.display = 'none';
 }
-function adjustStartBy(minutes){
-  startOverrideSet(getEffectiveStartMs() + minutes * 60 * 1000);
-  _refreshStartAdjustModal();
-}
-// Sync-to-gun: tap when you hear gun N — set start to now + N minutes (and round
-// to the nearest second so the 5-4-1 sequence is consistent). N=0 means "start
-// gun now" → freezes the start at the current second.
-function syncToGun(minutesUntilStart){
-  var now = Date.now();
-  // Snap to the nearest second so the seconds-place is 0 from here on out.
-  var nowSec = Math.round(now / 1000) * 1000;
-  startOverrideSet(nowSec + minutesUntilStart * 60 * 1000);
-  _refreshStartAdjustModal();
-}
 function setExactStart(){
   var err = document.getElementById('startAdjustError'); if(err) err.textContent = '';
   var d = (document.getElementById('adjStartDate')||{}).value;
@@ -4631,6 +4633,212 @@ function setExactStart(){
 function resetStartToDefault(){
   startOverrideClear();
   _refreshStartAdjustModal();
+}
+
+// ===== START SEQUENCE — ISAF Rule 26 + 30-min heads-up =====
+// Phases (driven entirely by getEffectiveStartMs() vs Date.now()):
+//   T > 30m   idle        — sequence not yet engaged
+//   T 30..6m  ap_up       — AP flag up (pre-sequence holding pattern)
+//   T 6..5m   ap_down     — AP down, 1 min until warning
+//   T 5..4m   warning     — White (class) flag up
+//   T 4..1m   prep        — White + P + I + Black flags up
+//   T 1..0m   one_min     — P/I/Black down, White stays up
+//   T <= 0    started     — White down, elapsed counts up
+// Each phase transition triggers a SpeechSynthesis announcement (if voice
+// has been unlocked by user tap) and a flag-row repaint.
+
+// Flag SVGs — small, stylized renderings of the maritime signal flags.
+var FLAG_SVG = {
+  // Answering Pennant — vertical red/white stripes (5 alternating)
+  AP: '<svg viewBox="0 0 60 36" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect width="60" height="36" fill="#fff"/>' +
+    '<rect x="0"  width="12" height="36" fill="#d93023"/>' +
+    '<rect x="24" width="12" height="36" fill="#d93023"/>' +
+    '<rect x="48" width="12" height="36" fill="#d93023"/>' +
+    '</svg>',
+  // Class flag for this app — plain white (per Joao's spec)
+  W: '<svg viewBox="0 0 60 36" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect width="60" height="36" fill="#f3f4f6"/>' +
+    '<rect width="60" height="36" fill="none" stroke="#0a1220" stroke-width="1"/>' +
+    '</svg>',
+  // P — Blue Peter (blue with white inner square)
+  P: '<svg viewBox="0 0 60 36" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect width="60" height="36" fill="#1a4d99"/>' +
+    '<rect x="20" y="9" width="20" height="18" fill="#fff"/>' +
+    '</svg>',
+  // I — yellow with black disk
+  I: '<svg viewBox="0 0 60 36" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect width="60" height="36" fill="#f5d020"/>' +
+    '<circle cx="30" cy="18" r="9" fill="#111"/>' +
+    '</svg>',
+  // Black — plain black
+  B: '<svg viewBox="0 0 60 36" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect width="60" height="36" fill="#111"/>' +
+    '</svg>'
+};
+var FLAG_LABEL = { AP:'AP', W:'White', P:'P', I:'I', B:'Black' };
+
+// Phase → which flags are UP. Order in the row matches FLAG_ORDER.
+var FLAG_ORDER = ['AP','W','P','I','B'];
+function flagsForPhase(p){
+  switch(p){
+    case 'ap_up':   return {AP:true,  W:false, P:false, I:false, B:false};
+    case 'ap_down': return {AP:false, W:false, P:false, I:false, B:false};
+    case 'warning': return {AP:false, W:true,  P:false, I:false, B:false};
+    case 'prep':    return {AP:false, W:true,  P:true,  I:true,  B:true };
+    case 'one_min': return {AP:false, W:true,  P:false, I:false, B:false};
+    case 'started': return {AP:false, W:false, P:false, I:false, B:false};
+    default:        return {AP:false, W:false, P:false, I:false, B:false};
+  }
+}
+function phaseFromSecs(secs){
+  if(secs >  30*60) return 'idle';
+  if(secs >   6*60) return 'ap_up';
+  if(secs >   5*60) return 'ap_down';
+  if(secs >   4*60) return 'warning';
+  if(secs >   1*60) return 'prep';
+  if(secs >       0) return 'one_min';
+  if(secs > -30*60) return 'started';
+  return 'idle';
+}
+function phaseLabel(p){
+  switch(p){
+    case 'idle':    return 'Sequence not yet engaged';
+    case 'ap_up':   return 'Pre-sequence · AP up';
+    case 'ap_down': return '6 min · AP down';
+    case 'warning': return '5 min · Warning signal';
+    case 'prep':    return '4 min · Preparatory';
+    case 'one_min': return '1 min to start';
+    case 'started': return 'RACE STARTED';
+    default:        return '';
+  }
+}
+function phaseSay(p){
+  switch(p){
+    case 'ap_up':   return '30 minutes to start. AP flag up.';
+    case 'ap_down': return '6 minutes to go. AP flag down.';
+    case 'warning': return '5 minutes. Warning signal. White flag up.';
+    case 'prep':    return '4 minutes. Preparatory signal. P, I, and Black flags up.';
+    case 'one_min': return '1 minute. P, I and Black flags down.';
+    case 'started': return 'Start!';
+    default:        return '';
+  }
+}
+
+// Audio unlock — iOS Safari requires user tap before speechSynthesis works.
+var raceAudioUnlocked = false;
+function unlockRaceAudio(){
+  try {
+    var u = new SpeechSynthesisUtterance('Voice armed');
+    u.volume = 0.8; u.rate = 1.0;
+    window.speechSynthesis.speak(u);
+    raceAudioUnlocked = true;
+    var btn = document.getElementById('audioUnlockBtn');
+    if(btn){ btn.classList.add('armed'); btn.textContent = '🔊 Voice armed'; }
+  } catch(e){ console.error('audio unlock:', e); }
+}
+function raceSay(text){
+  if(!raceAudioUnlocked || !text) return;
+  try {
+    // Cancel any pending utterance so phase changes don't queue.
+    window.speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.volume = 1.0; u.rate = 0.95; u.pitch = 1.0;
+    window.speechSynthesis.speak(u);
+  } catch(e){}
+}
+
+// State machine + tick. Persisted lastPhase so transitions only fire once.
+var _seqLastPhase = null;
+function tickStartSequence(){
+  var startMs = getEffectiveStartMs();
+  var secs = Math.round((startMs - Date.now()) / 1000);
+  var phase = phaseFromSecs(secs);
+  if(phase !== _seqLastPhase){
+    if(_seqLastPhase !== null && phase !== 'idle'){
+      // Don't speak on the very first tick (page load); only on transitions.
+      raceSay(phaseSay(phase));
+    }
+    _seqLastPhase = phase;
+  }
+  renderStartSequence(secs, phase);
+  applyCountdownColor(phase);
+}
+function applyCountdownColor(phase){
+  var cd = document.querySelector('.countdown');
+  if(!cd) return;
+  cd.classList.toggle('is-racing', phase === 'started');
+  cd.classList.toggle('is-prep',   phase === 'prep' || phase === 'one_min' || phase === 'warning');
+}
+
+function _fmtMSec(s){
+  s = Math.abs(s);
+  var m = Math.floor(s/60), r = s%60;
+  return m + 'm ' + (r<10?'0':'') + r + 's';
+}
+
+function renderStartSequence(secs, phase){
+  var body = document.getElementById('startSeqBody');
+  if(!body) return;
+  if(phase === 'idle'){
+    var startMs = getEffectiveStartMs();
+    var diff = startMs - Date.now();
+    var armsIn = diff - 30*60*1000;
+    body.innerHTML =
+      '<div class="seq-stage" style="color:var(--tx2)">Sequence not yet engaged</div>' +
+      '<div class="seq-next">Arms automatically at T-30 min — in ' + _fmtMSec(Math.round(armsIn/1000)) + '</div>' +
+      _renderFlagRow(flagsForPhase('idle'));
+    return;
+  }
+  var flags = flagsForPhase(phase);
+  var nextText;
+  if(phase === 'started'){
+    var elapsed = -secs;
+    nextText = '<strong style="color:var(--acc2)">Elapsed: ' + _fmtMSec(elapsed) + '</strong>';
+  } else {
+    var nextAt = nextTransitionAt(phase);
+    var until = (nextAt === null) ? '' : 'Next: ' + nextTransitionLabel(phase) + ' in ' + _fmtMSec(secs - nextAt);
+    nextText = '<strong style="color:var(--tx);font-size:14px">T-' + _fmtMSec(secs) + '</strong><br><span style="color:var(--tx2)">' + until + '</span>';
+  }
+  body.innerHTML =
+    '<div class="seq-stage">' + phaseLabel(phase) + '</div>' +
+    '<div class="seq-next">' + nextText + '</div>' +
+    _renderFlagRow(flags);
+}
+function nextTransitionAt(phase){
+  switch(phase){
+    case 'ap_up':   return 6*60;
+    case 'ap_down': return 5*60;
+    case 'warning': return 4*60;
+    case 'prep':    return 1*60;
+    case 'one_min': return 0;
+    case 'started': return null;
+    default:        return null;
+  }
+}
+function nextTransitionLabel(phase){
+  switch(phase){
+    case 'ap_up':   return '6-min mark · AP down';
+    case 'ap_down': return '5-min warning · White up';
+    case 'warning': return '4-min prep · P/I/Black up';
+    case 'prep':    return '1-min · P/I/Black down';
+    case 'one_min': return 'START';
+    default:        return '';
+  }
+}
+function _renderFlagRow(flags){
+  var html = '<div class="seq-flags">';
+  for(var i=0;i<FLAG_ORDER.length;i++){
+    var k = FLAG_ORDER[i];
+    var up = !!flags[k];
+    html += '<div class="seq-flag ' + (up?'up':'down') + '">' +
+              FLAG_SVG[k] +
+              '<div class="lbl">' + FLAG_LABEL[k] + '</div>' +
+              '<div class="state">' + (up?'UP':'down') + '</div>' +
+            '</div>';
+  }
+  html += '</div>';
+  return html;
 }
 var liveModePolling = false;
 var liveModeTimer = null;
@@ -7420,6 +7628,9 @@ _safe('startOverrideBadge',  function(){
 setInterval(function(){ _safe('windCal tick', function(){ renderWindCalStatus(); }); }, 30000);
 setInterval(function(){ _safe('renderChecklist tick', function(){ renderChecklist(); }); }, 30000);
 setInterval(function(){ _safe('updateCountdown tick', function(){ updateCountdown(); }); }, 1000);
+setInterval(function(){ _safe('startSeq tick',        function(){ tickStartSequence(); }); }, 1000);
+// Initial render so the card isn't blank on load.
+_safe('startSeq init', function(){ tickStartSequence(); });
 setInterval(function(){ _safe('trimCoach tick',       function(){ tickTrimCoach(); }); }, 5000);
 setInterval(function(){ _safe('cockpit tick',         function(){ renderCockpit(); }); }, 2000);
 setInterval(function(){ _safe('trimCoach twd sample', function(){ captureTwdSample(); }); }, 30000);

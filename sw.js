@@ -4,7 +4,7 @@
 //   • Open-Meteo + MeteoSwiss data  → network-first, fall back to last-known
 //   • map tiles (OpenSeaMap, CARTO) → cache-first into a capped tile cache
 //     (load the map over the race area while online so tiles are there offline)
-const CACHE = 'bol-tactic-v21';
+const CACHE = 'bol-tactic-v22';
 const TILES = 'bol-tiles-v1';
 const TILE_MAX = 800;
 
