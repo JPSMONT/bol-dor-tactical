@@ -2693,12 +2693,15 @@ function renderWind() {
   if(pts.length < 3) return;
 
   var html = '';
-  // Header
+  // Header — dynamic column labels from the actual grid-point names of the
+  // active zone. Matches the Bank Selection Advisor's point identifiers, so
+  // reading the forecast and reading the bank cards uses the same vocabulary.
+  // (Was hardcoded "Swiss / Mid / French" which broke on Zugersee.)
   html += '<div class="wind-grid-header">';
   html += '<div></div><div></div>';
-  html += '<div style="text-align:center">Swiss</div>';
-  html += '<div style="text-align:center">Mid</div>';
-  html += '<div style="text-align:center">French</div>';
+  html += '<div style="text-align:center;font-size:9px;line-height:1.15">'+ pts[0].name +'</div>';
+  html += '<div style="text-align:center;font-size:9px;line-height:1.15">'+ pts[1].name +'</div>';
+  html += '<div style="text-align:center;font-size:9px;line-height:1.15">'+ pts[2].name +'</div>';
   html += '</div>';
 
   var now = new Date();

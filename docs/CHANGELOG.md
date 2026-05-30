@@ -6,6 +6,21 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-30 — Wind-forecast column headers — dynamic per zone
+
+### Fixed
+- **Wind forecast table column headers were hardcoded "Swiss / Mid / French"** — Lac Léman shore names. On Zugersee these made no sense (the lake is entirely in Switzerland) and didn't match the Bank Selection Advisor's vocabulary. Now the headers are read from the actual grid-point names of the active zone:
+  - **Bol d'Or** Geneva tab → `Geneva N / Geneva Mid / Geneva S`
+  - **Bol d'Or** Lausanne tab → `Lausanne N / Lausanne Mid / Lausanne S`
+  - **Bol d'Or** Bouveret tab → `Bouveret N / Bouveret Mid / Bouveret S`
+  - **Zugersee** Untersee tab → `Cham NW / Untersee mid / Zug bay NE`
+  - **Zugersee** Chiemen tab → `Narrows N / Chiemen narrows / Obersee entry`
+  - **Zugersee** Obersee tab → `Immensee W / Obersee mid / Arth S`
+- Headers now use the same identifiers as the Bank Selection Advisor cards, so cross-referencing the forecast and the bank picks uses one vocabulary.
+- **Service worker cache v24 → v25.**
+
+---
+
 ## 2026-05-30 — Dashboard re-org: Start Sequence promotes at T-30; readiness moved to Strategy
 
 ### Changed
