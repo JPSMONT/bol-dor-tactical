@@ -244,26 +244,26 @@ canvas{display:block}
 .countdown.is-racing .big{color:var(--acc2)} /* race started — green */
 .countdown.is-prep .big{color:var(--warn)}   /* in prep window — amber */
 .countdown .sub{font-size:12px;color:var(--tx3);margin-top:2px}
-/* ===== START SEQUENCE — flag display ===== */
-.seq-stage{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--tx);margin-bottom:6px;text-align:center}
-.seq-next{font-size:12px;color:var(--tx2);text-align:center;margin-bottom:10px;line-height:1.4}
-.seq-flags{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:14px 0 8px}
-.seq-flag{width:56px;display:flex;flex-direction:column;align-items:center;gap:4px}
-.seq-flag svg{width:48px;height:36px;display:block;border-radius:3px;border:1px solid rgba(0,0,0,.4);box-shadow:0 1px 2px rgba(0,0,0,.4);transition:opacity .3s ease,transform .3s ease}
-.seq-flag.down svg{opacity:.18;transform:translateY(8px)}
-.seq-flag.up svg{opacity:1;transform:translateY(0)}
-.seq-flag .lbl{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.5px}
-.seq-flag.up .lbl{color:var(--tx)}
-.seq-flag.up .state{color:var(--acc2)}
-.seq-flag.down .state{color:var(--tx3)}
-.seq-flag .state{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+/* ===== START SEQUENCE — flag display =====
+   Only flags that are flying (up) are rendered — down flags are not shown,
+   matching what the crew would see on the RC's signal mast. */
+.seq-stage{font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--tx);margin-bottom:6px;text-align:center}
+.seq-next{font-size:13px;color:var(--tx2);text-align:center;margin-bottom:10px;line-height:1.45}
+.seq-flags{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin:16px 0 6px;min-height:80px;align-items:flex-end}
+.seq-flag{display:flex;flex-direction:column;align-items:center;gap:6px;animation:flagRaise .45s cubic-bezier(.2,.7,.3,1.2)}
+.seq-flag svg{width:72px;height:auto;display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
+.seq-flag .lbl{font-size:12px;font-weight:700;color:var(--tx);letter-spacing:.5px;text-transform:uppercase}
+@keyframes flagRaise{
+  from { opacity:0; transform: translateY(24px) scale(.92); }
+  to   { opacity:1; transform: translateY(0)   scale(1);    }
+}
 #audioUnlockBtn.armed{background:var(--acc2);color:var(--btn-on-fg);border-color:var(--acc2)}
 @media(min-width:700px){
-  .seq-flag{width:72px}
-  .seq-flag svg{width:64px;height:48px}
-  .seq-flag .lbl{font-size:13px}
-  .seq-stage{font-size:17px}
-  .seq-next{font-size:14px}
+  .seq-flag svg{width:96px}
+  .seq-flag .lbl{font-size:14px}
+  .seq-stage{font-size:18px}
+  .seq-next{font-size:15px}
+  .seq-flags{min-height:110px}
 }
 .refresh-btn{background:var(--bg3);border:none;color:var(--tx2);font-size:11px;padding:6px 14px;border-radius:20px;cursor:pointer;font-weight:600}
 .loading{text-align:center;padding:30px;color:var(--tx3);font-size:13px}
@@ -4649,12 +4649,18 @@ function resetStartToDefault(){
 
 // Flag SVGs — small, stylized renderings of the maritime signal flags.
 var FLAG_SVG = {
-  // Answering Pennant — vertical red/white stripes (5 alternating)
-  AP: '<svg viewBox="0 0 60 36" xmlns="http://www.w3.org/2000/svg">' +
-    '<rect width="60" height="36" fill="#fff"/>' +
-    '<rect x="0"  width="12" height="36" fill="#d93023"/>' +
-    '<rect x="24" width="12" height="36" fill="#d93023"/>' +
-    '<rect x="48" width="12" height="36" fill="#d93023"/>' +
+  // Answering Pennant — TAPERING PENNANT shape (triangular, point to the right)
+  // with vertical red/white stripes (R-W-R-W-R). Clip the stripes to the
+  // triangle outline so they taper correctly.
+  AP: '<svg viewBox="0 0 80 40" xmlns="http://www.w3.org/2000/svg">' +
+    '<clipPath id="apClip"><polygon points="0,0 76,20 0,40"/></clipPath>' +
+    '<g clip-path="url(#apClip)">' +
+      '<rect width="80" height="40" fill="#f3f4f6"/>' +
+      '<rect x="0"  width="16" height="40" fill="#d93023"/>' +
+      '<rect x="32" width="16" height="40" fill="#d93023"/>' +
+      '<rect x="64" width="16" height="40" fill="#d93023"/>' +
+    '</g>' +
+    '<polygon points="0,0 76,20 0,40" fill="none" stroke="#0a1220" stroke-width="0.8"/>' +
     '</svg>',
   // Class flag for this app — plain white (per Joao's spec)
   W: '<svg viewBox="0 0 60 36" xmlns="http://www.w3.org/2000/svg">' +
@@ -4786,24 +4792,52 @@ function renderStartSequence(secs, phase){
     var armsIn = diff - 30*60*1000;
     body.innerHTML =
       '<div class="seq-stage" style="color:var(--tx2)">Sequence not yet engaged</div>' +
-      '<div class="seq-next">Arms automatically at T-30 min — in ' + _fmtMSec(Math.round(armsIn/1000)) + '</div>' +
-      _renderFlagRow(flagsForPhase('idle'));
+      '<div class="seq-next">Arms automatically at T-30 min — in ' + _fmtMSec(Math.round(armsIn/1000)) + '</div>';
     return;
   }
   var flags = flagsForPhase(phase);
   var nextText;
   if(phase === 'started'){
     var elapsed = -secs;
-    nextText = '<strong style="color:var(--acc2)">Elapsed: ' + _fmtMSec(elapsed) + '</strong>';
+    nextText = '<strong style="color:var(--acc2);font-size:18px">Elapsed: ' + _fmtMSec(elapsed) + '</strong>';
   } else {
     var nextAt = nextTransitionAt(phase);
     var until = (nextAt === null) ? '' : 'Next: ' + nextTransitionLabel(phase) + ' in ' + _fmtMSec(secs - nextAt);
-    nextText = '<strong style="color:var(--tx);font-size:14px">T-' + _fmtMSec(secs) + '</strong><br><span style="color:var(--tx2)">' + until + '</span>';
+    nextText = '<strong style="color:var(--tx);font-size:16px">T-' + _fmtMSec(secs) + '</strong><br><span style="color:var(--tx2)">' + until + '</span>';
+  }
+  // Sync-to-gun button — context-aware. The RC fires the gun at the 5-, 4-,
+  // and 1-min marks; tap when you hear the bang and the start snaps to
+  // exactly now + that-many minutes (rounded to nearest second).
+  var syncBtn = '';
+  if(phase === 'warning' || phase === 'prep' || phase === 'one_min'){
+    var gun = (phase === 'warning') ? 5 : (phase === 'prep' ? 4 : 1);
+    syncBtn =
+      '<div style="text-align:center;margin-top:12px">' +
+        '<button class="gps-btn start" onclick="syncToGun(' + gun + ')" ' +
+                'style="font-size:15px;padding:12px 24px;letter-spacing:.4px">' +
+          '🔔 SYNC to ' + gun + '-min gun' +
+        '</button>' +
+        '<div style="font-size:11px;color:var(--tx3);margin-top:6px;line-height:1.4">' +
+          'Tap when you hear the RC\'s ' + gun + '-min gun → snaps countdown to exactly ' + gun + ':00' +
+        '</div>' +
+      '</div>';
   }
   body.innerHTML =
     '<div class="seq-stage">' + phaseLabel(phase) + '</div>' +
     '<div class="seq-next">' + nextText + '</div>' +
-    _renderFlagRow(flags);
+    _renderFlagRow(flags) +
+    syncBtn;
+}
+// Sync the start time to a gun the user just heard. minutesUntilStart should
+// be 5, 4, or 1 (the standard ISAF gun signals). Snaps to nearest second so
+// the 5-4-1 sequence is consistent from here on. Speaks confirmation.
+function syncToGun(minutesUntilStart){
+  var nowSec = Math.round(Date.now() / 1000) * 1000;
+  startOverrideSet(nowSec + minutesUntilStart * 60 * 1000);
+  raceSay('Synced to ' + minutesUntilStart + ' minute gun.');
+  // Force an immediate phase recheck so the card repaints with the new time.
+  _seqLastPhase = null; // allow the speech to fire again if phase shifted
+  tickStartSequence();
 }
 function nextTransitionAt(phase){
   switch(phase){
@@ -4827,14 +4861,18 @@ function nextTransitionLabel(phase){
   }
 }
 function _renderFlagRow(flags){
+  // Only render flags that are UP — down flags aren't shown at all
+  // (matches what you'd see on the RC's signal mast: just the flying ones).
+  var upKeys = FLAG_ORDER.filter(function(k){ return flags[k]; });
+  if(upKeys.length === 0){
+    return '<div class="seq-flags-empty" style="text-align:center;color:var(--tx3);font-size:12px;padding:14px 0;font-style:italic">no flags flying</div>';
+  }
   var html = '<div class="seq-flags">';
-  for(var i=0;i<FLAG_ORDER.length;i++){
-    var k = FLAG_ORDER[i];
-    var up = !!flags[k];
-    html += '<div class="seq-flag ' + (up?'up':'down') + '">' +
+  for(var i=0;i<upKeys.length;i++){
+    var k = upKeys[i];
+    html += '<div class="seq-flag up">' +
               FLAG_SVG[k] +
               '<div class="lbl">' + FLAG_LABEL[k] + '</div>' +
-              '<div class="state">' + (up?'UP':'down') + '</div>' +
             '</div>';
   }
   html += '</div>';

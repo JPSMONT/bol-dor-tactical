@@ -6,6 +6,25 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-30 — Start sequence v2.1: AP pennant + hide-down flags + sync-to-gun
+
+### Fixed
+- **AP flag rendered as a rectangle.** Should be a **tapering pennant** (triangular signal flag, point to the right). Now drawn via SVG clip-path: white background with red R-W-R-W-R vertical stripes clipped to the triangular outline, with a thin black border.
+- **Down flags were still showing** (faded + dropped). Per Joao's feedback that's not how a real RC's signal mast looks — only flags that are *flying* are visible. Rewrote `_renderFlagRow()` to filter out down flags entirely; when no flags are flying (e.g. between phases or during AP-down), shows "no flags flying" in muted italics.
+
+### Added
+- **Sync-to-gun button** on the Start Sequence card, context-aware to the current phase: "🔔 SYNC to 5-min gun" during warning, "SYNC to 4-min gun" during prep, "SYNC to 1-min gun" during 1-min. Tap when you hear the RC's gun and the start time snaps to **exactly now + (5 / 4 / 1) minutes**, rounded to the nearest second. Voice announces "Synced to N minute gun" as confirmation. Button is hidden outside the start sequence (not useful at T-15 or after the gun).
+
+### Changed
+- Flag SVGs are now **bigger** (72→96 px wide on tablet) since fewer of them render at once. Added a `flagRaise` keyframe animation so each new flag pops up with a smooth bounce.
+- **Service worker cache v22 → v23.**
+
+### Notes
+- The sync logic always re-snaps from `now + N min` regardless of how far off the previous countdown was — so a small clock drift between the iPad and the RC gets corrected with one tap.
+- After a sync, the engine doesn't re-speak the phase announcement (avoids stepping on the "Synced to N" confirmation).
+
+---
+
 ## 2026-05-29 — Automated start sequence (ISAF Rule 26 + voice + flags) — chrono v2
 
 ### Changed
