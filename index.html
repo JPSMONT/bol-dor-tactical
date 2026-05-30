@@ -600,10 +600,14 @@ canvas{display:block}
         <div id="debriefBody"></div>
       </div>
       <div class="card">
-        <div class="card-title">Race countdown</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div class="card-title" style="margin:0">Race countdown</div>
+          <button class="refresh-btn" id="adjustStartBtn" onclick="openStartAdjust()">⏱ Adjust</button>
+        </div>
         <div class="countdown">
           <div class="big" id="countdownVal">--</div>
           <div class="sub" id="countdownSub">until Bol d'Or Mirabaud start — June 6, 2026 · 10:00 CEST</div>
+          <div id="startOverrideBadge" style="display:none;margin-top:8px;font-size:11px;color:var(--warn);font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Postponed — start time adjusted</div>
         </div>
       </div>
       <div class="card" id="checklistCard" style="display:none">
@@ -957,6 +961,46 @@ canvas{display:block}
     <div class="modal-buttons">
       <button class="refresh-btn" onclick="closeWindCalibration()">Cancel</button>
       <button class="gps-btn start" onclick="submitWindCalibration()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- Adjust race start modal — handles RC postponements + sync-to-gun chrono shortcuts -->
+<div class="modal-bg" id="startAdjustModal" style="display:none" onclick="if(event.target===this)closeStartAdjust()">
+  <div class="modal-card" style="max-width:520px">
+    <div class="modal-title">Adjust race start</div>
+    <div class="modal-hint" id="startAdjustHint">Current start: --</div>
+
+    <div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px;font-weight:700">Quick postpone (AP up)</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+      <button class="refresh-btn" onclick="adjustStartBy(5)">+5 min</button>
+      <button class="refresh-btn" onclick="adjustStartBy(10)">+10 min</button>
+      <button class="refresh-btn" onclick="adjustStartBy(15)">+15 min</button>
+      <button class="refresh-btn" onclick="adjustStartBy(30)">+30 min</button>
+      <button class="refresh-btn" onclick="adjustStartBy(60)">+1 h</button>
+      <button class="refresh-btn" onclick="adjustStartBy(-5)" style="opacity:.7">−5 min</button>
+    </div>
+
+    <div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px;font-weight:700">Sync to gun (tap when you hear it)</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+      <button class="refresh-btn" onclick="syncToGun(5)" style="background:var(--acc);color:var(--btn-on-fg);border-color:var(--acc)">5-min gun</button>
+      <button class="refresh-btn" onclick="syncToGun(4)">4-min gun</button>
+      <button class="refresh-btn" onclick="syncToGun(1)">1-min gun</button>
+      <button class="refresh-btn" onclick="syncToGun(0)" style="background:var(--acc2);color:var(--btn-on-fg);border-color:var(--acc2)">Start gun NOW</button>
+    </div>
+    <div style="font-size:11px;color:var(--tx3);line-height:1.4;margin-top:4px">Tapping "5-min gun" sets the start to <strong>5 min from now</strong> and snaps to the nearest second. Use this to align the countdown with the RC's actual signals.</div>
+
+    <div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px;font-weight:700">Exact time (24 h, local)</div>
+    <div class="modal-row" style="grid-template-columns:1fr 1fr auto">
+      <input type="date" id="adjStartDate" style="background:var(--bg2);border:1px solid var(--bg3);color:var(--tx);padding:8px;border-radius:6px">
+      <input type="time" id="adjStartTime" step="60" style="background:var(--bg2);border:1px solid var(--bg3);color:var(--tx);padding:8px;border-radius:6px">
+      <button class="refresh-btn" onclick="setExactStart()">Set</button>
+    </div>
+
+    <div class="modal-error" id="startAdjustError" style="margin-top:10px"></div>
+    <div class="modal-buttons" style="margin-top:14px">
+      <button class="refresh-btn" onclick="resetStartToDefault()" style="background:transparent;color:var(--err)">Reset to default</button>
+      <button class="refresh-btn" onclick="closeStartAdjust()">Close</button>
     </div>
   </div>
 </div>
@@ -4467,9 +4511,127 @@ function updateOscarLink(raceCode) {
 
 // ===== Race-day banner + live mode stub =====
 // Bol d'Or Mirabaud 2026 — gun at 10:00 CEST on Saturday 6 June.
-var BOL_DOR_START  = IS_ZUG ? ZG.startMs  : new Date('2026-06-06T10:00:00+02:00').getTime();
-var BOL_DOR_FINISH = IS_ZUG ? ZG.finishMs : (BOL_DOR_START + 24 * 3600 * 1000);   // T+24h cut-off for countdown state 4
-var BOL_DOR_END    = IS_ZUG ? ZG.endMs    : (BOL_DOR_START + 36 * 3600 * 1000);   // existing live-mode window (raceState 'live')
+// Goldschäkel 2026 — gun at 12:00 CEST on Saturday 30 May.
+// Start time can be overridden by the user (RC postponement / sync-to-gun)
+// via the Adjust modal on the countdown card. Override persists in
+// localStorage keyed by venue.
+var START_OVERRIDE_KEY = 'start_override_v1';
+function startOverrideRead(){
+  try { var r = JSON.parse(localStorage.getItem(START_OVERRIDE_KEY)); return (r && typeof r === 'object') ? r : {}; }
+  catch(e){ return {}; }
+}
+function startOverrideWrite(o){ try { localStorage.setItem(START_OVERRIDE_KEY, JSON.stringify(o)); } catch(e){} }
+function startOverrideForVenue(){
+  var all = startOverrideRead();
+  var ms = all[ACTIVE_VENUE];
+  return (typeof ms === 'number' && ms > 0) ? ms : null;
+}
+function startOverrideSet(ms){
+  var all = startOverrideRead();
+  all[ACTIVE_VENUE] = ms;
+  startOverrideWrite(all);
+  refreshRaceTimes();
+}
+function startOverrideClear(){
+  var all = startOverrideRead();
+  delete all[ACTIVE_VENUE];
+  startOverrideWrite(all);
+  refreshRaceTimes();
+}
+function venueDefaultStartMs(){
+  return IS_ZUG ? ZG.startMs : new Date('2026-06-06T10:00:00+02:00').getTime();
+}
+function getEffectiveStartMs(){
+  return startOverrideForVenue() || venueDefaultStartMs();
+}
+// Recompute all race time constants from the current effective start, then
+// repaint anything that reads them. Called after every override change.
+function refreshRaceTimes(){
+  BOL_DOR_START  = getEffectiveStartMs();
+  BOL_DOR_FINISH = IS_ZUG ? (BOL_DOR_START + 10 * 3600 * 1000) : (BOL_DOR_START + 24 * 3600 * 1000);
+  BOL_DOR_END    = IS_ZUG ? (BOL_DOR_START + 12 * 3600 * 1000) : (BOL_DOR_START + 36 * 3600 * 1000);
+  _COUNTDOWN_FALLBACK_START = BOL_DOR_START;
+  try { updateCountdown(); } catch(e){}
+  try { renderCockpit(); } catch(e){}
+  try { updateRaceDayBanner(); } catch(e){}
+  try { renderZugRaceDayBanner(); } catch(e){}
+  // Update the override badge on the countdown card.
+  var badge = document.getElementById('startOverrideBadge');
+  if(badge) badge.style.display = startOverrideForVenue() ? 'block' : 'none';
+}
+var BOL_DOR_START  = getEffectiveStartMs();
+var BOL_DOR_FINISH = IS_ZUG ? (BOL_DOR_START + 10 * 3600 * 1000) : (BOL_DOR_START + 24 * 3600 * 1000);
+var BOL_DOR_END    = IS_ZUG ? (BOL_DOR_START + 12 * 3600 * 1000) : (BOL_DOR_START + 36 * 3600 * 1000);
+
+// ===== START-TIME ADJUST MODAL — postponements + sync-to-gun chrono =====
+function _fmtStart(ms){
+  if(!ms) return '--';
+  var d = new Date(ms);
+  var pad = function(n){ return (n<10?'0':'')+n; };
+  return pad(d.getDate())+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]+
+         ' · '+pad(d.getHours())+':'+pad(d.getMinutes())+
+         (d.getSeconds()?':'+pad(d.getSeconds()):'')+' '+
+         (Math.abs(d.getTimezoneOffset()) === 120 ? 'CEST' : '');
+}
+function _refreshStartAdjustModal(){
+  var hint = document.getElementById('startAdjustHint');
+  if(hint){
+    var eff = getEffectiveStartMs();
+    var diff = eff - Date.now();
+    var sign = diff >= 0 ? '+' : '−';
+    var absS = Math.floor(Math.abs(diff)/1000);
+    var h = Math.floor(absS/3600), m = Math.floor((absS%3600)/60), s = absS%60;
+    var fromNow = sign + (h>0 ? h+'h ' : '') + m+'m ' + s+'s';
+    var note = startOverrideForVenue() ? ' <span style="color:var(--warn);font-weight:700">(override active)</span>' : '';
+    hint.innerHTML = '<strong>Current start:</strong> '+_fmtStart(eff)+' &middot; <span style="color:var(--tx2)">'+fromNow+' from now</span>'+note;
+  }
+  // Prefill the exact-time inputs with the current effective values.
+  try {
+    var eff = new Date(getEffectiveStartMs());
+    var pad = function(n){ return (n<10?'0':'')+n; };
+    var d = document.getElementById('adjStartDate');
+    var t = document.getElementById('adjStartTime');
+    if(d) d.value = eff.getFullYear()+'-'+pad(eff.getMonth()+1)+'-'+pad(eff.getDate());
+    if(t) t.value = pad(eff.getHours())+':'+pad(eff.getMinutes());
+  } catch(e){}
+}
+function openStartAdjust(){
+  _refreshStartAdjustModal();
+  var err = document.getElementById('startAdjustError'); if(err) err.textContent = '';
+  var m = document.getElementById('startAdjustModal'); if(m) m.style.display = 'flex';
+}
+function closeStartAdjust(){
+  var m = document.getElementById('startAdjustModal'); if(m) m.style.display = 'none';
+}
+function adjustStartBy(minutes){
+  startOverrideSet(getEffectiveStartMs() + minutes * 60 * 1000);
+  _refreshStartAdjustModal();
+}
+// Sync-to-gun: tap when you hear gun N — set start to now + N minutes (and round
+// to the nearest second so the 5-4-1 sequence is consistent). N=0 means "start
+// gun now" → freezes the start at the current second.
+function syncToGun(minutesUntilStart){
+  var now = Date.now();
+  // Snap to the nearest second so the seconds-place is 0 from here on out.
+  var nowSec = Math.round(now / 1000) * 1000;
+  startOverrideSet(nowSec + minutesUntilStart * 60 * 1000);
+  _refreshStartAdjustModal();
+}
+function setExactStart(){
+  var err = document.getElementById('startAdjustError'); if(err) err.textContent = '';
+  var d = (document.getElementById('adjStartDate')||{}).value;
+  var t = (document.getElementById('adjStartTime')||{}).value;
+  if(!d || !t){ if(err) err.textContent = 'Pick both a date and a time.'; return; }
+  // Construct as local time (CEST). Browser parses YYYY-MM-DDTHH:MM as local.
+  var ms = new Date(d + 'T' + t + ':00').getTime();
+  if(!isFinite(ms)){ if(err) err.textContent = 'Invalid date/time.'; return; }
+  startOverrideSet(ms);
+  _refreshStartAdjustModal();
+}
+function resetStartToDefault(){
+  startOverrideClear();
+  _refreshStartAdjustModal();
+}
 var liveModePolling = false;
 var liveModeTimer = null;
 
@@ -7251,6 +7413,10 @@ _safe('initTrimCoach',       function(){ tickTrimCoach(); });
 _safe('renderCockpit',       function(){ renderCockpit(); });
 _safe('renderTuningLog',     function(){ renderTuningLog(); });
 _safe('renderRivalsZG',      function(){ if(IS_ZUG) renderRivalsZG(); });
+_safe('startOverrideBadge',  function(){
+  var badge = document.getElementById('startOverrideBadge');
+  if(badge) badge.style.display = startOverrideForVenue() ? 'block' : 'none';
+});
 setInterval(function(){ _safe('windCal tick', function(){ renderWindCalStatus(); }); }, 30000);
 setInterval(function(){ _safe('renderChecklist tick', function(){ renderChecklist(); }); }, 30000);
 setInterval(function(){ _safe('updateCountdown tick', function(){ updateCountdown(); }); }, 1000);

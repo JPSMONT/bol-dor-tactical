@@ -6,6 +6,28 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/). Each entry r
 
 ---
 
+## 2026-05-29 — Editable race start + sync-to-gun (race-day chronograph v1)
+
+### Added
+- **Race countdown is now editable.** An "⏱ Adjust" button on the Race Countdown card opens a modal with three editing surfaces:
+  1. **Quick postpone (AP up)** — one-tap buttons for the common AP delays: +5 / +10 / +15 / +30 min / +1 h, plus a small −5 min for over-postponement corrections. Use these the moment the RC raises the AP flag.
+  2. **Sync to gun** — the chronograph feature. Tap "5-min gun" the instant you hear the RC's 5-min signal → the start is snapped to **exactly 5 minutes from now** (rounded to the nearest second). Same for "4-min gun" (4 min from now) and "1-min gun" (1 min from now). "Start gun NOW" freezes the start at the current second so the elapsed-time clock begins immediately.
+  3. **Exact time** — date + time picker (24 h local) with a "Set" button for arbitrary postponements ("RC just announced new gun at 14:30").
+  A "Reset to default" button reverts to the venue's PRD start time (Bol d'Or 6 Jun 10:00 / Goldschäkel 30 May 12:00).
+- **Override badge on the countdown card** — when an adjustment is active, "POSTPONED — start time adjusted" shows under the countdown in amber so the crew sees at a glance that the time is no longer the PRD default.
+- **Per-venue override** — overrides are stored separately per venue (`start_override_v1` keyed by `boldor` / `zugersee`), so a Goldschäkel postponement doesn't bleed into the Bol d'Or default and vice versa.
+
+### Changed
+- `BOL_DOR_START` / `BOL_DOR_FINISH` / `BOL_DOR_END` and `_COUNTDOWN_FALLBACK_START` are now derived from `getEffectiveStartMs()` which honours the override. A central `refreshRaceTimes()` recomputes them on every adjustment and repaints the countdown, the cockpit, and the race-day banner immediately — no reload needed.
+- **Service worker cache v20 → v21.**
+
+### Notes
+- The override survives reloads (it's in localStorage). Tap "Reset to default" before the next race if you want the PRD time back; otherwise an old override could silently mis-count the next event.
+- Audible beeps + visual 5-4-1 countdown overlay are deferred to v2 once we see how the dry run goes.
+- Advisor mode is unrestricted here on purpose — any device with the app should be able to adjust the chrono in case the Primary device is busy.
+
+---
+
 ## 2026-05-29 — Goldschäkel course correction: triangle IMM→ART→WAL clockwise
 
 ### Fixed
